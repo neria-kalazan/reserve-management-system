@@ -84,6 +84,13 @@ export function createPrismaMock() {
       findMany: jest.fn(),
       deleteMany: jest.fn(),
     },
+    taskInstance: {
+      create: jest.fn(),
+      findMany: jest.fn(),
+      findUnique: jest.fn(),
+      update: jest.fn(),
+      delete: jest.fn(),
+    },
     $transaction: jest.fn(),
   } as any;
 

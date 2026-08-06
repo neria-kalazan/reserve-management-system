@@ -15,6 +15,7 @@ import { UserImportModule } from './modules/user-import/user-import.module';
 import { ActivitiesModule } from './modules/activities/activities.module';
 import { ActivityTasksModule } from './modules/activity-tasks/activity-tasks.module';
 import { ActivityTaskRequirementsModule } from './modules/activity-task-requirements/activity-task-requirements.module';
+import { TaskInstancesModule } from './modules/task-instances/task-instances.module';
 
 @Module({
   imports: [
@@ -32,6 +33,7 @@ import { ActivityTaskRequirementsModule } from './modules/activity-task-requirem
     ActivitiesModule,
     ActivityTasksModule,
     ActivityTaskRequirementsModule,
+    TaskInstancesModule,
   ],
   controllers: [AppController],
   providers: [AppService],
