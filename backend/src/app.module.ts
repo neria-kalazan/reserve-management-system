@@ -12,6 +12,8 @@ import { UserRolesModule } from './modules/user-roles/user-roles.module';
 import { UserQualificationsModule } from './modules/user-qualifications/user-qualifications.module';
 import { UserPermissionsModule } from './modules/user-permissions/user-permissions.module';
 import { UserImportModule } from './modules/user-import/user-import.module';
+import { ActivitiesModule } from './modules/activities/activities.module';
+import { ActivityTasksModule } from './modules/activity-tasks/activity-tasks.module';
 
 @Module({
   imports: [
@@ -26,6 +28,8 @@ import { UserImportModule } from './modules/user-import/user-import.module';
     UserQualificationsModule,
     UserPermissionsModule,
     UserImportModule,
+    ActivitiesModule,
+    ActivityTasksModule,
   ],
   controllers: [AppController],
   providers: [AppService],

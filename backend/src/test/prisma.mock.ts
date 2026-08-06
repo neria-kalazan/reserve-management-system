@@ -56,6 +56,18 @@ export function createPrismaMock() {
       findUnique: jest.fn(),
       findFirst: jest.fn(),
     },
+    activity: {
+      create: jest.fn(),
+      findMany: jest.fn(),
+      findUnique: jest.fn(),
+      update: jest.fn(),
+    },
+    activityTask: {
+      create: jest.fn(),
+      findMany: jest.fn(),
+      findUnique: jest.fn(),
+      update: jest.fn(),
+    },
   } as any;
 
   return m as unknown as PrismaClient;

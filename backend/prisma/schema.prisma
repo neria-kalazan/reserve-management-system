@@ -11,6 +11,13 @@ enum CompanyStatus {
   ACTIVE
 }
 
+enum ActivityStatus {
+  DRAFT
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
 model Company {
   id     String        @id @default(uuid()) @db.Uuid
   name   String
@@ -24,9 +31,125 @@ model Company {
   units          Unit[]
   roles          Role[]
   qualifications Qualification[]
+  activities     Activity[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model Activity {
+  id String @id @default(uuid()) @db.Uuid
+
+  companyId String @db.Uuid
+
+  name      String
+  startDate DateTime
+  endDate   DateTime
+  status    ActivityStatus @default(DRAFT)
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  activityTasks ActivityTask[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([companyId])
+}
+
+model ActivityTask {
+  id String @id @default(uuid()) @db.Uuid
+
+  activityId String @db.Uuid
+
+  name        String
+  description String?
+
+  activity Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+
+  taskInstances               TaskInstance[]
+  manpowerRequirements        ActivityTaskManpowerRequirement[]
+  roleRequirements            ActivityTaskRoleRequirement[]
+  qualificationRequirements   ActivityTaskQualificationRequirement[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([activityId])
+}
+
+model TaskInstance {
+  id String @id @default(uuid()) @db.Uuid
+
+  activityTaskId String @db.Uuid
+
+  title     String
+  startTime DateTime
+  endTime   DateTime
+
+  activityTask ActivityTask @relation(fields: [activityTaskId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([activityTaskId])
+}
+
+model ActivityTaskManpowerRequirement {
+  id String @id @default(uuid()) @db.Uuid
+
+  activityTaskId String @db.Uuid
+
+  required Boolean @default(true)
+  quantity Int     @default(1)
+
+  activityTask ActivityTask @relation(fields: [activityTaskId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([activityTaskId])
+  @@index([activityTaskId])
+}
+
+model ActivityTaskRoleRequirement {
+  id String @id @default(uuid()) @db.Uuid
+
+  activityTaskId String @db.Uuid
+  roleId         String @db.Uuid
+
+  required Boolean @default(true)
+  quantity Int     @default(1)
+
+  activityTask ActivityTask @relation(fields: [activityTaskId], references: [id], onDelete: Cascade)
+  role         Role         @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([activityTaskId, roleId])
+  @@index([activityTaskId])
+  @@index([roleId])
+}
+
+model ActivityTaskQualificationRequirement {
+  id String @id @default(uuid()) @db.Uuid
+
+  activityTaskId   String @db.Uuid
+  qualificationId  String @db.Uuid
+
+  required Boolean @default(true)
+  quantity Int     @default(1)
+
+  activityTask ActivityTask @relation(fields: [activityTaskId], references: [id], onDelete: Cascade)
+  qualification Qualification @relation(fields: [qualificationId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([activityTaskId, qualificationId])
+  @@index([activityTaskId])
+  @@index([qualificationId])
 }
 
 model User {
@@ -104,6 +227,7 @@ model Role {
   createdByUser User? @relation("RoleCreatedBy", fields: [createdBy], references: [id])
 
   userRoles UserRole[]
+  activityTaskRoleRequirements ActivityTaskRoleRequirement[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -127,6 +251,7 @@ model Qualification {
   createdByUser User? @relation("QualificationCreatedBy", fields: [createdBy], references: [id])
 
   userQualifications UserQualification[]
+  activityTaskQualificationRequirements ActivityTaskQualificationRequirement[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
