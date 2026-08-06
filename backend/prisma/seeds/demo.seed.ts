@@ -392,7 +392,78 @@ export async function seedDemo(prisma: PrismaClient) {
     });
   }
 
-  
+  console.log('🌱 Creating activity availability demo data...');
+
+  const activityDateRange: Date[] = [];
+  const currentActivityDate = new Date(activity.startDate);
+  currentActivityDate.setHours(0, 0, 0, 0);
+  const activityEndDateOnly = new Date(activity.endDate);
+  activityEndDateOnly.setHours(0, 0, 0, 0);
+
+  while (currentActivityDate <= activityEndDateOnly) {
+    activityDateRange.push(new Date(currentActivityDate));
+    currentActivityDate.setDate(currentActivityDate.getDate() + 1);
+  }
+
+  const activeUsers = await prisma.user.findMany({
+    where: {
+      companyId: company.id,
+      isActive: true,
+    },
+    select: {
+      id: true,
+      personalNumber: true,
+    },
+  });
+
+  for (const user of activeUsers) {
+    for (const date of activityDateRange) {
+      await prisma.activityUserStatus.upsert({
+        where: {
+          activityId_userId_date: {
+            activityId: activity.id,
+            userId: user.id,
+            date,
+          },
+        },
+        update: {
+          status: 'ACTIVE',
+        },
+        create: {
+          activityId: activity.id,
+          userId: user.id,
+          date,
+          status: 'ACTIVE',
+        },
+      });
+    }
+  }
+
+  const statusOverrides = [
+    { personalNumber: '100001', status: 'HOLIDAY' as const },
+    { personalNumber: '100002', status: 'SICK' as const },
+    { personalNumber: '100003', status: 'RELEASED' as const },
+  ];
+
+  for (const override of statusOverrides) {
+    const user = activeUsers.find((item) => item.personalNumber === override.personalNumber);
+
+    if (!user) continue;
+
+    for (const date of activityDateRange) {
+      await prisma.activityUserStatus.updateMany({
+        where: {
+          activityId: activity.id,
+          userId: user.id,
+          date,
+        },
+        data: {
+          status: override.status,
+        },
+      });
+    }
+  }
+
   console.log('🌱 Creating user qualifications...');
 
   const userQualifications = [
