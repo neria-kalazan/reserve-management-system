@@ -1,4 +1,4 @@
-import { NotFoundException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { ActivityUserStatusService } from './activity-user-status.service';
 import { createPrismaMock } from '../../test/prisma.mock';
 
@@ -82,6 +82,100 @@ describe('ActivityUserStatusService', () => {
     const res = await service.generateAvailability('a1');
 
     expect(res).toEqual([]);
+  });
+
+  it('update: updates status successfully', async () => {
+    const existing = {
+      id: 's1',
+      activityId: 'a1',
+      userId: 'u1',
+      date: new Date('2026-01-01'),
+      status: 'ACTIVE',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      user: {
+        id: 'u1',
+        firstName: 'John',
+        lastName: 'Doe',
+        phone: '0500000000',
+        email: 'john@example.com',
+        personalNumber: '12345',
+        isActive: true,
+      },
+    };
+
+    prisma.activityUserStatus.findUnique.mockResolvedValue(existing);
+    prisma.activityUserStatus.update.mockResolvedValue({ ...existing, status: 'HOLIDAY' });
+
+    const res = await service.update('s1', { status: 'HOLIDAY' as any });
+
+    expect(res.status).toBe('HOLIDAY');
+    expect(prisma.activityUserStatus.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 's1' },
+        data: { status: 'HOLIDAY' },
+      }),
+    );
+  });
+
+  it('bulkUpdate: updates multiple records', async () => {
+    prisma.activity.findUnique.mockResolvedValue({ id: 'a1', companyId: 'c1' });
+    prisma.user.findUnique.mockResolvedValue({ id: 'u1', companyId: 'c1' });
+    prisma.activityUserStatus.findMany.mockResolvedValue([
+      { id: 's1', activityId: 'a1', userId: 'u1', date: new Date('2026-01-01'), status: 'ACTIVE' },
+      { id: 's2', activityId: 'a1', userId: 'u1', date: new Date('2026-01-02'), status: 'ACTIVE' },
+    ]);
+    prisma.$transaction.mockImplementation(async (callback: any) => callback(prisma));
+    prisma.activityUserStatus.update.mockResolvedValue({ id: 's1', status: 'HOLIDAY' });
+
+    const res = await service.bulkUpdate('a1', {
+      userId: 'u1',
+      startDate: '2026-01-01',
+      endDate: '2026-01-02',
+      status: 'HOLIDAY' as any,
+    });
+
+    expect(res.updatedCount).toBe(2);
+    expect(prisma.activityUserStatus.update).toHaveBeenCalledTimes(2);
+  });
+
+  it('bulkUpdate: rejects user from another company', async () => {
+    prisma.activity.findUnique.mockResolvedValue({ id: 'a1', companyId: 'c1' });
+    prisma.user.findUnique.mockResolvedValue({ id: 'u1', companyId: 'c2' });
+
+    await expect(
+      service.bulkUpdate('a1', {
+        userId: 'u1',
+        startDate: '2026-01-01',
+        endDate: '2026-01-02',
+        status: 'HOLIDAY' as any,
+      }),
+    ).rejects.toThrow(BadRequestException);
+  });
+
+  it('bulkUpdate: rejects invalid range', async () => {
+    prisma.activity.findUnique.mockResolvedValue({ id: 'a1', companyId: 'c1' });
+
+    await expect(
+      service.bulkUpdate('a1', {
+        userId: 'u1',
+        startDate: '2026-01-03',
+        endDate: '2026-01-01',
+        status: 'HOLIDAY' as any,
+      }),
+    ).rejects.toThrow(BadRequestException);
+  });
+
+  it('update: throws when record missing', async () => {
+    prisma.activityUserStatus.findUnique.mockResolvedValue(null);
+
+    await expect(service.update('s1', { status: 'HOLIDAY' as any })).rejects.toThrow(NotFoundException);
+  });
+
+  it('update: rejects invalid status', async () => {
+    prisma.activityUserStatus.findUnique.mockResolvedValue({ id: 's1' });
+
+    await expect(service.update('s1', { status: 'INVALID' as any })).rejects.toThrow(BadRequestException);
   });
 
   it('findAllByActivity: throws when activity missing', async () => {

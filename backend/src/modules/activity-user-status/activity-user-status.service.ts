@@ -1,6 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ActivityUserStatusItemDto } from './dto/activity-user-status-item.dto';
+import { BulkUpdateActivityUserStatusDto } from './dto/bulk-update-activity-user-status.dto';
+import { UpdateActivityUserStatusDto } from './dto/update-activity-user-status.dto';
 
 @Injectable()
 export class ActivityUserStatusService {
@@ -63,6 +65,156 @@ export class ActivityUserStatusService {
       }
 
       return created;
+    });
+  }
+
+  async update(id: string, dto: UpdateActivityUserStatusDto): Promise<ActivityUserStatusItemDto> {
+    const allowedStatuses = ['ACTIVE', 'HOLIDAY', 'RELEASED', 'SICK'] as const;
+
+    if (dto.status !== undefined && !allowedStatuses.includes(dto.status as (typeof allowedStatuses)[number])) {
+      throw new BadRequestException('Invalid status');
+    }
+
+    const record = await this.prisma.activityUserStatus.findUnique({
+      where: { id },
+      select: {
+        id: true,
+      },
+    });
+
+    if (!record) {
+      throw new NotFoundException('Activity user status not found');
+    }
+
+    return this.prisma.activityUserStatus.update({
+      where: { id },
+      data: { status: dto.status },
+      select: {
+        id: true,
+        activityId: true,
+        userId: true,
+        date: true,
+        status: true,
+        createdAt: true,
+        updatedAt: true,
+        user: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            phone: true,
+            email: true,
+            personalNumber: true,
+            isActive: true,
+          },
+        },
+      },
+    });
+  }
+
+  async bulkUpdate(activityId: string, dto: BulkUpdateActivityUserStatusDto) {
+    const allowedStatuses = ['ACTIVE', 'HOLIDAY', 'RELEASED', 'SICK'] as const;
+
+    if (dto.status !== undefined && !allowedStatuses.includes(dto.status as (typeof allowedStatuses)[number])) {
+      throw new BadRequestException('Invalid status');
+    }
+
+    const activity = await this.prisma.activity.findUnique({
+      where: { id: activityId },
+      select: { id: true, companyId: true, startDate: true, endDate: true },
+    });
+
+    if (!activity) {
+      throw new NotFoundException('Activity not found');
+    }
+
+    const startDate = new Date(dto.startDate);
+    const endDate = new Date(dto.endDate);
+
+    if (endDate < startDate) {
+      throw new BadRequestException('endDate must be greater than or equal to startDate');
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: dto.userId },
+      select: { id: true, companyId: true },
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    if (user.companyId !== activity.companyId) {
+      throw new BadRequestException('User does not belong to the activity company');
+    }
+
+    return this.prisma.$transaction(async (tx: PrismaService) => {
+      const records = await tx.activityUserStatus.findMany({
+        where: {
+          activityId,
+          userId: dto.userId,
+          date: {
+            gte: startDate,
+            lte: endDate,
+          },
+        },
+        select: {
+          id: true,
+          activityId: true,
+          userId: true,
+          date: true,
+          status: true,
+          createdAt: true,
+          updatedAt: true,
+          user: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              phone: true,
+              email: true,
+              personalNumber: true,
+              isActive: true,
+            },
+          },
+        },
+      });
+
+      const updatedRecords = [] as ActivityUserStatusItemDto[];
+
+      for (const record of records) {
+        const updated = await tx.activityUserStatus.update({
+          where: { id: record.id },
+          data: { status: dto.status },
+          select: {
+            id: true,
+            activityId: true,
+            userId: true,
+            date: true,
+            status: true,
+            createdAt: true,
+            updatedAt: true,
+            user: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                phone: true,
+                email: true,
+                personalNumber: true,
+                isActive: true,
+              },
+            },
+          },
+        });
+
+        updatedRecords.push(updated);
+      }
+
+      return {
+        updatedCount: updatedRecords.length,
+        updatedRecords,
+      };
     });
   }
 

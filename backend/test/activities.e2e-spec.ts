@@ -24,6 +24,7 @@ describe('Activities e2e', () => {
       users: new Map<string, any>(),
       units: new Map<string, any>(),
       availability: new Map<string, any>(),
+      availabilityById: new Map<string, any>(),
     };
 
     prismaMock = {
@@ -83,6 +84,7 @@ describe('Activities e2e', () => {
       },
       user: {
         findMany: jest.fn(async ({ where }: any) => Array.from(state.users.values()).filter((user) => user.companyId === where.companyId && user.isActive === where.isActive)),
+        findUnique: jest.fn(async ({ where: { id } }: any) => state.users.get(id) ?? null),
         create: jest.fn(async ({ data }: any) => {
           const user = {
             id: randomUUID(),
@@ -104,6 +106,7 @@ describe('Activities e2e', () => {
           if (state.availability.has(key)) {
             throw { code: 'P2002' };
           }
+          const user = state.users.get(data.userId) ?? null;
           const record = {
             id: randomUUID(),
             activityId: data.activityId,
@@ -112,11 +115,25 @@ describe('Activities e2e', () => {
             status: data.status,
             createdAt: new Date(),
             updatedAt: new Date(),
+            user,
           };
           state.availability.set(key, record);
+          state.availabilityById.set(record.id, record);
           return record;
         }),
-        findMany: jest.fn(async ({ where }: any) => Array.from(state.availability.values()).filter((record) => record.activityId === where.activityId)),
+        findMany: jest.fn(async ({ where }: any) => Array.from(state.availabilityById.values()).filter((record) => record.activityId === where.activityId)),
+        findUnique: jest.fn(async ({ where: { id } }: any) => state.availabilityById.get(id) ?? null),
+        update: jest.fn(async ({ where: { id }, data }: any) => {
+          const record = state.availabilityById.get(id);
+          if (!record) return null;
+          const oldKey = `${record.activityId}:${record.userId}:${record.date.toISOString()}`;
+          const updated = { ...record, ...data, updatedAt: new Date() };
+          const newKey = `${updated.activityId}:${updated.userId}:${updated.date.toISOString()}`;
+          state.availability.delete(oldKey);
+          state.availability.set(newKey, updated);
+          state.availabilityById.set(id, updated);
+          return updated;
+        }),
       },
       $transaction: jest.fn(async (callback: any) => callback(prismaMock)),
     };
@@ -191,6 +208,99 @@ describe('Activities e2e', () => {
       .expect(201);
 
     expect(generateRes.body).toHaveLength(2);
+  });
+
+  it('updates a single availability record status', async () => {
+    const companyRes = await request(app.getHttpServer())
+      .post('/companies')
+      .send({ name: 'Gamma' })
+      .expect(201);
+
+    const companyId = companyRes.body.id;
+
+    await prismaMock.user.create({
+      data: {
+        companyId,
+        unitId: '11111111-1111-1111-1111-111111111111',
+        firstName: 'Test',
+        lastName: 'User',
+        phone: '0500000000',
+        personalNumber: '100002',
+        isActive: true,
+      },
+    });
+
+    const activityRes = await request(app.getHttpServer())
+      .post(`/companies/${companyId}/activities`)
+      .send({
+        name: 'Single Update Test',
+        startDate: '2026-01-01',
+        endDate: '2026-01-01',
+      })
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .post(`/activities/${activityRes.body.id}/availability/generate`)
+      .expect(201);
+
+    const records = await prismaMock.activityUserStatus.findMany({ where: { activityId: activityRes.body.id } });
+    const recordId = records[0].id;
+
+    const updateRes = await request(app.getHttpServer())
+      .patch(`/activity-user-status/${recordId}`)
+      .send({ status: 'HOLIDAY' })
+      .expect(200);
+
+    expect(updateRes.body.status).toBe('HOLIDAY');
+    expect(updateRes.body.user).toBeDefined();
+  });
+
+  it('bulk updates availability records for a user across a date range', async () => {
+    const companyRes = await request(app.getHttpServer())
+      .post('/companies')
+      .send({ name: 'Delta' })
+      .expect(201);
+
+    const companyId = companyRes.body.id;
+
+    const createdUser = await prismaMock.user.create({
+      data: {
+        companyId,
+        unitId: '11111111-1111-1111-1111-111111111111',
+        firstName: 'Bulk',
+        lastName: 'User',
+        phone: '0500000001',
+        personalNumber: '100003',
+        isActive: true,
+      },
+    });
+
+    const activityRes = await request(app.getHttpServer())
+      .post(`/companies/${companyId}/activities`)
+      .send({
+        name: 'Bulk Update Test',
+        startDate: '2026-01-01',
+        endDate: '2026-01-03',
+      })
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .post(`/activities/${activityRes.body.id}/availability/generate`)
+      .expect(201);
+
+    const bulkRes = await request(app.getHttpServer())
+      .patch(`/activities/${activityRes.body.id}/availability/bulk`)
+      .send({
+        userId: createdUser.id,
+        startDate: '2026-01-01',
+        endDate: '2026-01-03',
+        status: 'HOLIDAY',
+      })
+      .expect(200);
+
+    expect(bulkRes.body.updatedCount).toBe(3);
+    expect(bulkRes.body.updatedRecords).toHaveLength(3);
+    expect(bulkRes.body.updatedRecords.every((record: any) => record.status === 'HOLIDAY')).toBe(true);
   });
 
   afterEach(async () => {
