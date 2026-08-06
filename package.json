@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "test": "pnpm --filter backend test",
+    "test:cov": "pnpm --filter backend test:cov",
     "build": "pnpm --filter backend build",
     "start": "pnpm --filter backend start",
     "dev": "pnpm --filter backend start:dev"

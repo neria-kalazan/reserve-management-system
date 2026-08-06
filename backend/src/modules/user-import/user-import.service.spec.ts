@@ -35,6 +35,17 @@ describe('UserImportService', () => {
     expect(res.errors.length).toBeGreaterThan(0);
   });
 
+  it('importFromBuffer: invalid unit returns error', async () => {
+    const csv = 'firstName,lastName,phone,personalNumber,unitName\nBad,User,050,500,Missing Unit\n';
+    prisma.company.findUnique.mockResolvedValue({ id: 'c1' });
+    prisma.unit.findFirst.mockResolvedValue(null);
+
+    const res = await service.importFromBuffer('c1', Buffer.from(csv));
+    expect(res.created).toBe(0);
+    expect(res.failed).toBe(1);
+    expect(res.errors[0].reason).toMatch(/Unit/i);
+  });
+
   it('importFromBuffer: duplicate personalNumber handled', async () => {
     const csv = 'firstName,lastName,phone,personalNumber,unitName\nDup,User,050,500,מחלקה 1\n';
     prisma.company.findUnique.mockResolvedValue({ id: 'c1' });

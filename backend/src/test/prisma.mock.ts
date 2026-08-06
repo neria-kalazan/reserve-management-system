@@ -1,7 +1,5 @@
 import { Prisma, PrismaClient } from '@prisma/client';
 
-type Fn = jest.Mock<any, any>;
-
 export function createPrismaMock() {
   const m = {
     company: {
@@ -14,6 +12,7 @@ export function createPrismaMock() {
       findFirst: jest.fn(),
       upsert: jest.fn(),
       create: jest.fn(),
+      findMany: jest.fn(),
     },
     role: {
       findUnique: jest.fn(),
@@ -40,13 +39,21 @@ export function createPrismaMock() {
       upsert: jest.fn(),
     },
     userQualification: {
-      upsert: jest.fn(),
+      create: jest.fn(),
+      findUnique: jest.fn(),
       findMany: jest.fn(),
+      delete: jest.fn(),
+      upsert: jest.fn(),
     },
     userPermission: {
+      create: jest.fn(),
+      findUnique: jest.fn(),
+      findMany: jest.fn(),
+      delete: jest.fn(),
       upsert: jest.fn(),
     },
     permission: {
+      findUnique: jest.fn(),
       findFirst: jest.fn(),
     },
   } as any;
