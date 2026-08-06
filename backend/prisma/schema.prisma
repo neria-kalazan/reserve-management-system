@@ -18,6 +18,13 @@ enum ActivityStatus {
   CANCELLED
 }
 
+enum ActivityUserStatusEnum {
+  ACTIVE
+  HOLIDAY
+  RELEASED
+  SICK
+}
+
 model Company {
   id     String        @id @default(uuid()) @db.Uuid
   name   String
@@ -49,7 +56,8 @@ model Activity {
 
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
-  activityTasks ActivityTask[]
+  activityTasks       ActivityTask[]
+  activityUserStatuses ActivityUserStatus[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -172,9 +180,10 @@ model User {
 
   ownedCompany Company? @relation("CompanyOwner")
 
-  userRoles          UserRole[]
-  userQualifications UserQualification[]
-  userPermissions    UserPermission[]
+  userRoles            UserRole[]
+  userQualifications   UserQualification[]
+  userPermissions      UserPermission[]
+  activityUserStatuses ActivityUserStatus[]
 
   createdUnits          Unit[]          @relation("UnitCreatedBy")
   createdRoles          Role[]          @relation("RoleCreatedBy")
@@ -345,4 +354,24 @@ model SystemUserPermission {
   createdAt DateTime @default(now())
 
   @@id([systemUserId, systemPermissionId])
+}
+
+model ActivityUserStatus {
+  id String @id @default(uuid()) @db.Uuid
+
+  activityId String @db.Uuid
+  userId     String @db.Uuid
+  date       DateTime
+  status     ActivityUserStatusEnum
+
+  activity Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([activityId, userId, date])
+  @@index([activityId])
+  @@index([userId])
+  @@index([date])
 }
