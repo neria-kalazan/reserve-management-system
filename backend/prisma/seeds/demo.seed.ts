@@ -18,6 +18,129 @@ export async function seedDemo(prisma: PrismaClient) {
     });
   }
 
+  console.log('🌱 Creating activity management demo data...');
+
+  const activityStartDate = new Date();
+  activityStartDate.setHours(0, 0, 0, 0);
+  const activityEndDate = new Date(activityStartDate);
+  activityEndDate.setDate(activityEndDate.getDate() + 30);
+
+  const buildDateTime = (baseDate: Date, time: string, nextDay = false) => {
+    const [hours, minutes] = time.split(':').map(Number);
+    const date = new Date(baseDate);
+    date.setHours(hours, minutes, 0, 0);
+
+    if (nextDay) {
+      date.setDate(date.getDate() + 1);
+    }
+
+    return date;
+  };
+
+  let activity = await prisma.activity.findFirst({
+    where: {
+      companyId: company.id,
+      name: 'תעסוקת איתמר',
+    },
+  });
+
+  if (!activity) {
+    activity = await prisma.activity.create({
+      data: {
+        companyId: company.id,
+        name: 'תעסוקת איתמר',
+        status: 'ACTIVE',
+        startDate: activityStartDate,
+        endDate: activityEndDate,
+      },
+    });
+  }
+
+  const activityTasks = [
+    {
+      name: 'סיור',
+      description: 'סיור גזרה',
+      manpower: 4,
+      taskInstances: [
+        { title: 'סיור בוקר', startTime: '06:00', endTime: '14:00' },
+        { title: 'סיור צהריים', startTime: '14:00', endTime: '22:00' },
+        { title: 'סיור לילה', startTime: '22:00', endTime: '06:00', nextDay: true },
+      ],
+    },
+    {
+      name: 'שמירה',
+      description: 'שמירה בעמדה',
+      manpower: 2,
+      taskInstances: [
+        { title: 'שמירה עמדה 1', startTime: '06:00', endTime: '10:00' },
+      ],
+    },
+    {
+      name: 'מחסום',
+      description: 'מחסום כניסה',
+      manpower: 3,
+      taskInstances: [
+        { title: 'מחסום בוקר', startTime: '06:00', endTime: '10:00' },
+      ],
+    },
+  ];
+
+  for (const taskDefinition of activityTasks) {
+    let task = await prisma.activityTask.findFirst({
+      where: {
+        activityId: activity.id,
+        name: taskDefinition.name,
+      },
+    });
+
+    if (!task) {
+      task = await prisma.activityTask.create({
+        data: {
+          activityId: activity.id,
+          name: taskDefinition.name,
+          description: taskDefinition.description,
+        },
+      });
+    }
+
+    await prisma.activityTaskManpowerRequirement.upsert({
+      where: {
+        activityTaskId: task.id,
+      },
+      update: {
+        quantity: taskDefinition.manpower,
+        required: true,
+      },
+      create: {
+        activityTaskId: task.id,
+        quantity: taskDefinition.manpower,
+        required: true,
+      },
+    });
+
+    for (const taskInstanceDefinition of taskDefinition.taskInstances) {
+      const existingInstance = await prisma.taskInstance.findFirst({
+        where: {
+          activityTaskId: task.id,
+          title: taskInstanceDefinition.title,
+        },
+      });
+
+      if (!existingInstance) {
+        const startTime = buildDateTime(activityStartDate, taskInstanceDefinition.startTime);
+        const endTime = buildDateTime(activityStartDate, taskInstanceDefinition.endTime, taskInstanceDefinition.nextDay ?? false);
+
+        await prisma.taskInstance.create({
+          data: {
+            activityTaskId: task.id,
+            title: taskInstanceDefinition.title,
+            startTime,
+            endTime,
+          },
+        });
+      }
+    }
+  }
 
   console.log('🌱 Creating units...');
 
