@@ -1,0 +1,223 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum CompanyStatus {
+  CREATED
+  ACTIVE
+}
+
+model Company {
+  id     String        @id @default(uuid()) @db.Uuid
+  name   String
+  status CompanyStatus @default(CREATED)
+
+  ownerUserId String? @unique @db.Uuid
+
+  ownerUser User? @relation("CompanyOwner", fields: [ownerUserId], references: [id])
+
+  users          User[]
+  units          Unit[]
+  roles          Role[]
+  qualifications Qualification[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model User {
+  id String @id @default(uuid()) @db.Uuid
+
+  companyId String @db.Uuid
+  unitId    String @db.Uuid
+
+  firstName      String
+  lastName       String
+  phone          String
+  email          String?
+  personalNumber String
+
+  lastLoginAt DateTime?
+  isActive    Boolean   @default(true)
+
+  company Company @relation(fields: [companyId], references: [id])
+  unit    Unit    @relation("UserUnit", fields: [unitId], references: [id])
+
+  ownedCompany Company? @relation("CompanyOwner")
+
+  userRoles          UserRole[]
+  userQualifications UserQualification[]
+  userPermissions    UserPermission[]
+
+  createdUnits          Unit[]          @relation("UnitCreatedBy")
+  createdRoles          Role[]          @relation("RoleCreatedBy")
+  createdQualifications Qualification[] @relation("QualificationCreatedBy")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([companyId, personalNumber])
+  @@index([companyId])
+  @@index([unitId])
+}
+
+model Unit {
+  id String @id @default(uuid()) @db.Uuid
+
+  companyId String @db.Uuid
+
+  name         String
+  description  String?
+  displayOrder Int     @default(0)
+
+  createdBy String? @db.Uuid
+
+  company Company @relation(fields: [companyId], references: [id])
+
+  users User[] @relation("UserUnit")
+
+  createdByUser User? @relation("UnitCreatedBy", fields: [createdBy], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([companyId, name])
+  @@index([companyId])
+}
+
+model Role {
+  id String @id @default(uuid()) @db.Uuid
+
+  companyId String @db.Uuid
+
+  name        String
+  description String?
+
+  createdBy String? @db.Uuid
+
+  company Company @relation(fields: [companyId], references: [id])
+
+  createdByUser User? @relation("RoleCreatedBy", fields: [createdBy], references: [id])
+
+  userRoles UserRole[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([companyId, name])
+  @@index([companyId])
+}
+
+model Qualification {
+  id String @id @default(uuid()) @db.Uuid
+
+  companyId String @db.Uuid
+
+  name        String
+  description String?
+
+  createdBy String? @db.Uuid
+
+  company Company @relation(fields: [companyId], references: [id])
+
+  createdByUser User? @relation("QualificationCreatedBy", fields: [createdBy], references: [id])
+
+  userQualifications UserQualification[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([companyId, name])
+  @@index([companyId])
+}
+
+model Permission {
+  id String @id @default(uuid()) @db.Uuid
+
+  key         String  @unique
+  description String?
+
+  userPermissions UserPermission[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model UserRole {
+  userId String @db.Uuid
+  roleId String @db.Uuid
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@id([userId, roleId])
+}
+
+model UserQualification {
+  userId          String @db.Uuid
+  qualificationId String @db.Uuid
+
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  qualification Qualification @relation(fields: [qualificationId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@id([userId, qualificationId])
+}
+
+model UserPermission {
+  userId       String @db.Uuid
+  permissionId String @db.Uuid
+
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@id([userId, permissionId])
+}
+
+model SystemUser {
+  id String @id @default(uuid()) @db.Uuid
+
+  email     String @unique
+  firstName String
+  lastName  String
+
+  isActive Boolean @default(true)
+
+  permissions SystemUserPermission[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model SystemPermission {
+  id String @id @default(uuid()) @db.Uuid
+
+  key         String  @unique
+  description String?
+
+  users SystemUserPermission[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model SystemUserPermission {
+  systemUserId       String @db.Uuid
+  systemPermissionId String @db.Uuid
+
+  systemUser       SystemUser       @relation(fields: [systemUserId], references: [id], onDelete: Cascade)
+  systemPermission SystemPermission @relation(fields: [systemPermissionId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@id([systemUserId, systemPermissionId])
+}
