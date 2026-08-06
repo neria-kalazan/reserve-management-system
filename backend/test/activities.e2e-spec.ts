@@ -7,6 +7,10 @@ import { ActivitiesController } from '../src/modules/activities/activities.contr
 import { ActivitiesService } from '../src/modules/activities/activities.service';
 import { CompaniesController } from '../src/modules/companies/companies.controller';
 import { CompaniesService } from '../src/modules/companies/companies.service';
+import { ActivityUserStatusController } from '../src/modules/activity-user-status/activity-user-status.controller';
+import { ActivityUserStatusService } from '../src/modules/activity-user-status/activity-user-status.service';
+import { UsersController } from '../src/modules/users/users.controller';
+import { UsersService } from '../src/modules/users/users.service';
 import { PrismaService } from '../src/prisma/prisma.service';
 
 describe('Activities e2e', () => {
@@ -17,6 +21,9 @@ describe('Activities e2e', () => {
     const state = {
       companies: new Map<string, any>(),
       activities: new Map<string, any>(),
+      users: new Map<string, any>(),
+      units: new Map<string, any>(),
+      availability: new Map<string, any>(),
     };
 
     prismaMock = {
@@ -34,6 +41,20 @@ describe('Activities e2e', () => {
           return company;
         }),
         findUnique: jest.fn(async ({ where: { id } }: any) => state.companies.get(id) ?? null),
+      },
+      unit: {
+        create: jest.fn(async ({ data }: any) => {
+          const unit = {
+            id: data.id ?? randomUUID(),
+            companyId: data.companyId,
+            name: data.name,
+            description: data.description ?? null,
+            displayOrder: data.displayOrder ?? 0,
+          };
+          state.units.set(unit.id, unit);
+          return unit;
+        }),
+        findUnique: jest.fn(async ({ where: { id } }: any) => state.units.get(id) ?? null),
       },
       activity: {
         create: jest.fn(async ({ data }: any) => {
@@ -60,11 +81,49 @@ describe('Activities e2e', () => {
           return updated;
         }),
       },
+      user: {
+        findMany: jest.fn(async ({ where }: any) => Array.from(state.users.values()).filter((user) => user.companyId === where.companyId && user.isActive === where.isActive)),
+        create: jest.fn(async ({ data }: any) => {
+          const user = {
+            id: randomUUID(),
+            companyId: data.companyId,
+            firstName: data.firstName,
+            lastName: data.lastName,
+            phone: data.phone,
+            email: data.email ?? null,
+            personalNumber: data.personalNumber,
+            isActive: data.isActive ?? true,
+          };
+          state.users.set(user.id, user);
+          return user;
+        }),
+      },
+      activityUserStatus: {
+        create: jest.fn(async ({ data }: any) => {
+          const key = `${data.activityId}:${data.userId}:${data.date.toISOString()}`;
+          if (state.availability.has(key)) {
+            throw { code: 'P2002' };
+          }
+          const record = {
+            id: randomUUID(),
+            activityId: data.activityId,
+            userId: data.userId,
+            date: data.date,
+            status: data.status,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          };
+          state.availability.set(key, record);
+          return record;
+        }),
+        findMany: jest.fn(async ({ where }: any) => Array.from(state.availability.values()).filter((record) => record.activityId === where.activityId)),
+      },
+      $transaction: jest.fn(async (callback: any) => callback(prismaMock)),
     };
 
     const moduleFixture: TestingModule = await Test.createTestingModule({
-      controllers: [CompaniesController, ActivitiesController],
-      providers: [CompaniesService, ActivitiesService, { provide: PrismaService, useValue: prismaMock }],
+      controllers: [CompaniesController, ActivitiesController, ActivityUserStatusController, UsersController],
+      providers: [CompaniesService, ActivitiesService, ActivityUserStatusService, UsersService, { provide: PrismaService, useValue: prismaMock }],
     }).compile();
 
     app = moduleFixture.createNestApplication();
@@ -96,6 +155,42 @@ describe('Activities e2e', () => {
 
     expect(listRes.body).toHaveLength(1);
     expect(listRes.body[0].name).toBe('Training');
+  });
+
+  it('generates activity availability for active company users', async () => {
+    const companyRes = await request(app.getHttpServer())
+      .post('/companies')
+      .send({ name: 'Beta' })
+      .expect(201);
+
+    const companyId = companyRes.body.id;
+
+    await prismaMock.user.create({
+      data: {
+        companyId,
+        unitId: '11111111-1111-1111-1111-111111111111',
+        firstName: 'Test',
+        lastName: 'User',
+        phone: '0500000000',
+        personalNumber: '100001',
+        isActive: true,
+      },
+    });
+
+    const activityRes = await request(app.getHttpServer())
+      .post(`/companies/${companyId}/activities`)
+      .send({
+        name: 'Availability Test',
+        startDate: '2026-01-01',
+        endDate: '2026-01-02',
+      })
+      .expect(201);
+
+    const generateRes = await request(app.getHttpServer())
+      .post(`/activities/${activityRes.body.id}/availability/generate`)
+      .expect(201);
+
+    expect(generateRes.body).toHaveLength(2);
   });
 
   afterEach(async () => {

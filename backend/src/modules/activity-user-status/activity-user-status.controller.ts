@@ -1,4 +1,4 @@
-import { Controller, Get, Param } from '@nestjs/common';
+import { Controller, Get, Param, Post } from '@nestjs/common';
 import { ActivityUserStatusService } from './activity-user-status.service';
 
 @Controller()
@@ -8,5 +8,10 @@ export class ActivityUserStatusController {
   @Get('activities/:activityId/availability')
   findAllByActivity(@Param('activityId') activityId: string) {
     return this.activityUserStatusService.findAllByActivity(activityId);
+  }
+
+  @Post('activities/:activityId/availability/generate')
+  generateAvailability(@Param('activityId') activityId: string) {
+    return this.activityUserStatusService.generateAvailability(activityId);
   }
 }
