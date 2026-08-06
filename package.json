@@ -1,14 +1,13 @@
 {
   "name": "reserve-management-system",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "private": true,
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "pnpm --filter backend test",
+    "build": "pnpm --filter backend build",
+    "start": "pnpm --filter backend start",
+    "dev": "pnpm --filter backend start:dev"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
   "devEngines": {
     "packageManager": {
       "name": "pnpm",
@@ -16,5 +15,5 @@
       "onFail": "download"
     }
   },
-  "type": "module"
+  "packageManager": "pnpm@11.20.0"
 }
