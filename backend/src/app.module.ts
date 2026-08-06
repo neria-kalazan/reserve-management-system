@@ -14,6 +14,7 @@ import { UserPermissionsModule } from './modules/user-permissions/user-permissio
 import { UserImportModule } from './modules/user-import/user-import.module';
 import { ActivitiesModule } from './modules/activities/activities.module';
 import { ActivityTasksModule } from './modules/activity-tasks/activity-tasks.module';
+import { ActivityTaskRequirementsModule } from './modules/activity-task-requirements/activity-task-requirements.module';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { ActivityTasksModule } from './modules/activity-tasks/activity-tasks.mod
     UserImportModule,
     ActivitiesModule,
     ActivityTasksModule,
+    ActivityTaskRequirementsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

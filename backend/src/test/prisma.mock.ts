@@ -68,6 +68,23 @@ export function createPrismaMock() {
       findUnique: jest.fn(),
       update: jest.fn(),
     },
+    activityTaskManpowerRequirement: {
+      create: jest.fn(),
+      findUnique: jest.fn(),
+      findMany: jest.fn(),
+      deleteMany: jest.fn(),
+    },
+    activityTaskRoleRequirement: {
+      create: jest.fn(),
+      findMany: jest.fn(),
+      deleteMany: jest.fn(),
+    },
+    activityTaskQualificationRequirement: {
+      create: jest.fn(),
+      findMany: jest.fn(),
+      deleteMany: jest.fn(),
+    },
+    $transaction: jest.fn(),
   } as any;
 
   return m as unknown as PrismaClient;
