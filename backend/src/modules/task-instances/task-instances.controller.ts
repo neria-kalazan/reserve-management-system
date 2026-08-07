@@ -23,6 +23,11 @@ export class TaskInstancesController {
     return this.taskInstancesService.findOne(id);
   }
 
+  @Get('task-instances/:taskInstanceId/available-users')
+  findAvailableUsers(@Param('taskInstanceId') taskInstanceId: string) {
+    return this.taskInstancesService.findAvailableUsers(taskInstanceId);
+  }
+
   @Patch('task-instances/:id')
   update(@Param('id') id: string, @Body() dto: UpdateTaskInstanceDto) {
     return this.taskInstancesService.update(id, dto);

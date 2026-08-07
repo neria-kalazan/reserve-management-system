@@ -98,6 +98,12 @@ export function createPrismaMock() {
       update: jest.fn(),
       delete: jest.fn(),
     },
+    assignment: {
+      create: jest.fn(),
+      findMany: jest.fn(),
+      findUnique: jest.fn(),
+      delete: jest.fn(),
+    },
     $transaction: jest.fn(),
   } as any;
 

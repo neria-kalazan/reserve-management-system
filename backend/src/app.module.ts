@@ -17,6 +17,7 @@ import { ActivityTasksModule } from './modules/activity-tasks/activity-tasks.mod
 import { ActivityTaskRequirementsModule } from './modules/activity-task-requirements/activity-task-requirements.module';
 import { TaskInstancesModule } from './modules/task-instances/task-instances.module';
 import { ActivityUserStatusModule } from './modules/activity-user-status/activity-user-status.module';
+import { AssignmentsModule } from './modules/assignments/assignments.module';
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { ActivityUserStatusModule } from './modules/activity-user-status/activit
     ActivityTaskRequirementsModule,
     TaskInstancesModule,
     ActivityUserStatusModule,
+    AssignmentsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

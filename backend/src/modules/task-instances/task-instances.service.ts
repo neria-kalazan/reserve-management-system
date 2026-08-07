@@ -109,4 +109,69 @@ export class TaskInstancesService {
 
     return this.prisma.taskInstance.delete({ where: { id } });
   }
+
+  async findAvailableUsers(taskInstanceId: string) {
+    const taskInstance = await this.prisma.taskInstance.findUnique({
+      where: { id: taskInstanceId },
+      select: {
+        id: true,
+        startTime: true,
+        activityTask: {
+          select: {
+            activity: {
+              select: {
+                id: true,
+                companyId: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!taskInstance) {
+      throw new NotFoundException('Task instance not found');
+    }
+
+    const activity = taskInstance.activityTask?.activity;
+
+    if (!activity?.id) {
+      throw new NotFoundException('Activity not found');
+    }
+
+    const availabilityDate = new Date(taskInstance.startTime);
+    availabilityDate.setUTCHours(0, 0, 0, 0);
+
+    const availabilityRecords = await this.prisma.activityUserStatus.findMany({
+      where: {
+        activityId: activity.id,
+        date: availabilityDate,
+        status: 'ACTIVE',
+      },
+      select: {
+        user: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            phone: true,
+            email: true,
+            personalNumber: true,
+            isActive: true,
+          },
+        },
+      },
+    });
+
+    const assignedUsers = await this.prisma.assignment.findMany({
+      where: { taskInstanceId },
+      select: { userId: true },
+    });
+
+    const assignedIds = new Set(assignedUsers.map((assignment: { userId: string }) => assignment.userId));
+
+    return availabilityRecords
+      .map((record: { user: any }) => record.user)
+      .filter((user: { id: string }) => !assignedIds.has(user.id));
+  }
 }

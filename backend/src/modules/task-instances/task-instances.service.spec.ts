@@ -61,4 +61,31 @@ describe('TaskInstancesService', () => {
 
     await expect(service.delete('instance-1')).resolves.toEqual({ id: 'instance-1' });
   });
+
+  it('findAvailableUsers: returns active users and excludes inactive and assigned users', async () => {
+    prisma.taskInstance.findUnique.mockResolvedValue({
+      id: 'instance-1',
+      startTime: new Date('2026-01-01T09:00:00.000Z'),
+      activityTask: { activity: { id: 'activity-1', companyId: 'company-1' } },
+    });
+    prisma.activityUserStatus.findMany.mockResolvedValue([
+      { user: { id: 'user-1', firstName: 'Ada', lastName: 'Lovelace', phone: null, email: 'ada@example.com', personalNumber: 'P1', isActive: true } },
+      { user: { id: 'user-2', firstName: 'Grace', lastName: 'Hopper', phone: null, email: 'grace@example.com', personalNumber: 'P2', isActive: true } },
+      { user: { id: 'user-3', firstName: 'Linus', lastName: 'Torvalds', phone: null, email: 'linus@example.com', personalNumber: 'P3', isActive: true } },
+    ]);
+    prisma.assignment.findMany.mockResolvedValue([{ userId: 'user-2' }]);
+
+    const res = await service.findAvailableUsers('instance-1');
+
+    expect(res).toEqual([
+      { id: 'user-1', firstName: 'Ada', lastName: 'Lovelace', phone: null, email: 'ada@example.com', personalNumber: 'P1', isActive: true },
+      { id: 'user-3', firstName: 'Linus', lastName: 'Torvalds', phone: null, email: 'linus@example.com', personalNumber: 'P3', isActive: true },
+    ]);
+  });
+
+  it('findAvailableUsers: throws when the task instance is missing', async () => {
+    prisma.taskInstance.findUnique.mockResolvedValue(null);
+
+    await expect(service.findAvailableUsers('instance-1')).rejects.toThrow(NotFoundException);
+  });
 });
