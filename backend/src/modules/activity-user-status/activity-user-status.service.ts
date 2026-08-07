@@ -38,7 +38,7 @@ export class ActivityUserStatusService {
     }
 
     return this.prisma.$transaction(async (tx: PrismaService) => {
-      const created: Array<{ activityId: string; userId: string; date: Date; status: string }> = [];
+      const created: Array<{ activityId: string; userId: string; date: Date; status: string; availability: string }> = [];
 
       for (const user of activeUsers) {
         for (const date of dates) {
@@ -52,9 +52,10 @@ export class ActivityUserStatusService {
                 userId: user.id,
                 date: dateOnly,
                 status: 'ACTIVE',
+                availability: 'ALL_DAY',
               },
             });
-            created.push({ activityId: record.activityId, userId: record.userId, date: record.date, status: record.status });
+            created.push({ activityId: record.activityId, userId: record.userId, date: record.date, status: record.status, availability: record.availability });
           } catch (error: any) {
             if (error?.code === 'P2002') {
               continue;
@@ -70,9 +71,14 @@ export class ActivityUserStatusService {
 
   async update(id: string, dto: UpdateActivityUserStatusDto): Promise<ActivityUserStatusItemDto> {
     const allowedStatuses = ['ACTIVE', 'HOLIDAY', 'RELEASED', 'SICK'] as const;
+    const allowedAvailabilities = ['MORNING', 'EVENING', 'ALL_DAY', 'UNAVAILABLE'] as const;
 
     if (dto.status !== undefined && !allowedStatuses.includes(dto.status as (typeof allowedStatuses)[number])) {
       throw new BadRequestException('Invalid status');
+    }
+
+    if (dto.availability !== undefined && !allowedAvailabilities.includes(dto.availability as (typeof allowedAvailabilities)[number])) {
+      throw new BadRequestException('Invalid availability');
     }
 
     const record = await this.prisma.activityUserStatus.findUnique({
@@ -88,13 +94,17 @@ export class ActivityUserStatusService {
 
     return this.prisma.activityUserStatus.update({
       where: { id },
-      data: { status: dto.status },
+      data: {
+        status: dto.status,
+        availability: dto.availability,
+      },
       select: {
         id: true,
         activityId: true,
         userId: true,
         date: true,
         status: true,
+        availability: true,
         createdAt: true,
         updatedAt: true,
         user: {
@@ -164,6 +174,7 @@ export class ActivityUserStatusService {
           userId: true,
           date: true,
           status: true,
+          availability: true,
           createdAt: true,
           updatedAt: true,
           user: {
@@ -192,6 +203,7 @@ export class ActivityUserStatusService {
             userId: true,
             date: true,
             status: true,
+            availability: true,
             createdAt: true,
             updatedAt: true,
             user: {
@@ -237,6 +249,7 @@ export class ActivityUserStatusService {
         userId: true,
         date: true,
         status: true,
+        availability: true,
         createdAt: true,
         updatedAt: true,
         user: {

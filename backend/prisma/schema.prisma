@@ -25,6 +25,13 @@ enum ActivityUserStatusEnum {
   SICK
 }
 
+enum ActivityUserAvailabilityEnum {
+  MORNING
+  EVENING
+  ALL_DAY
+  UNAVAILABLE
+}
+
 model Company {
   id     String        @id @default(uuid()) @db.Uuid
   name   String
@@ -386,6 +393,7 @@ model ActivityUserStatus {
   userId     String @db.Uuid
   date       DateTime
   status     ActivityUserStatusEnum
+  availability ActivityUserAvailabilityEnum @default(ALL_DAY)
 
   activity Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
   user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)

@@ -62,25 +62,52 @@ describe('TaskInstancesService', () => {
     await expect(service.delete('instance-1')).resolves.toEqual({ id: 'instance-1' });
   });
 
-  it('findAvailableUsers: returns active users and excludes inactive and assigned users', async () => {
+  it.each([
+    ['ACTIVE + MORNING + morning task', new Date('2026-01-01T09:00:00.000Z'), 'ACTIVE', 'MORNING', true],
+    ['ACTIVE + MORNING + evening task', new Date('2026-01-01T15:00:00.000Z'), 'ACTIVE', 'MORNING', false],
+    ['ACTIVE + EVENING + evening task', new Date('2026-01-01T15:00:00.000Z'), 'ACTIVE', 'EVENING', true],
+    ['ACTIVE + EVENING + morning task', new Date('2026-01-01T09:00:00.000Z'), 'ACTIVE', 'EVENING', false],
+    ['ACTIVE + ALL_DAY + any task', new Date('2026-01-01T15:00:00.000Z'), 'ACTIVE', 'ALL_DAY', true],
+    ['ACTIVE + UNAVAILABLE', new Date('2026-01-01T09:00:00.000Z'), 'ACTIVE', 'UNAVAILABLE', false],
+    ['HOLIDAY + ALL_DAY', new Date('2026-01-01T09:00:00.000Z'), 'HOLIDAY', 'ALL_DAY', false],
+  ])('findAvailableUsers: %s', async (_label, startTime, status, availability, expected) => {
+    prisma.taskInstance.findUnique.mockResolvedValue({
+      id: 'instance-1',
+      startTime,
+      activityTask: { activity: { id: 'activity-1', companyId: 'company-1' } },
+    });
+    prisma.activityUserStatus.findMany.mockResolvedValue([
+      {
+        status,
+        availability,
+        user: { id: 'user-1', firstName: 'Ada', lastName: 'Lovelace', phone: null, email: 'ada@example.com', personalNumber: 'P1', isActive: true },
+      },
+    ]);
+    prisma.assignment.findMany.mockResolvedValue([]);
+
+    const res = await service.findAvailableUsers('instance-1');
+
+    if (expected) {
+      expect(res).toEqual([{ id: 'user-1', firstName: 'Ada', lastName: 'Lovelace', phone: null, email: 'ada@example.com', personalNumber: 'P1', isActive: true }]);
+    } else {
+      expect(res).toEqual([]);
+    }
+  });
+
+  it('findAvailableUsers: excludes already assigned users', async () => {
     prisma.taskInstance.findUnique.mockResolvedValue({
       id: 'instance-1',
       startTime: new Date('2026-01-01T09:00:00.000Z'),
       activityTask: { activity: { id: 'activity-1', companyId: 'company-1' } },
     });
     prisma.activityUserStatus.findMany.mockResolvedValue([
-      { user: { id: 'user-1', firstName: 'Ada', lastName: 'Lovelace', phone: null, email: 'ada@example.com', personalNumber: 'P1', isActive: true } },
-      { user: { id: 'user-2', firstName: 'Grace', lastName: 'Hopper', phone: null, email: 'grace@example.com', personalNumber: 'P2', isActive: true } },
-      { user: { id: 'user-3', firstName: 'Linus', lastName: 'Torvalds', phone: null, email: 'linus@example.com', personalNumber: 'P3', isActive: true } },
+      { status: 'ACTIVE', availability: 'ALL_DAY', user: { id: 'user-1', firstName: 'Ada', lastName: 'Lovelace', phone: null, email: 'ada@example.com', personalNumber: 'P1', isActive: true } },
     ]);
-    prisma.assignment.findMany.mockResolvedValue([{ userId: 'user-2' }]);
+    prisma.assignment.findMany.mockResolvedValue([{ userId: 'user-1' }]);
 
     const res = await service.findAvailableUsers('instance-1');
 
-    expect(res).toEqual([
-      { id: 'user-1', firstName: 'Ada', lastName: 'Lovelace', phone: null, email: 'ada@example.com', personalNumber: 'P1', isActive: true },
-      { id: 'user-3', firstName: 'Linus', lastName: 'Torvalds', phone: null, email: 'linus@example.com', personalNumber: 'P3', isActive: true },
-    ]);
+    expect(res).toEqual([]);
   });
 
   it('findAvailableUsers: throws when the task instance is missing', async () => {

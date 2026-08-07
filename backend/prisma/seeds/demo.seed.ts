@@ -428,12 +428,14 @@ export async function seedDemo(prisma: PrismaClient) {
         },
         update: {
           status: 'ACTIVE',
+          availability: 'ALL_DAY',
         },
         create: {
           activityId: activity.id,
           userId: user.id,
           date,
           status: 'ACTIVE',
+          availability: 'ALL_DAY',
         },
       });
     }
@@ -459,6 +461,31 @@ export async function seedDemo(prisma: PrismaClient) {
         },
         data: {
           status: override.status,
+        },
+      });
+    }
+  }
+
+  const availabilityOverrides = [
+    { personalNumber: '100004', availability: 'MORNING' as const },
+    { personalNumber: '100005', availability: 'EVENING' as const },
+    { personalNumber: '100006', availability: 'UNAVAILABLE' as const },
+  ];
+
+  for (const override of availabilityOverrides) {
+    const user = activeUsers.find((item) => item.personalNumber === override.personalNumber);
+
+    if (!user) continue;
+
+    for (const date of activityDateRange) {
+      await prisma.activityUserStatus.updateMany({
+        where: {
+          activityId: activity.id,
+          userId: user.id,
+          date,
+        },
+        data: {
+          availability: override.availability,
         },
       });
     }

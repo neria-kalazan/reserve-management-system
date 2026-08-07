@@ -98,6 +98,13 @@ export function createPrismaMock() {
       update: jest.fn(),
       delete: jest.fn(),
     },
+    activityUserAvailability: {
+      findMany: jest.fn(),
+      findUnique: jest.fn(),
+      create: jest.fn(),
+      update: jest.fn(),
+      delete: jest.fn(),
+    },
     assignment: {
       create: jest.fn(),
       findMany: jest.fn(),

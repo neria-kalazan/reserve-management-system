@@ -50,16 +50,19 @@ describe('ActivityUserStatusService', () => {
     );
   });
 
-  it('generateAvailability: creates records for active users', async () => {
+  it('generateAvailability: creates records for active users with ALL_DAY availability', async () => {
     prisma.activity.findUnique.mockResolvedValue({ id: 'a1', companyId: 'c1', startDate: new Date('2026-01-01'), endDate: new Date('2026-01-02') });
     prisma.user.findMany.mockResolvedValue([{ id: 'u1' }, { id: 'u2' }]);
     prisma.$transaction.mockImplementation(async (callback: any) => callback(prisma));
-    prisma.activityUserStatus.create.mockResolvedValue({ activityId: 'a1', userId: 'u1', date: new Date('2026-01-01'), status: 'ACTIVE' });
+    prisma.activityUserStatus.create.mockResolvedValue({ activityId: 'a1', userId: 'u1', date: new Date('2026-01-01'), status: 'ACTIVE', availability: 'ALL_DAY' });
 
-    const res = await service.generateAvailability('a1');
+    await service.generateAvailability('a1');
 
-    expect(res).toBeDefined();
-    expect(prisma.activityUserStatus.create).toHaveBeenCalled();
+    expect(prisma.activityUserStatus.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ status: 'ACTIVE', availability: 'ALL_DAY' }),
+      }),
+    );
   });
 
   it('generateAvailability: ignores inactive users', async () => {
@@ -84,13 +87,14 @@ describe('ActivityUserStatusService', () => {
     expect(res).toEqual([]);
   });
 
-  it('update: updates status successfully', async () => {
+  it('update: updates status and availability successfully', async () => {
     const existing = {
       id: 's1',
       activityId: 'a1',
       userId: 'u1',
       date: new Date('2026-01-01'),
       status: 'ACTIVE',
+      availability: 'ALL_DAY',
       createdAt: new Date(),
       updatedAt: new Date(),
       user: {
@@ -105,15 +109,16 @@ describe('ActivityUserStatusService', () => {
     };
 
     prisma.activityUserStatus.findUnique.mockResolvedValue(existing);
-    prisma.activityUserStatus.update.mockResolvedValue({ ...existing, status: 'HOLIDAY' });
+    prisma.activityUserStatus.update.mockResolvedValue({ ...existing, status: 'HOLIDAY', availability: 'MORNING' });
 
-    const res = await service.update('s1', { status: 'HOLIDAY' as any });
+    const res = await service.update('s1', { status: 'HOLIDAY' as any, availability: 'MORNING' as any });
 
     expect(res.status).toBe('HOLIDAY');
+    expect(res.availability).toBe('MORNING');
     expect(prisma.activityUserStatus.update).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: 's1' },
-        data: { status: 'HOLIDAY' },
+        data: { status: 'HOLIDAY', availability: 'MORNING' },
       }),
     );
   });
@@ -176,6 +181,12 @@ describe('ActivityUserStatusService', () => {
     prisma.activityUserStatus.findUnique.mockResolvedValue({ id: 's1' });
 
     await expect(service.update('s1', { status: 'INVALID' as any })).rejects.toThrow(BadRequestException);
+  });
+
+  it('update: rejects invalid availability', async () => {
+    prisma.activityUserStatus.findUnique.mockResolvedValue({ id: 's1' });
+
+    await expect(service.update('s1', { availability: 'INVALID' as any })).rejects.toThrow(BadRequestException);
   });
 
   it('findAllByActivity: throws when activity missing', async () => {

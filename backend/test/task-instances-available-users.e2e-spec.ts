@@ -111,7 +111,7 @@ describe('Task instances available users e2e', () => {
           user: state.users.get(record.userId) ?? null,
         }))),
         create: jest.fn(async ({ data }: any) => {
-          const record = { id: randomUUID(), activityId: data.activityId, userId: data.userId, date: data.date, status: data.status, createdAt: new Date(), updatedAt: new Date() };
+          const record = { id: randomUUID(), activityId: data.activityId, userId: data.userId, date: data.date, status: data.status, availability: data.availability ?? 'ALL_DAY', createdAt: new Date(), updatedAt: new Date() };
           state.activityUserStatuses.set(record.id, record);
           return {
             ...record,
@@ -173,17 +173,45 @@ describe('Task instances available users e2e', () => {
     const taskInstanceId = taskInstanceRes.body.id;
 
     const availabilityDate = new Date('2026-01-01T00:00:00.000Z');
-    await prismaMock.activityUserStatus.create({ data: { activityId, userId: activeUserRes.body.id, date: availabilityDate, status: 'ACTIVE' } });
-    await prismaMock.activityUserStatus.create({ data: { activityId, userId: activeUserTwoRes.body.id, date: availabilityDate, status: 'ACTIVE' } });
-    await prismaMock.activityUserStatus.create({ data: { activityId, userId: holidayUserRes.body.id, date: availabilityDate, status: 'HOLIDAY' } });
-    await prismaMock.activityUserStatus.create({ data: { activityId, userId: sickUserRes.body.id, date: availabilityDate, status: 'SICK' } });
-    await prismaMock.activityUserStatus.create({ data: { activityId, userId: releasedUserRes.body.id, date: availabilityDate, status: 'RELEASED' } });
+    await prismaMock.activityUserStatus.create({ data: { activityId, userId: activeUserRes.body.id, date: availabilityDate, status: 'ACTIVE', availability: 'ALL_DAY' } });
+    await prismaMock.activityUserStatus.create({ data: { activityId, userId: activeUserTwoRes.body.id, date: availabilityDate, status: 'ACTIVE', availability: 'MORNING' } });
+    await prismaMock.activityUserStatus.create({ data: { activityId, userId: holidayUserRes.body.id, date: availabilityDate, status: 'HOLIDAY', availability: 'ALL_DAY' } });
+    await prismaMock.activityUserStatus.create({ data: { activityId, userId: sickUserRes.body.id, date: availabilityDate, status: 'SICK', availability: 'ALL_DAY' } });
+    await prismaMock.activityUserStatus.create({ data: { activityId, userId: releasedUserRes.body.id, date: availabilityDate, status: 'RELEASED', availability: 'ALL_DAY' } });
 
     await prismaMock.assignment.create({ data: { taskInstanceId, userId: activeUserRes.body.id } });
 
     const availableRes = await request(app.getHttpServer()).get(`/task-instances/${taskInstanceId}/available-users`).expect(200);
     expect(availableRes.body).toHaveLength(1);
     expect(availableRes.body[0].id).toBe(activeUserTwoRes.body.id);
+  });
+
+  it('filters unavailable users by scheduling availability for evening tasks', async () => {
+    const companyRes = await request(app.getHttpServer()).post('/companies').send({ name: 'Omega 2' }).expect(201);
+    const companyId = companyRes.body.id;
+
+    const activityRes = await request(app.getHttpServer()).post(`/companies/${companyId}/activities`).send({ name: 'Ops 2', startDate: '2026-01-01', endDate: '2026-01-01' }).expect(201);
+    const activityId = activityRes.body.id;
+
+    const unitRes = await request(app.getHttpServer()).post(`/companies/${companyId}/units`).send({ name: 'Ops 2', displayOrder: 1 }).expect(201);
+    const unitId = unitRes.body.id;
+
+    const morningUserRes = await request(app.getHttpServer()).post(`/companies/${companyId}/users`).send({ firstName: 'Mina', lastName: 'Morning', phone: '+128', personalNumber: 'P-6', unitId, email: 'mina@example.com' }).expect(201);
+    const eveningUserRes = await request(app.getHttpServer()).post(`/companies/${companyId}/users`).send({ firstName: 'Eli', lastName: 'Evening', phone: '+129', personalNumber: 'P-7', unitId, email: 'eli@example.com' }).expect(201);
+
+    const taskRes = await request(app.getHttpServer()).post(`/activities/${activityId}/tasks`).send({ name: 'Setup 2' }).expect(201);
+    const activityTaskId = taskRes.body.id;
+
+    const taskInstanceRes = await request(app.getHttpServer()).post(`/activity-tasks/${activityTaskId}/task-instances`).send({ title: 'Evening shift', startTime: '2026-01-01T15:00:00.000Z', endTime: '2026-01-01T23:00:00.000Z' }).expect(201);
+    const taskInstanceId = taskInstanceRes.body.id;
+
+    const availabilityDate = new Date('2026-01-01T00:00:00.000Z');
+    await prismaMock.activityUserStatus.create({ data: { activityId, userId: morningUserRes.body.id, date: availabilityDate, status: 'ACTIVE', availability: 'MORNING' } });
+    await prismaMock.activityUserStatus.create({ data: { activityId, userId: eveningUserRes.body.id, date: availabilityDate, status: 'ACTIVE', availability: 'EVENING' } });
+
+    const availableRes = await request(app.getHttpServer()).get(`/task-instances/${taskInstanceId}/available-users`).expect(200);
+    expect(availableRes.body).toHaveLength(1);
+    expect(availableRes.body[0].id).toBe(eveningUserRes.body.id);
   });
 
   afterEach(async () => {

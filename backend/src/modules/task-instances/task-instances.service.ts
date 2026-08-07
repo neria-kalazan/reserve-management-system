@@ -142,6 +142,9 @@ export class TaskInstancesService {
     const availabilityDate = new Date(taskInstance.startTime);
     availabilityDate.setUTCHours(0, 0, 0, 0);
 
+    const taskHour = taskInstance.startTime.getHours();
+    const isMorningTask = taskHour < 14;
+
     const availabilityRecords = await this.prisma.activityUserStatus.findMany({
       where: {
         activityId: activity.id,
@@ -149,6 +152,8 @@ export class TaskInstancesService {
         status: 'ACTIVE',
       },
       select: {
+        status: true,
+        availability: true,
         user: {
           select: {
             id: true,
@@ -171,6 +176,21 @@ export class TaskInstancesService {
     const assignedIds = new Set(assignedUsers.map((assignment: { userId: string }) => assignment.userId));
 
     return availabilityRecords
+      .filter((record: { status: string; availability: string; user: any }) => {
+        if (record.status !== 'ACTIVE') {
+          return false;
+        }
+
+        if (record.availability === 'ALL_DAY') {
+          return true;
+        }
+
+        if (isMorningTask) {
+          return record.availability === 'MORNING';
+        }
+
+        return record.availability === 'EVENING';
+      })
       .map((record: { user: any }) => record.user)
       .filter((user: { id: string }) => !assignedIds.has(user.id));
   }
