@@ -20,6 +20,7 @@ import { ActivityUserStatusModule } from './modules/activity-user-status/activit
 import { AssignmentsModule } from './modules/assignments/assignments.module';
 import { CompanyDashboardModule } from './modules/company-dashboard/company-dashboard.module';
 import { ActivityOverviewModule } from './modules/activity-overview/activity-overview.module';
+import { TaskWorkspaceModule } from './modules/task-workspace/task-workspace.module';
 
 @Module({
   imports: [
@@ -42,6 +43,7 @@ import { ActivityOverviewModule } from './modules/activity-overview/activity-ove
     AssignmentsModule,
     CompanyDashboardModule,
     ActivityOverviewModule,
+    TaskWorkspaceModule,
   ],
   controllers: [AppController],
   providers: [AppService],
