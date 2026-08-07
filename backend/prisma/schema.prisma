@@ -96,11 +96,32 @@ model TaskInstance {
   endTime   DateTime
 
   activityTask ActivityTask @relation(fields: [activityTaskId], references: [id], onDelete: Cascade)
+  assignments Assignment[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([activityTaskId])
+}
+
+model Assignment {
+  id String @id @default(uuid()) @db.Uuid
+
+  taskInstanceId String @db.Uuid
+  userId         String @db.Uuid
+  createdBy      String? @db.Uuid
+
+  taskInstance TaskInstance @relation(fields: [taskInstanceId], references: [id], onDelete: Cascade)
+  user         User         @relation("AssignmentAssignedUser", fields: [userId], references: [id], onDelete: Cascade)
+  createdByUser User?        @relation("AssignmentCreatedBy", fields: [createdBy], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([taskInstanceId, userId])
+  @@index([taskInstanceId])
+  @@index([userId])
+  @@index([createdBy])
 }
 
 model ActivityTaskManpowerRequirement {
@@ -184,6 +205,8 @@ model User {
   userQualifications   UserQualification[]
   userPermissions      UserPermission[]
   activityUserStatuses ActivityUserStatus[]
+  assignments          Assignment[]          @relation("AssignmentAssignedUser")
+  assignmentsCreated   Assignment[]          @relation("AssignmentCreatedBy")
 
   createdUnits          Unit[]          @relation("UnitCreatedBy")
   createdRoles          Role[]          @relation("RoleCreatedBy")
