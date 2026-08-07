@@ -1,16 +1,18 @@
-import { IsDateString, IsEnum, IsNotEmpty, IsString, IsUUID } from 'class-validator';
+import { IsArray, IsDateString, IsEnum, IsNotEmpty, ArrayNotEmpty, IsString } from 'class-validator';
 
-export enum ActivityUserStatusValue {
-  ACTIVE = 'ACTIVE',
-  HOLIDAY = 'HOLIDAY',
-  RELEASED = 'RELEASED',
-  SICK = 'SICK',
+export enum ActivityUserAvailabilityValue {
+  MORNING = 'MORNING',
+  EVENING = 'EVENING',
+  ALL_DAY = 'ALL_DAY',
+  UNAVAILABLE = 'UNAVAILABLE',
 }
 
 export class BulkUpdateActivityUserStatusDto {
-  @IsUUID()
-  @IsNotEmpty()
-  userId: string;
+  @IsArray()
+  @ArrayNotEmpty()
+  @IsString({ each: true })
+  @IsNotEmpty({ each: true })
+  userIds: string[];
 
   @IsDateString()
   startDate: string;
@@ -18,6 +20,6 @@ export class BulkUpdateActivityUserStatusDto {
   @IsDateString()
   endDate: string;
 
-  @IsEnum(ActivityUserStatusValue)
-  status: ActivityUserStatusValue;
+  @IsEnum(ActivityUserAvailabilityValue)
+  availability: ActivityUserAvailabilityValue;
 }

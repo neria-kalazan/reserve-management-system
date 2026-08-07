@@ -71,6 +71,7 @@ describe('Task instances e2e', () => {
           return instance;
         }),
       },
+      $transaction: jest.fn(async (callback: any) => callback(prismaMock)),
     };
 
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -119,6 +120,26 @@ describe('Task instances e2e', () => {
     const activityTaskId = taskRes.body.id;
 
     await request(app.getHttpServer()).post(`/activity-tasks/${activityTaskId}/task-instances`).send({ title: 'Bad interval', startTime: '2026-01-01T17:00:00.000Z', endTime: '2026-01-01T09:00:00.000Z' }).expect(400);
+  });
+
+  it('bulk creates task instances for a date range', async () => {
+    const companyRes = await request(app.getHttpServer()).post('/companies').send({ name: 'Epsilon' }).expect(201);
+    const companyId = companyRes.body.id;
+
+    const activityRes = await request(app.getHttpServer()).post(`/companies/${companyId}/activities`).send({ name: 'Ops', startDate: '2026-08-01', endDate: '2026-08-03' }).expect(201);
+    const activityId = activityRes.body.id;
+
+    const taskRes = await request(app.getHttpServer()).post(`/activities/${activityId}/tasks`).send({ name: 'Patrol' }).expect(201);
+    const activityTaskId = taskRes.body.id;
+
+    const bulkRes = await request(app.getHttpServer())
+      .post(`/activity-tasks/${activityTaskId}/task-instances/bulk`)
+      .send({ startDate: '2026-08-01', endDate: '2026-08-03', startTime: '06:00', endTime: '14:00' })
+      .expect(201);
+
+    expect(bulkRes.body.createdCount).toBe(3);
+    expect(bulkRes.body.createdTaskInstances).toHaveLength(3);
+    expect(bulkRes.body.createdTaskInstances[0].title).toBe('Patrol');
   });
 
   afterEach(async () => {

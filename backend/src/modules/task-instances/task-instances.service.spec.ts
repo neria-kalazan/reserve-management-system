@@ -8,6 +8,7 @@ describe('TaskInstancesService', () => {
 
   beforeEach(() => {
     prisma = createPrismaMock();
+    prisma.$transaction.mockImplementation(async (callback: any) => callback(prisma));
     service = new TaskInstancesService(prisma);
   });
 
@@ -35,6 +36,41 @@ describe('TaskInstancesService', () => {
     prisma.activityTask.findUnique.mockResolvedValue({ id: 'task-1' });
 
     await expect(service.create('task-1', { title: 'Setup', startTime: '2026-01-01T17:00:00.000Z', endTime: '2026-01-01T09:00:00.000Z' } as any)).rejects.toThrow(BadRequestException);
+  });
+
+  it('bulkCreate: rejects a missing activity task', async () => {
+    prisma.activityTask.findUnique.mockResolvedValue(null);
+
+    await expect(service.bulkCreate('task-1', { startDate: '2026-08-01', endDate: '2026-08-03', startTime: '06:00', endTime: '14:00' } as any)).rejects.toThrow(NotFoundException);
+  });
+
+  it('bulkCreate: rejects an invalid date range', async () => {
+    prisma.activityTask.findUnique.mockResolvedValue({ id: 'task-1', name: 'Patrol' });
+
+    await expect(service.bulkCreate('task-1', { startDate: '2026-08-03', endDate: '2026-08-01', startTime: '06:00', endTime: '14:00' } as any)).rejects.toThrow(BadRequestException);
+  });
+
+  it('bulkCreate: creates one task instance per day', async () => {
+    prisma.activityTask.findUnique.mockResolvedValue({ id: 'task-1', name: 'Patrol' });
+    prisma.taskInstance.create.mockImplementation(async ({ data }: any) => ({ id: `instance-${data.startTime.toISOString()}`, ...data }));
+
+    const res = await service.bulkCreate('task-1', { startDate: '2026-08-01', endDate: '2026-08-03', startTime: '06:00', endTime: '14:00' } as any);
+
+    expect(res.createdCount).toBe(3);
+    expect(res.createdTaskInstances).toHaveLength(3);
+    expect(prisma.taskInstance.create).toHaveBeenCalledTimes(3);
+    expect(res.createdTaskInstances[0].title).toBe('Patrol');
+  });
+
+  it('bulkCreate: preserves overnight shift handling', async () => {
+    prisma.activityTask.findUnique.mockResolvedValue({ id: 'task-1', name: 'Patrol' });
+    prisma.taskInstance.create.mockImplementation(async ({ data }: any) => ({ id: `instance-${data.startTime.toISOString()}`, ...data }));
+
+    const res = await service.bulkCreate('task-1', { startDate: '2026-08-01', endDate: '2026-08-01', startTime: '22:00', endTime: '06:00' } as any);
+
+    expect(res.createdCount).toBe(1);
+    expect(res.createdTaskInstances[0].startTime).toEqual(new Date('2026-08-01T19:00:00.000Z'));
+    expect(res.createdTaskInstances[0].endTime).toEqual(new Date('2026-08-02T03:00:00.000Z'));
   });
 
   it('findAllByActivityTask: throws when the activity task is missing', async () => {

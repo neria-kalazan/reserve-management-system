@@ -90,4 +90,20 @@ describe('CompanyDashboardService', () => {
     expect(result.validationIssues.requiredErrorCount).toBe(1);
     expect(result.validationIssues.warningCount).toBe(1);
   });
+
+  it('returns empty summaries when there is no active activity', async () => {
+    prisma.company.findUnique.mockResolvedValue({ id: 'company-1' });
+    prisma.activity.findMany.mockResolvedValue([]);
+    prisma.user.count.mockResolvedValue(0);
+    prisma.activityUserStatus.findMany.mockResolvedValue([]);
+    prisma.activityUserStatus.groupBy.mockResolvedValue([]);
+    prisma.taskInstance.findMany.mockResolvedValue([]);
+    prisma.assignment.findMany.mockResolvedValue([]);
+
+    const result = await service.getDashboard('company-1');
+
+    expect(result.activeActivity).toBeNull();
+    expect(result.tasksSummary.totalTaskInstances).toBe(0);
+    expect(result.validationIssues.issues).toEqual([]);
+  });
 });

@@ -83,7 +83,21 @@ describe('Activities e2e', () => {
         }),
       },
       user: {
-        findMany: jest.fn(async ({ where }: any) => Array.from(state.users.values()).filter((user) => user.companyId === where.companyId && user.isActive === where.isActive)),
+        findMany: jest.fn(async ({ where }: any) => {
+          if (where?.id?.in) {
+            return Array.from(state.users.values()).filter((user) => where.id.in.includes(user.id));
+          }
+
+          return Array.from(state.users.values()).filter((user) => {
+            if (where?.companyId !== undefined && user.companyId !== where.companyId) {
+              return false;
+            }
+            if (where?.isActive !== undefined && user.isActive !== where.isActive) {
+              return false;
+            }
+            return true;
+          });
+        }),
         findUnique: jest.fn(async ({ where: { id } }: any) => state.users.get(id) ?? null),
         create: jest.fn(async ({ data }: any) => {
           const user = {
@@ -113,6 +127,7 @@ describe('Activities e2e', () => {
             userId: data.userId,
             date: data.date,
             status: data.status,
+            availability: data.availability,
             createdAt: new Date(),
             updatedAt: new Date(),
             user,
@@ -121,7 +136,25 @@ describe('Activities e2e', () => {
           state.availabilityById.set(record.id, record);
           return record;
         }),
-        findMany: jest.fn(async ({ where }: any) => Array.from(state.availabilityById.values()).filter((record) => record.activityId === where.activityId)),
+        findMany: jest.fn(async ({ where }: any) => {
+          const records = Array.from(state.availabilityById.values()).filter((record: any) => record.activityId === where.activityId);
+          return records.filter((record: any) => {
+            if (where.userId && where.userId.in) {
+              if (!where.userId.in.includes(record.userId)) {
+                return false;
+              }
+            }
+            if (where.date) {
+              const date = new Date(record.date);
+              const start = new Date(where.date.gte);
+              const end = new Date(where.date.lte);
+              if (date < start || date > end) {
+                return false;
+              }
+            }
+            return true;
+          });
+        }),
         findUnique: jest.fn(async ({ where: { id } }: any) => state.availabilityById.get(id) ?? null),
         update: jest.fn(async ({ where: { id }, data }: any) => {
           const record = state.availabilityById.get(id);
@@ -291,16 +324,16 @@ describe('Activities e2e', () => {
     const bulkRes = await request(app.getHttpServer())
       .patch(`/activities/${activityRes.body.id}/availability/bulk`)
       .send({
-        userId: createdUser.id,
+        userIds: [createdUser.id],
         startDate: '2026-01-01',
         endDate: '2026-01-03',
-        status: 'HOLIDAY',
+        availability: 'UNAVAILABLE',
       })
       .expect(200);
 
-    expect(bulkRes.body.updatedCount).toBe(3);
-    expect(bulkRes.body.updatedRecords).toHaveLength(3);
-    expect(bulkRes.body.updatedRecords.every((record: any) => record.status === 'HOLIDAY')).toBe(true);
+    expect(bulkRes.body.updatedCount).toBe(2);
+    expect(bulkRes.body.updatedRecords).toHaveLength(2);
+    expect(bulkRes.body.updatedRecords.every((record: any) => record.availability === 'UNAVAILABLE')).toBe(true);
   });
 
   afterEach(async () => {

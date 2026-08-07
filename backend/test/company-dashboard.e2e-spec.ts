@@ -16,6 +16,8 @@ import { TaskInstancesService } from '../src/modules/task-instances/task-instanc
 import { AssignmentsController } from '../src/modules/assignments/assignments.controller';
 import { AssignmentsService } from '../src/modules/assignments/assignments.service';
 import { TaskValidationService } from '../src/modules/task-instances/task-validation.service';
+import { TaskWorkspaceController } from '../src/modules/task-workspace/task-workspace.controller';
+import { TaskWorkspaceService } from '../src/modules/task-workspace/task-workspace.service';
 import { PrismaService } from '../src/prisma/prisma.service';
 
 describe('Company dashboard e2e', () => {
@@ -53,19 +55,56 @@ describe('Company dashboard e2e', () => {
       },
       activityTask: {
         create: jest.fn(async ({ data }: any) => {
-          const task = { id: randomUUID(), activityId: data.activityId, name: data.name, description: data.description ?? null, createdAt: new Date(), updatedAt: new Date() };
+          const activity = state.activities.get(data.activityId);
+          const task = {
+            id: randomUUID(),
+            activityId: data.activityId,
+            name: data.name,
+            description: data.description ?? null,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            activity: activity ? { id: data.activityId, companyId: activity.companyId } : null,
+          };
           state.activityTasks.set(task.id, task);
           return task;
         }),
         findUnique: jest.fn(async ({ where: { id } }: any) => state.activityTasks.get(id) ?? null),
       },
+      activityTaskManpowerRequirement: {
+        findUnique: jest.fn(async () => null),
+      },
+      activityTaskRoleRequirement: {
+        findMany: jest.fn(async () => []),
+      },
+      activityTaskQualificationRequirement: {
+        findMany: jest.fn(async () => []),
+      },
       taskInstance: {
         create: jest.fn(async ({ data }: any) => {
-          const instance = { id: randomUUID(), activityTaskId: data.activityTaskId, title: data.title, startTime: data.startTime, endTime: data.endTime, createdAt: new Date(), updatedAt: new Date() };
+          const activityTask = state.activityTasks.get(data.activityTaskId);
+          const instance = {
+            id: randomUUID(),
+            activityTaskId: data.activityTaskId,
+            title: data.title,
+            startTime: data.startTime,
+            endTime: data.endTime,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            activityTask: activityTask
+              ? {
+                  id: activityTask.id,
+                  name: activityTask.name,
+                  activity: activityTask.activity
+                    ? { id: activityTask.activity.id, companyId: activityTask.activity.companyId }
+                    : null,
+                }
+              : null,
+          };
           state.taskInstances.set(instance.id, instance);
           return instance;
         }),
         findMany: jest.fn(async () => Array.from(state.taskInstances.values())),
+        findUnique: jest.fn(async ({ where: { id } }: any) => state.taskInstances.get(id) ?? null),
       },
       user: {
         create: jest.fn(async ({ data }: any) => {
@@ -77,11 +116,23 @@ describe('Company dashboard e2e', () => {
         findUnique: jest.fn(async ({ where: { id } }: any) => state.users.get(id) ?? null),
       },
       activityUserStatus: {
-        findMany: jest.fn(async ({ where }: any) => Array.from(state.activityUserStatuses.values()).filter((record) => record.activityId === where.activityId).map((record) => ({ ...record }))),
+        create: jest.fn(async ({ data }: any) => {
+          const record = { id: randomUUID(), activityId: data.activityId, userId: data.userId, date: new Date(data.date), status: data.status, availability: data.availability, createdAt: new Date(), updatedAt: new Date() };
+          state.activityUserStatuses.set(record.id, record);
+          return record;
+        }),
+        findMany: jest.fn(async ({ where }: any) => Array.from(state.activityUserStatuses.values()).filter((record) => record.activityId === where.activityId).map((record) => ({ ...record, user: state.users.get(record.userId) ? { ...state.users.get(record.userId) } : null }))),
         groupBy: jest.fn(async () => []),
       },
       assignment: {
         findMany: jest.fn(async ({ where }: any) => Array.from(state.assignments.values()).filter((assignment) => assignment.taskInstanceId === where.taskInstanceId || (where.taskInstance && where.taskInstance.activityTask && where.taskInstance.activityTask.activityId === undefined))),
+        findUnique: jest.fn(async ({ where }: any) => {
+          if (!where?.taskInstanceId_userId) {
+            return null;
+          }
+
+          return Array.from(state.assignments.values()).find((assignment) => assignment.taskInstanceId === where.taskInstanceId_userId.taskInstanceId && assignment.userId === where.taskInstanceId_userId.userId) ?? null;
+        }),
         create: jest.fn(async ({ data }: any) => {
           const assignment = { id: randomUUID(), taskInstanceId: data.taskInstanceId, userId: data.userId, createdBy: data.createdBy ?? null, createdAt: new Date(), updatedAt: new Date() };
           state.assignments.set(assignment.id, assignment);
@@ -91,7 +142,7 @@ describe('Company dashboard e2e', () => {
     };
 
     const moduleFixture: TestingModule = await Test.createTestingModule({
-      controllers: [CompaniesController, ActivitiesController, ActivityTasksController, TaskInstancesController, AssignmentsController, CompanyDashboardController],
+      controllers: [CompaniesController, ActivitiesController, ActivityTasksController, TaskInstancesController, AssignmentsController, CompanyDashboardController, TaskWorkspaceController],
       providers: [
         CompaniesService,
         ActivitiesService,
@@ -99,6 +150,7 @@ describe('Company dashboard e2e', () => {
         TaskInstancesService,
         AssignmentsService,
         CompanyDashboardService,
+        TaskWorkspaceService,
         {
           provide: TaskValidationService,
           useValue: {
@@ -128,6 +180,34 @@ describe('Company dashboard e2e', () => {
     const dashboardRes = await request(app.getHttpServer()).get(`/companies/${companyId}/dashboard`).expect(200);
     expect(dashboardRes.body.activeActivity).toEqual(expect.objectContaining({ id: activityId, name: 'Ops' }));
     expect(dashboardRes.body.tasksSummary.totalTaskInstances).toBe(1);
+  });
+
+  it('supports the full company-to-workspace workflow', async () => {
+    const companyRes = await request(app.getHttpServer()).post('/companies').send({ name: 'Workflow Co' }).expect(201);
+    const companyId = companyRes.body.id;
+
+    const userId = (await prismaMock.user.create({ data: { companyId, unitId: '11111111-1111-1111-1111-111111111111', firstName: 'Ada', lastName: 'Lovelace', phone: '0500000000', personalNumber: '100010', isActive: true } })).id;
+
+    const activityRes = await request(app.getHttpServer()).post(`/companies/${companyId}/activities`).send({ name: 'Ops', startDate: '2026-01-01', endDate: '2026-01-02', status: 'ACTIVE' }).expect(201);
+    const activityId = activityRes.body.id;
+
+    const activityTaskRes = await request(app.getHttpServer()).post(`/activities/${activityId}/tasks`).send({ name: 'Setup' }).expect(201);
+    const activityTaskId = activityTaskRes.body.id;
+
+    const taskInstanceRes = await request(app.getHttpServer()).post(`/activity-tasks/${activityTaskId}/task-instances`).send({ title: 'Morning shift', startTime: '2026-01-01T09:00:00.000Z', endTime: '2026-01-01T17:00:00.000Z' }).expect(201);
+    const taskInstanceId = taskInstanceRes.body.id;
+
+    await prismaMock.activityUserStatus.create({ data: { activityId, userId, date: '2026-01-01', status: 'ACTIVE', availability: 'ALL_DAY' } });
+
+    await request(app.getHttpServer()).post(`/task-instances/${taskInstanceId}/assignments`).send({ userId }).expect(201);
+
+    const dashboardRes = await request(app.getHttpServer()).get(`/companies/${companyId}/dashboard`).expect(200);
+    expect(dashboardRes.body.activeActivity).toEqual(expect.objectContaining({ id: activityId }));
+    expect(dashboardRes.body.tasksSummary.totalTaskInstances).toBe(1);
+
+    const workspaceRes = await request(app.getHttpServer()).get(`/task-instances/${taskInstanceId}/workspace`).expect(200);
+    expect(workspaceRes.body.taskInstance.id).toBe(taskInstanceId);
+    expect(workspaceRes.body.currentAssignments).toHaveLength(1);
   });
 
   afterEach(async () => {

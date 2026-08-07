@@ -74,4 +74,19 @@ describe('TaskWorkspaceService', () => {
     expect(result.validation.requiredErrors).toHaveLength(1);
     expect(result.validation.summary.isValid).toBe(false);
   });
+
+  it('returns predictable empty structures when no requirements or assignments exist', async () => {
+    prisma.taskInstance.findUnique.mockResolvedValue({ id: 'instance-1', title: 'Morning shift', startTime: new Date(), endTime: new Date(), activityTask: { id: 'task-1', name: 'Setup', activity: { id: 'activity-1' } } });
+    prisma.activityTaskManpowerRequirement.findUnique.mockResolvedValue(null);
+    prisma.activityTaskRoleRequirement.findMany.mockResolvedValue([]);
+    prisma.activityTaskQualificationRequirement.findMany.mockResolvedValue([]);
+    prisma.assignment.findMany.mockResolvedValue([]);
+
+    const result = await service.getWorkspace('instance-1');
+
+    expect(result.requirements.manpower).toEqual({ required: false, quantity: 0 });
+    expect(result.currentAssignments).toEqual([]);
+    expect(result.requirements.roleRequirements).toEqual([]);
+    expect(result.requirements.qualificationRequirements).toEqual([]);
+  });
 });

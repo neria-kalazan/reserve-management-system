@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateTaskInstanceDto } from './dto/create-task-instance.dto';
+import { BulkCreateTaskInstancesDto } from './dto/bulk-create-task-instances.dto';
 import { UpdateTaskInstanceDto } from './dto/update-task-instance.dto';
 
 @Injectable()
@@ -11,6 +12,18 @@ export class TaskInstancesService {
     if (endTime <= startTime) {
       throw new BadRequestException('endTime must be after startTime');
     }
+  }
+
+  private buildDateTime(baseDate: Date, timeString: string) {
+    const [hours, minutes] = timeString.split(':').map((part) => Number(part));
+
+    if (Number.isNaN(hours) || Number.isNaN(minutes) || hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
+      throw new BadRequestException('Invalid time format');
+    }
+
+    const result = new Date(baseDate);
+    result.setHours(hours, minutes, 0, 0);
+    return result;
   }
 
   async create(activityTaskId: string, dto: CreateTaskInstanceDto) {
@@ -35,6 +48,68 @@ export class TaskInstancesService {
         startTime,
         endTime,
       },
+    });
+  }
+
+  async bulkCreate(activityTaskId: string, dto: BulkCreateTaskInstancesDto) {
+    const activityTask = await this.prisma.activityTask.findUnique({
+      where: { id: activityTaskId },
+      select: { id: true, name: true },
+    });
+
+    if (!activityTask) {
+      throw new NotFoundException('Activity task not found');
+    }
+
+    const startDate = new Date(dto.startDate);
+    const endDate = new Date(dto.endDate);
+
+    if (endDate < startDate) {
+      throw new BadRequestException('endDate must be greater than or equal to startDate');
+    }
+
+    const createdTaskInstances: Array<{ id: string; activityTaskId: string; title: string; startTime: Date; endTime: Date }> = [];
+
+    return this.prisma.$transaction(async (tx: PrismaService) => {
+      const current = new Date(startDate);
+      const end = new Date(endDate);
+
+      while (current <= end) {
+        const startTime = this.buildDateTime(new Date(current), dto.startTime);
+        const endTime = this.buildDateTime(new Date(current), dto.endTime);
+
+        if (endTime <= startTime) {
+          const nextDay = new Date(current);
+          nextDay.setDate(nextDay.getDate() + 1);
+          const overnightEndTime = this.buildDateTime(nextDay, dto.endTime);
+          const created = await tx.taskInstance.create({
+            data: {
+              activityTaskId,
+              title: activityTask.name,
+              startTime,
+              endTime: overnightEndTime,
+            },
+          });
+          createdTaskInstances.push(created);
+        } else {
+          const created = await tx.taskInstance.create({
+            data: {
+              activityTaskId,
+              title: activityTask.name,
+              startTime,
+              endTime,
+            },
+          });
+          createdTaskInstances.push(created);
+        }
+
+        current.setDate(current.getDate() + 1);
+      }
+
+      return {
+        createdCount: createdTaskInstances.length,
+        createdTaskInstances,
+      };
     });
   }
 

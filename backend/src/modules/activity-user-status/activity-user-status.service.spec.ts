@@ -125,35 +125,35 @@ describe('ActivityUserStatusService', () => {
 
   it('bulkUpdate: updates multiple records', async () => {
     prisma.activity.findUnique.mockResolvedValue({ id: 'a1', companyId: 'c1' });
-    prisma.user.findUnique.mockResolvedValue({ id: 'u1', companyId: 'c1' });
+    prisma.user.findMany.mockResolvedValue([{ id: 'u1', companyId: 'c1' }, { id: 'u2', companyId: 'c1' }]);
     prisma.activityUserStatus.findMany.mockResolvedValue([
-      { id: 's1', activityId: 'a1', userId: 'u1', date: new Date('2026-01-01'), status: 'ACTIVE' },
-      { id: 's2', activityId: 'a1', userId: 'u1', date: new Date('2026-01-02'), status: 'ACTIVE' },
+      { id: 's1', activityId: 'a1', userId: 'u1', date: new Date('2026-01-01'), status: 'ACTIVE', availability: 'ALL_DAY' },
+      { id: 's2', activityId: 'a1', userId: 'u2', date: new Date('2026-01-02'), status: 'ACTIVE', availability: 'MORNING' },
     ]);
     prisma.$transaction.mockImplementation(async (callback: any) => callback(prisma));
-    prisma.activityUserStatus.update.mockResolvedValue({ id: 's1', status: 'HOLIDAY' });
+    prisma.activityUserStatus.update.mockResolvedValue({ id: 's1', status: 'ACTIVE', availability: 'EVENING' });
 
     const res = await service.bulkUpdate('a1', {
-      userId: 'u1',
+      userIds: ['u1', 'u2'],
       startDate: '2026-01-01',
       endDate: '2026-01-02',
-      status: 'HOLIDAY' as any,
+      availability: 'EVENING' as any,
     });
 
     expect(res.updatedCount).toBe(2);
     expect(prisma.activityUserStatus.update).toHaveBeenCalledTimes(2);
   });
 
-  it('bulkUpdate: rejects user from another company', async () => {
+  it('bulkUpdate: rejects invalid users', async () => {
     prisma.activity.findUnique.mockResolvedValue({ id: 'a1', companyId: 'c1' });
-    prisma.user.findUnique.mockResolvedValue({ id: 'u1', companyId: 'c2' });
+    prisma.user.findMany.mockResolvedValue([{ id: 'u1', companyId: 'c2' }]);
 
     await expect(
       service.bulkUpdate('a1', {
-        userId: 'u1',
+        userIds: ['u1'],
         startDate: '2026-01-01',
         endDate: '2026-01-02',
-        status: 'HOLIDAY' as any,
+        availability: 'MORNING' as any,
       }),
     ).rejects.toThrow(BadRequestException);
   });
@@ -163,12 +163,25 @@ describe('ActivityUserStatusService', () => {
 
     await expect(
       service.bulkUpdate('a1', {
-        userId: 'u1',
+        userIds: ['u1'],
         startDate: '2026-01-03',
         endDate: '2026-01-01',
-        status: 'HOLIDAY' as any,
+        availability: 'MORNING' as any,
       }),
     ).rejects.toThrow(BadRequestException);
+  });
+
+  it('bulkUpdate: throws when activity missing', async () => {
+    prisma.activity.findUnique.mockResolvedValue(null);
+
+    await expect(
+      service.bulkUpdate('missing', {
+        userIds: ['u1'],
+        startDate: '2026-01-01',
+        endDate: '2026-01-02',
+        availability: 'ALL_DAY' as any,
+      }),
+    ).rejects.toThrow(NotFoundException);
   });
 
   it('update: throws when record missing', async () => {

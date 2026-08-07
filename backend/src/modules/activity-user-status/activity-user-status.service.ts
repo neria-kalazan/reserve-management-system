@@ -123,10 +123,10 @@ export class ActivityUserStatusService {
   }
 
   async bulkUpdate(activityId: string, dto: BulkUpdateActivityUserStatusDto) {
-    const allowedStatuses = ['ACTIVE', 'HOLIDAY', 'RELEASED', 'SICK'] as const;
+    const allowedAvailabilities = ['MORNING', 'EVENING', 'ALL_DAY', 'UNAVAILABLE'] as const;
 
-    if (dto.status !== undefined && !allowedStatuses.includes(dto.status as (typeof allowedStatuses)[number])) {
-      throw new BadRequestException('Invalid status');
+    if (!allowedAvailabilities.includes(dto.availability as (typeof allowedAvailabilities)[number])) {
+      throw new BadRequestException('Invalid availability');
     }
 
     const activity = await this.prisma.activity.findUnique({
@@ -145,24 +145,25 @@ export class ActivityUserStatusService {
       throw new BadRequestException('endDate must be greater than or equal to startDate');
     }
 
-    const user = await this.prisma.user.findUnique({
-      where: { id: dto.userId },
+    const users = await this.prisma.user.findMany({
+      where: { id: { in: dto.userIds } },
       select: { id: true, companyId: true },
     });
 
-    if (!user) {
-      throw new NotFoundException('User not found');
+    if (users.length !== dto.userIds.length) {
+      throw new BadRequestException('One or more users were not found');
     }
 
-    if (user.companyId !== activity.companyId) {
-      throw new BadRequestException('User does not belong to the activity company');
+    const invalidUsers = users.filter((user: { companyId: string }) => user.companyId !== activity.companyId);
+    if (invalidUsers.length > 0) {
+      throw new BadRequestException('One or more users do not belong to the activity company');
     }
 
     return this.prisma.$transaction(async (tx: PrismaService) => {
       const records = await tx.activityUserStatus.findMany({
         where: {
           activityId,
-          userId: dto.userId,
+          userId: { in: dto.userIds },
           date: {
             gte: startDate,
             lte: endDate,
@@ -196,7 +197,7 @@ export class ActivityUserStatusService {
       for (const record of records) {
         const updated = await tx.activityUserStatus.update({
           where: { id: record.id },
-          data: { status: dto.status },
+          data: { availability: dto.availability },
           select: {
             id: true,
             activityId: true,

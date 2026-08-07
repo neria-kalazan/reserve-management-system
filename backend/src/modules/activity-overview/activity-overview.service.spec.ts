@@ -95,4 +95,17 @@ describe('ActivityOverviewService', () => {
     expect(result.availabilitySummary.byAvailability.MORNING).toBe(1);
     expect(result.availabilitySummary.byAvailability.UNAVAILABLE).toBe(1);
   });
+
+  it('returns empty task overview for activities without tasks', async () => {
+    prisma.activity.findUnique.mockResolvedValue({ id: 'activity-1', name: 'Ops', startDate: new Date(), endDate: new Date(), status: 'ACTIVE', company: { id: 'c1', name: 'Co', status: 'ACTIVE' } });
+    prisma.activityUserStatus.findMany.mockResolvedValue([]);
+    prisma.activityTask.findMany.mockResolvedValue([]);
+    prisma.taskInstance.findMany.mockResolvedValue([]);
+    prisma.assignment.findMany.mockResolvedValue([]);
+
+    const result = await service.getOverview('activity-1');
+
+    expect(result.tasksOverview).toEqual([]);
+    expect(result.availabilitySummary.byAvailability).toEqual({});
+  });
 });

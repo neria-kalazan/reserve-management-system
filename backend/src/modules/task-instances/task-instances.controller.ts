@@ -1,6 +1,7 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, UsePipes, ValidationPipe } from '@nestjs/common';
 import { TaskInstancesService } from './task-instances.service';
 import { CreateTaskInstanceDto } from './dto/create-task-instance.dto';
+import { BulkCreateTaskInstancesDto } from './dto/bulk-create-task-instances.dto';
 import { UpdateTaskInstanceDto } from './dto/update-task-instance.dto';
 
 @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
@@ -11,6 +12,11 @@ export class TaskInstancesController {
   @Post('activity-tasks/:activityTaskId/task-instances')
   create(@Param('activityTaskId') activityTaskId: string, @Body() dto: CreateTaskInstanceDto) {
     return this.taskInstancesService.create(activityTaskId, dto);
+  }
+
+  @Post('activity-tasks/:activityTaskId/task-instances/bulk')
+  bulkCreate(@Param('activityTaskId') activityTaskId: string, @Body() dto: BulkCreateTaskInstancesDto) {
+    return this.taskInstancesService.bulkCreate(activityTaskId, dto);
   }
 
   @Get('activity-tasks/:activityTaskId/task-instances')
