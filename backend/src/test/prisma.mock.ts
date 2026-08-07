@@ -30,6 +30,7 @@ export function createPrismaMock() {
       findMany: jest.fn(),
       create: jest.fn(),
       update: jest.fn(),
+      count: jest.fn(),
     },
     userRole: {
       create: jest.fn(),
@@ -97,6 +98,7 @@ export function createPrismaMock() {
       create: jest.fn(),
       update: jest.fn(),
       delete: jest.fn(),
+      groupBy: jest.fn(),
     },
     activityUserAvailability: {
       findMany: jest.fn(),
