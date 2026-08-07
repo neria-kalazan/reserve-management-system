@@ -19,6 +19,7 @@ import { TaskInstancesModule } from './modules/task-instances/task-instances.mod
 import { ActivityUserStatusModule } from './modules/activity-user-status/activity-user-status.module';
 import { AssignmentsModule } from './modules/assignments/assignments.module';
 import { CompanyDashboardModule } from './modules/company-dashboard/company-dashboard.module';
+import { ActivityOverviewModule } from './modules/activity-overview/activity-overview.module';
 
 @Module({
   imports: [
@@ -40,6 +41,7 @@ import { CompanyDashboardModule } from './modules/company-dashboard/company-dash
     ActivityUserStatusModule,
     AssignmentsModule,
     CompanyDashboardModule,
+    ActivityOverviewModule,
   ],
   controllers: [AppController],
   providers: [AppService],
