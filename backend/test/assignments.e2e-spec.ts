@@ -7,6 +7,8 @@ import { AssignmentsController } from '../src/modules/assignments/assignments.co
 import { AssignmentsService } from '../src/modules/assignments/assignments.service';
 import { TaskInstancesController } from '../src/modules/task-instances/task-instances.controller';
 import { TaskInstancesService } from '../src/modules/task-instances/task-instances.service';
+import { TaskValidationController } from '../src/modules/task-instances/task-validation.controller';
+import { TaskValidationService } from '../src/modules/task-instances/task-validation.service';
 import { ActivityTasksController } from '../src/modules/activity-tasks/activity-tasks.controller';
 import { ActivityTasksService } from '../src/modules/activity-tasks/activity-tasks.service';
 import { ActivitiesController } from '../src/modules/activities/activities.controller';
@@ -67,9 +69,31 @@ describe('Assignments e2e', () => {
           };
         }),
       },
+      activityTaskManpowerRequirement: {
+        findUnique: jest.fn(async () => null),
+      },
+      activityTaskRoleRequirement: {
+        findMany: jest.fn(async () => []),
+      },
+      activityTaskQualificationRequirement: {
+        findMany: jest.fn(async () => []),
+      },
+      activityUserStatus: {
+        findMany: jest.fn(async () => []),
+      },
       taskInstance: {
         create: jest.fn(async ({ data }: any) => {
-          const instance = { id: randomUUID(), activityTaskId: data.activityTaskId, title: data.title, startTime: data.startTime, endTime: data.endTime, createdAt: new Date(), updatedAt: new Date() };
+          const activityTask = state.activityTasks.get(data.activityTaskId);
+          const instance = {
+            id: randomUUID(),
+            activityTaskId: data.activityTaskId,
+            title: data.title,
+            startTime: data.startTime,
+            endTime: data.endTime,
+            activityTask: activityTask ? { id: activityTask.id, activity: { id: activityTask.activityId } } : null,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          };
           state.taskInstances.set(instance.id, instance);
           return instance;
         }),
@@ -117,8 +141,8 @@ describe('Assignments e2e', () => {
     };
 
     const moduleFixture: TestingModule = await Test.createTestingModule({
-      controllers: [CompaniesController, ActivitiesController, ActivityTasksController, TaskInstancesController, AssignmentsController, UnitsController, UsersController],
-      providers: [CompaniesService, ActivitiesService, ActivityTasksService, TaskInstancesService, AssignmentsService, UnitsService, UsersService, { provide: PrismaService, useValue: prismaMock }],
+      controllers: [CompaniesController, ActivitiesController, ActivityTasksController, TaskInstancesController, AssignmentsController, UnitsController, UsersController, TaskValidationController],
+      providers: [CompaniesService, ActivitiesService, ActivityTasksService, TaskInstancesService, AssignmentsService, UnitsService, UsersService, TaskValidationService, { provide: PrismaService, useValue: prismaMock }],
     }).compile();
 
     app = moduleFixture.createNestApplication();
@@ -145,13 +169,14 @@ describe('Assignments e2e', () => {
     const userId = userRes.body.id;
 
     const createRes = await request(app.getHttpServer()).post(`/task-instances/${taskInstanceId}/assignments`).send({ userId }).expect(201);
-    expect(createRes.body.userId).toBe(userId);
+    expect(createRes.body.assignment.userId).toBe(userId);
+    expect(createRes.body.validation).toEqual(expect.objectContaining({ summary: expect.objectContaining({ isValid: expect.any(Boolean) }) }));
 
     const listRes = await request(app.getHttpServer()).get(`/task-instances/${taskInstanceId}/assignments`).expect(200);
     expect(listRes.body).toHaveLength(1);
 
-    const deleteRes = await request(app.getHttpServer()).delete(`/assignments/${createRes.body.id}`).expect(200);
-    expect(deleteRes.body.id).toBe(createRes.body.id);
+    const deleteRes = await request(app.getHttpServer()).delete(`/assignments/${createRes.body.assignment.id}`).expect(200);
+    expect(deleteRes.body.id).toBe(createRes.body.assignment.id);
   });
 
   afterEach(async () => {

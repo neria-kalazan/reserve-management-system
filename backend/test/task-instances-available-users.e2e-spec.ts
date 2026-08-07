@@ -17,6 +17,7 @@ import { UsersController } from '../src/modules/users/users.controller';
 import { UsersService } from '../src/modules/users/users.service';
 import { AssignmentsController } from '../src/modules/assignments/assignments.controller';
 import { AssignmentsService } from '../src/modules/assignments/assignments.service';
+import { TaskValidationService } from '../src/modules/task-instances/task-validation.service';
 import { PrismaService } from '../src/prisma/prisma.service';
 
 describe('Task instances available users e2e', () => {
@@ -143,7 +144,7 @@ describe('Task instances available users e2e', () => {
 
     const moduleFixture: TestingModule = await Test.createTestingModule({
       controllers: [CompaniesController, ActivitiesController, ActivityTasksController, TaskInstancesController, AssignmentsController, UnitsController, UsersController],
-      providers: [CompaniesService, ActivitiesService, ActivityTasksService, TaskInstancesService, AssignmentsService, UnitsService, UsersService, { provide: PrismaService, useValue: prismaMock }],
+      providers: [CompaniesService, ActivitiesService, ActivityTasksService, TaskInstancesService, AssignmentsService, UnitsService, UsersService, TaskValidationService, { provide: PrismaService, useValue: prismaMock }],
     }).compile();
 
     app = moduleFixture.createNestApplication();

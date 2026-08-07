@@ -4,11 +4,13 @@ import { createPrismaMock } from '../../test/prisma.mock';
 
 describe('AssignmentsService', () => {
   let prisma: any;
+  let validationService: { validate: jest.Mock };
   let service: AssignmentsService;
 
   beforeEach(() => {
     prisma = createPrismaMock();
-    service = new AssignmentsService(prisma);
+    validationService = { validate: jest.fn().mockResolvedValue({ requiredErrors: [], warnings: [], summary: { isValid: true } }) };
+    service = new AssignmentsService(prisma, validationService as any);
   });
 
   it('should be defined', () => {
@@ -23,8 +25,10 @@ describe('AssignmentsService', () => {
 
     const res = await service.create('instance-1', { userId: 'user-1', createdBy: 'user-2' } as any);
 
-    expect(res).toBeDefined();
+    expect(res.assignment).toBeDefined();
+    expect(res.validation).toEqual({ requiredErrors: [], warnings: [], summary: { isValid: true } });
     expect(prisma.assignment.create).toHaveBeenCalled();
+    expect(validationService.validate).toHaveBeenCalledWith('instance-1');
   });
 
   it('create: throws when task instance is missing', async () => {

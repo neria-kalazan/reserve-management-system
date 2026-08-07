@@ -1,10 +1,14 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateAssignmentDto } from './dto/create-assignment.dto';
+import { TaskValidationService } from '../task-instances/task-validation.service';
 
 @Injectable()
 export class AssignmentsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly taskValidationService: TaskValidationService,
+  ) {}
 
   async create(taskInstanceId: string, dto: CreateAssignmentDto) {
     const taskInstance = await this.prisma.taskInstance.findUnique({
@@ -52,7 +56,7 @@ export class AssignmentsService {
       throw new ConflictException('User is already assigned to this task instance');
     }
 
-    return this.prisma.assignment.create({
+    const assignment = await this.prisma.assignment.create({
       data: {
         taskInstanceId,
         userId: dto.userId,
@@ -78,6 +82,13 @@ export class AssignmentsService {
         },
       },
     });
+
+    const validation = await this.taskValidationService.validate(taskInstanceId);
+
+    return {
+      assignment,
+      validation,
+    };
   }
 
   async findAllByTaskInstance(taskInstanceId: string) {
