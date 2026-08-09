@@ -1,9 +1,14 @@
-import { Body, Controller, Get, Param, Patch, Post, UsePipes, ValidationPipe } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, UseGuards, UsePipes, ValidationPipe } from '@nestjs/common';
+import { AuthGuard } from '../auth/auth.guard';
+import { PermissionGuard } from '../auth/permission.guard';
+import { RequirePermission } from '../auth/permission.decorator';
 import { ActivityUserStatusService } from './activity-user-status.service';
 import { BulkUpdateActivityUserStatusDto } from './dto/bulk-update-activity-user-status.dto';
 import { UpdateActivityUserStatusDto } from './dto/update-activity-user-status.dto';
 
 @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
+@UseGuards(AuthGuard, PermissionGuard)
+@RequirePermission('MANAGE_COMPANIES')
 @Controller()
 export class ActivityUserStatusController {
   constructor(private readonly activityUserStatusService: ActivityUserStatusService) {}

@@ -18,6 +18,9 @@ import { AssignmentsService } from '../src/modules/assignments/assignments.servi
 import { TaskValidationService } from '../src/modules/task-instances/task-validation.service';
 import { TaskWorkspaceController } from '../src/modules/task-workspace/task-workspace.controller';
 import { TaskWorkspaceService } from '../src/modules/task-workspace/task-workspace.service';
+import { AuthService } from '../src/modules/auth/auth.service';
+import { AuthGuard } from '../src/modules/auth/auth.guard';
+import { PermissionGuard } from '../src/modules/auth/permission.guard';
 import { PrismaService } from '../src/prisma/prisma.service';
 
 describe('Company dashboard e2e', () => {
@@ -106,6 +109,9 @@ describe('Company dashboard e2e', () => {
         findMany: jest.fn(async () => Array.from(state.taskInstances.values())),
         findUnique: jest.fn(async ({ where: { id } }: any) => state.taskInstances.get(id) ?? null),
       },
+      userPermission: {
+        findMany: jest.fn().mockResolvedValue([{ permission: { key: 'MANAGE_COMPANIES' } }]),
+      },
       user: {
         create: jest.fn(async ({ data }: any) => {
           const user = { id: randomUUID(), companyId: data.companyId, unitId: data.unitId, firstName: data.firstName, lastName: data.lastName, phone: data.phone ?? null, email: data.email ?? null, personalNumber: data.personalNumber ?? null, isActive: data.isActive ?? true };
@@ -113,7 +119,18 @@ describe('Company dashboard e2e', () => {
           return user;
         }),
         count: jest.fn(async ({ where }: any) => Array.from(state.users.values()).filter((user) => user.companyId === where.companyId && user.isActive === where.isActive).length),
-        findUnique: jest.fn(async ({ where: { id } }: any) => state.users.get(id) ?? null),
+        findUnique: jest.fn(async ({ where: { id } }: any) => {
+          if (id === 'user-1') {
+            return { id: 'user-1', email: 'test@example.com', firstName: 'Test', lastName: 'User', isActive: true };
+          }
+          return state.users.get(id) ?? null;
+        }),
+        findMany: jest.fn(async ({ where }: any) => {
+          if (where?.id?.in) {
+            return Array.from(state.users.values()).filter((user) => where.id.in.includes(user.id));
+          }
+          return Array.from(state.users.values()).filter((user) => user.companyId === where?.companyId);
+        }),
       },
       activityUserStatus: {
         create: jest.fn(async ({ data }: any) => {
@@ -157,11 +174,31 @@ describe('Company dashboard e2e', () => {
             validate: jest.fn().mockResolvedValue({ requiredErrors: [], warnings: [], summary: { isValid: true } }),
           },
         },
+        AuthGuard,
+        PermissionGuard,
+        {
+          provide: AuthService,
+          useValue: {
+            getSessionUser: jest.fn(() => 'user-1'),
+            clearSession: jest.fn(),
+            buildSessionCookie: jest.fn(),
+            getFrontendRedirectUrl: jest.fn(),
+            authenticateGoogleUser: jest.fn(),
+            createSessionToken: jest.fn(),
+            normalizeEmail: jest.fn(),
+          },
+        },
         { provide: PrismaService, useValue: prismaMock },
       ],
     }).compile();
 
     app = moduleFixture.createNestApplication();
+    app.use((req: any, _res: any, next: () => void) => {
+      if (!req.headers.cookie) {
+        req.headers.cookie = 'app_session=test-session';
+      }
+      next();
+    });
     await app.init();
   });
 

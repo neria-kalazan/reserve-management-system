@@ -1,9 +1,14 @@
-import { Controller, Get, Post, Patch, Delete, Param, Body, UsePipes, ValidationPipe } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Param, Body, UseGuards, UsePipes, ValidationPipe } from '@nestjs/common';
+import { AuthGuard } from '../auth/auth.guard';
+import { PermissionGuard } from '../auth/permission.guard';
+import { RequirePermission } from '../auth/permission.decorator';
 import { RolesService } from './roles.service';
 import { CreateRoleDto } from './dto/create-role.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
 
 @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
+@UseGuards(AuthGuard, PermissionGuard)
+@RequirePermission('MANAGE_COMPANIES')
 @Controller()
 export class RolesController {
   constructor(private readonly rolesService: RolesService) {}

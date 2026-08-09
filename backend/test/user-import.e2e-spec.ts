@@ -11,6 +11,9 @@ import { UsersController } from '../src/modules/users/users.controller';
 import { UsersService } from '../src/modules/users/users.service';
 import { UserImportController } from '../src/modules/user-import/user-import.controller';
 import { UserImportService } from '../src/modules/user-import/user-import.service';
+import { AuthService } from '../src/modules/auth/auth.service';
+import { AuthGuard } from '../src/modules/auth/auth.guard';
+import { PermissionGuard } from '../src/modules/auth/permission.guard';
 import { PrismaService } from '../src/prisma/prisma.service';
 
 describe('User import e2e', () => {
@@ -25,6 +28,9 @@ describe('User import e2e', () => {
     };
 
     prismaMock = {
+      userPermission: {
+        findMany: jest.fn().mockResolvedValue([{ permission: { key: 'MANAGE_COMPANIES' } }]),
+      },
       company: {
         create: jest.fn(async ({ data }: any) => {
           const company = {
@@ -77,6 +83,12 @@ describe('User import e2e', () => {
           state.users.set(user.id, user);
           return user;
         }),
+        findUnique: jest.fn(async ({ where: { id } }: any) => {
+          if (id === 'user-1') {
+            return { id: 'user-1', email: 'test@example.com', firstName: 'Test', lastName: 'User', isActive: true };
+          }
+          return null;
+        }),
         findMany: jest.fn(async ({ where: { companyId } }: any) => Array.from(state.users.values())
           .filter((user) => user.companyId === companyId)
           .map((user) => ({
@@ -111,6 +123,20 @@ describe('User import e2e', () => {
         UnitsService,
         UsersService,
         UserImportService,
+        AuthGuard,
+        PermissionGuard,
+        {
+          provide: AuthService,
+          useValue: {
+            getSessionUser: jest.fn(() => 'user-1'),
+            clearSession: jest.fn(),
+            buildSessionCookie: jest.fn(),
+            getFrontendRedirectUrl: jest.fn(),
+            authenticateGoogleUser: jest.fn(),
+            createSessionToken: jest.fn(),
+            normalizeEmail: jest.fn(),
+          },
+        },
         {
           provide: PrismaService,
           useValue: prismaMock,
@@ -119,6 +145,12 @@ describe('User import e2e', () => {
     }).compile();
 
     app = moduleFixture.createNestApplication();
+    app.use((req: any, _res: any, next: () => void) => {
+      if (!req.headers.cookie) {
+        req.headers.cookie = 'app_session=test-session';
+      }
+      next();
+    });
     await app.init();
   });
 

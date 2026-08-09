@@ -3,6 +3,9 @@ import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import { AppModule } from '../src/app.module';
+import { AuthService } from '../src/modules/auth/auth.service';
+import { AuthGuard } from '../src/modules/auth/auth.guard';
+import { PermissionGuard } from '../src/modules/auth/permission.guard';
 import { PrismaService } from '../src/prisma/prisma.service';
 
 describe('Activity availability bulk e2e', () => {
@@ -14,11 +17,15 @@ describe('Activity availability bulk e2e', () => {
     })
       .overrideProvider(PrismaService)
       .useValue({
-        activity: {
-          findUnique: jest.fn().mockResolvedValue({ id: 'activity-1', companyId: 'company-1' }),
+        userPermission: {
+          findMany: jest.fn().mockResolvedValue([{ permission: { key: 'MANAGE_COMPANIES' } }]),
         },
         user: {
+          findUnique: jest.fn().mockResolvedValue({ id: 'user-1', email: 'test@example.com', firstName: 'Test', lastName: 'User', isActive: true }),
           findMany: jest.fn().mockResolvedValue([{ id: 'user-1', companyId: 'company-1' }, { id: 'user-2', companyId: 'company-1' }]),
+        },
+        activity: {
+          findUnique: jest.fn().mockResolvedValue({ id: 'activity-1', companyId: 'company-1' }),
         },
         activityUserStatus: {
           findMany: jest.fn().mockResolvedValue([
@@ -37,9 +44,25 @@ describe('Activity availability bulk e2e', () => {
           },
         })),
       })
+      .overrideProvider(AuthService)
+      .useValue({
+        getSessionUser: jest.fn(() => 'user-1'),
+        clearSession: jest.fn(),
+        buildSessionCookie: jest.fn(),
+        getFrontendRedirectUrl: jest.fn(),
+        authenticateGoogleUser: jest.fn(),
+        createSessionToken: jest.fn(),
+        normalizeEmail: jest.fn(),
+      })
       .compile();
 
     app = moduleFixture.createNestApplication();
+    app.use((req: any, _res: any, next: () => void) => {
+      if (!req.headers.cookie) {
+        req.headers.cookie = 'app_session=test-session';
+      }
+      next();
+    });
     await app.init();
   });
 

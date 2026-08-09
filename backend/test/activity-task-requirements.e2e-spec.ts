@@ -15,6 +15,9 @@ import { RolesController } from '../src/modules/roles/roles.controller';
 import { RolesService } from '../src/modules/roles/roles.service';
 import { QualificationsController } from '../src/modules/qualifications/qualifications.controller';
 import { QualificationsService } from '../src/modules/qualifications/qualifications.service';
+import { AuthService } from '../src/modules/auth/auth.service';
+import { AuthGuard } from '../src/modules/auth/auth.guard';
+import { PermissionGuard } from '../src/modules/auth/permission.guard';
 import { PrismaService } from '../src/prisma/prisma.service';
 
 describe('Activity task requirements e2e', () => {
@@ -75,6 +78,9 @@ describe('Activity task requirements e2e', () => {
           };
         }),
       },
+      userPermission: {
+        findMany: jest.fn().mockResolvedValue([{ permission: { key: 'MANAGE_COMPANIES' } }]),
+      },
       role: {
         create: jest.fn(async ({ data }: any) => {
           const role = { id: randomUUID(), companyId: data.companyId, name: data.name, description: data.description ?? null, createdAt: new Date(), updatedAt: new Date() };
@@ -82,6 +88,14 @@ describe('Activity task requirements e2e', () => {
           return role;
         }),
         findUnique: jest.fn(async ({ where: { id } }: any) => state.roles.get(id) ?? null),
+      },
+      user: {
+        findUnique: jest.fn(async ({ where: { id } }: any) => {
+          if (id === 'user-1') {
+            return { id: 'user-1', email: 'test@example.com', firstName: 'Test', lastName: 'User', isActive: true };
+          }
+          return null;
+        }),
       },
       qualification: {
         create: jest.fn(async ({ data }: any) => {
@@ -145,10 +159,38 @@ describe('Activity task requirements e2e', () => {
 
     const moduleFixture: TestingModule = await Test.createTestingModule({
       controllers: [CompaniesController, ActivitiesController, ActivityTasksController, ActivityTaskRequirementsController, RolesController, QualificationsController],
-      providers: [CompaniesService, ActivitiesService, ActivityTasksService, ActivityTaskRequirementsService, RolesService, QualificationsService, { provide: PrismaService, useValue: prismaMock }],
+      providers: [
+        CompaniesService,
+        ActivitiesService,
+        ActivityTasksService,
+        ActivityTaskRequirementsService,
+        RolesService,
+        QualificationsService,
+        AuthGuard,
+        PermissionGuard,
+        {
+          provide: AuthService,
+          useValue: {
+            getSessionUser: jest.fn(() => 'user-1'),
+            clearSession: jest.fn(),
+            buildSessionCookie: jest.fn(),
+            getFrontendRedirectUrl: jest.fn(),
+            authenticateGoogleUser: jest.fn(),
+            createSessionToken: jest.fn(),
+            normalizeEmail: jest.fn(),
+          },
+        },
+        { provide: PrismaService, useValue: prismaMock },
+      ],
     }).compile();
 
     app = moduleFixture.createNestApplication();
+    app.use((req: any, _res: any, next: () => void) => {
+      if (!req.headers.cookie) {
+        req.headers.cookie = 'app_session=test-session';
+      }
+      next();
+    });
     await app.init();
   });
 

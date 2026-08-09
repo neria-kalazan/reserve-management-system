@@ -15,6 +15,9 @@ import { UserQualificationsController } from '../src/modules/user-qualifications
 import { UserQualificationsService } from '../src/modules/user-qualifications/user-qualifications.service';
 import { UserPermissionsController } from '../src/modules/user-permissions/user-permissions.controller';
 import { UserPermissionsService } from '../src/modules/user-permissions/user-permissions.service';
+import { AuthService } from '../src/modules/auth/auth.service';
+import { AuthGuard } from '../src/modules/auth/auth.guard';
+import { PermissionGuard } from '../src/modules/auth/permission.guard';
 import { PrismaService } from '../src/prisma/prisma.service';
 
 describe('User management e2e', () => {
@@ -92,6 +95,9 @@ describe('User management e2e', () => {
           };
         }),
         findUnique: jest.fn(async ({ where: { id } }: any) => {
+          if (id === 'user-1') {
+            return { id: 'user-1', email: 'test@example.com', firstName: 'Test', lastName: 'User', isActive: true };
+          }
           const user = state.users.get(id);
           if (!user) return null;
           return {
@@ -163,6 +169,7 @@ describe('User management e2e', () => {
           state.userPermissions.push(relation);
           return relation;
         }),
+        findMany: jest.fn().mockResolvedValue([{ permission: { key: 'MANAGE_COMPANIES' } }]),
       },
     };
 
@@ -182,6 +189,20 @@ describe('User management e2e', () => {
         UserRolesService,
         UserQualificationsService,
         UserPermissionsService,
+        AuthGuard,
+        PermissionGuard,
+        {
+          provide: AuthService,
+          useValue: {
+            getSessionUser: jest.fn(() => 'user-1'),
+            clearSession: jest.fn(),
+            buildSessionCookie: jest.fn(),
+            getFrontendRedirectUrl: jest.fn(),
+            authenticateGoogleUser: jest.fn(),
+            createSessionToken: jest.fn(),
+            normalizeEmail: jest.fn(),
+          },
+        },
         {
           provide: PrismaService,
           useValue: prismaMock,
@@ -190,6 +211,12 @@ describe('User management e2e', () => {
     }).compile();
 
     app = moduleFixture.createNestApplication();
+    app.use((req: any, _res: any, next: () => void) => {
+      if (!req.headers.cookie) {
+        req.headers.cookie = 'app_session=test-session';
+      }
+      next();
+    });
     await app.init();
   });
 

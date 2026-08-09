@@ -1,6 +1,11 @@
-import { Controller, Post, Get, Delete, Param, ParseUUIDPipe } from '@nestjs/common';
+import { Controller, Post, Get, Delete, Param, ParseUUIDPipe, UseGuards } from '@nestjs/common';
+import { AuthGuard } from '../auth/auth.guard';
+import { PermissionGuard } from '../auth/permission.guard';
+import { RequirePermission } from '../auth/permission.decorator';
 import { UserPermissionsService } from './user-permissions.service';
 
+@UseGuards(AuthGuard, PermissionGuard)
+@RequirePermission('MANAGE_COMPANIES')
 @Controller()
 export class UserPermissionsController {
   constructor(private readonly userPermissionsService: UserPermissionsService) {}

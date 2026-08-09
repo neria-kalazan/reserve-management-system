@@ -1,10 +1,15 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, UsePipes, ValidationPipe } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards, UsePipes, ValidationPipe } from '@nestjs/common';
+import { AuthGuard } from '../auth/auth.guard';
+import { PermissionGuard } from '../auth/permission.guard';
+import { RequirePermission } from '../auth/permission.decorator';
 import { TaskInstancesService } from './task-instances.service';
 import { CreateTaskInstanceDto } from './dto/create-task-instance.dto';
 import { BulkCreateTaskInstancesDto } from './dto/bulk-create-task-instances.dto';
 import { UpdateTaskInstanceDto } from './dto/update-task-instance.dto';
 
 @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
+@UseGuards(AuthGuard, PermissionGuard)
+@RequirePermission('MANAGE_COMPANIES')
 @Controller()
 export class TaskInstancesController {
   constructor(private readonly taskInstancesService: TaskInstancesService) {}

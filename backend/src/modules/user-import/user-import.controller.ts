@@ -1,7 +1,12 @@
-import { Controller, Post, Param, NotFoundException, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { Controller, Post, Param, NotFoundException, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { AuthGuard } from '../auth/auth.guard';
+import { PermissionGuard } from '../auth/permission.guard';
+import { RequirePermission } from '../auth/permission.decorator';
 import { UserImportService } from './user-import.service';
 
+@UseGuards(AuthGuard, PermissionGuard)
+@RequirePermission('MANAGE_COMPANIES')
 @Controller()
 export class UserImportController {
   constructor(private readonly importService: UserImportService) {}

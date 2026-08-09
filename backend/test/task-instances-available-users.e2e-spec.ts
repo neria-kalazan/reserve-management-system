@@ -18,6 +18,9 @@ import { UsersService } from '../src/modules/users/users.service';
 import { AssignmentsController } from '../src/modules/assignments/assignments.controller';
 import { AssignmentsService } from '../src/modules/assignments/assignments.service';
 import { TaskValidationService } from '../src/modules/task-instances/task-validation.service';
+import { AuthService } from '../src/modules/auth/auth.service';
+import { AuthGuard } from '../src/modules/auth/auth.guard';
+import { PermissionGuard } from '../src/modules/auth/permission.guard';
 import { PrismaService } from '../src/prisma/prisma.service';
 
 describe('Task instances available users e2e', () => {
@@ -37,6 +40,9 @@ describe('Task instances available users e2e', () => {
     };
 
     prismaMock = {
+      userPermission: {
+        findMany: jest.fn().mockResolvedValue([{ permission: { key: 'MANAGE_COMPANIES' } }]),
+      },
       company: {
         create: jest.fn(async ({ data }: any) => {
           const company = { id: randomUUID(), name: data.name, status: data.status, ownerUserId: data.ownerUserId ?? null, createdAt: new Date(), updatedAt: new Date() };
@@ -97,7 +103,12 @@ describe('Task instances available users e2e', () => {
           state.users.set(user.id, user);
           return user;
         }),
-        findUnique: jest.fn(async ({ where: { id } }: any) => state.users.get(id) ?? null),
+        findUnique: jest.fn(async ({ where: { id } }: any) => {
+          if (id === 'user-1') {
+            return { id: 'user-1', email: 'test@example.com', firstName: 'Test', lastName: 'User', isActive: true };
+          }
+          return state.users.get(id) ?? null;
+        }),
       },
       activityUserStatus: {
         findMany: jest.fn(async ({ where }: any) => Array.from(state.activityUserStatuses.values()).filter((record) => {
@@ -144,10 +155,16 @@ describe('Task instances available users e2e', () => {
 
     const moduleFixture: TestingModule = await Test.createTestingModule({
       controllers: [CompaniesController, ActivitiesController, ActivityTasksController, TaskInstancesController, AssignmentsController, UnitsController, UsersController],
-      providers: [CompaniesService, ActivitiesService, ActivityTasksService, TaskInstancesService, AssignmentsService, UnitsService, UsersService, TaskValidationService, { provide: PrismaService, useValue: prismaMock }],
+      providers: [CompaniesService, ActivitiesService, ActivityTasksService, TaskInstancesService, AssignmentsService, UnitsService, UsersService, TaskValidationService, AuthGuard, PermissionGuard, { provide: AuthService, useValue: { getSessionUser: jest.fn(() => 'user-1'), clearSession: jest.fn(), buildSessionCookie: jest.fn(), getFrontendRedirectUrl: jest.fn(), authenticateGoogleUser: jest.fn(), createSessionToken: jest.fn(), normalizeEmail: jest.fn() } }, { provide: PrismaService, useValue: prismaMock }],
     }).compile();
 
     app = moduleFixture.createNestApplication();
+    app.use((req: any, _res: any, next: () => void) => {
+      if (!req.headers.cookie) {
+        req.headers.cookie = 'app_session=test-session';
+      }
+      next();
+    });
     await app.init();
   });
 

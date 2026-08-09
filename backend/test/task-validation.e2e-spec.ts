@@ -13,6 +13,9 @@ import { ActivitiesController } from '../src/modules/activities/activities.contr
 import { ActivitiesService } from '../src/modules/activities/activities.service';
 import { CompaniesController } from '../src/modules/companies/companies.controller';
 import { CompaniesService } from '../src/modules/companies/companies.service';
+import { AuthService } from '../src/modules/auth/auth.service';
+import { AuthGuard } from '../src/modules/auth/auth.guard';
+import { PermissionGuard } from '../src/modules/auth/permission.guard';
 import { PrismaService } from '../src/prisma/prisma.service';
 
 describe('Task validation e2e', () => {
@@ -89,17 +92,32 @@ describe('Task validation e2e', () => {
       activityUserStatus: {
         findMany: jest.fn(async ({ where: { activityId, date } }: any) => Array.from(state.activityUserStatuses.values()).filter((status) => status.activityId === activityId && status.date.getTime() === date.getTime())),
       },
+      userPermission: {
+        findMany: jest.fn().mockResolvedValue([{ permission: { key: 'MANAGE_COMPANIES' } }]),
+      },
       user: {
+        findUnique: jest.fn(async ({ where: { id } }: any) => {
+          if (id === 'user-1') {
+            return { id: 'user-1', email: 'test@example.com', firstName: 'Test', lastName: 'User', isActive: true };
+          }
+          return null;
+        }),
         findMany: jest.fn(async ({ where: { id: { in: ids } } }: any) => Array.from(state.users.values()).filter((user) => ids.includes(user.id))),
       },
     };
 
     const moduleFixture: TestingModule = await Test.createTestingModule({
       controllers: [CompaniesController, ActivitiesController, ActivityTasksController, TaskInstancesController, TaskValidationController],
-      providers: [CompaniesService, ActivitiesService, ActivityTasksService, TaskInstancesService, TaskValidationService, { provide: PrismaService, useValue: prismaMock }],
+      providers: [CompaniesService, ActivitiesService, ActivityTasksService, TaskInstancesService, TaskValidationService, AuthGuard, PermissionGuard, { provide: AuthService, useValue: { getSessionUser: jest.fn(() => 'user-1'), clearSession: jest.fn(), buildSessionCookie: jest.fn(), getFrontendRedirectUrl: jest.fn(), authenticateGoogleUser: jest.fn(), createSessionToken: jest.fn(), normalizeEmail: jest.fn() } }, { provide: PrismaService, useValue: prismaMock }],
     }).compile();
 
     app = moduleFixture.createNestApplication();
+    app.use((req: any, _res: any, next: () => void) => {
+      if (!req.headers.cookie) {
+        req.headers.cookie = 'app_session=test-session';
+      }
+      next();
+    });
     await app.init();
   });
 

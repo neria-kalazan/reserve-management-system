@@ -9,6 +9,9 @@ import { ActivitiesController } from '../src/modules/activities/activities.contr
 import { ActivitiesService } from '../src/modules/activities/activities.service';
 import { CompaniesController } from '../src/modules/companies/companies.controller';
 import { CompaniesService } from '../src/modules/companies/companies.service';
+import { AuthService } from '../src/modules/auth/auth.service';
+import { AuthGuard } from '../src/modules/auth/auth.guard';
+import { PermissionGuard } from '../src/modules/auth/permission.guard';
 import { PrismaService } from '../src/prisma/prisma.service';
 
 describe('Activity user status e2e', () => {
@@ -56,6 +59,9 @@ describe('Activity user status e2e', () => {
         }),
         findUnique: jest.fn(async ({ where: { id } }: any) => state.activities.get(id) ?? null),
       },
+      userPermission: {
+        findMany: jest.fn().mockResolvedValue([{ permission: { key: 'MANAGE_COMPANIES' } }]),
+      },
       user: {
         create: jest.fn(async ({ data }: any) => {
           const user = {
@@ -74,7 +80,12 @@ describe('Activity user status e2e', () => {
           state.users.set(user.id, user);
           return user;
         }),
-        findUnique: jest.fn(async ({ where: { id } }: any) => state.users.get(id) ?? null),
+        findUnique: jest.fn(async ({ where: { id } }: any) => {
+          if (id === 'user-1') {
+            return { id: 'user-1', email: 'test@example.com', firstName: 'Test', lastName: 'User', isActive: true };
+          }
+          return state.users.get(id) ?? null;
+        }),
       },
       activityUserStatus: {
         create: jest.fn(async ({ data }: any) => {
@@ -134,11 +145,31 @@ describe('Activity user status e2e', () => {
         CompaniesService,
         ActivitiesService,
         ActivityUserStatusService,
+        AuthGuard,
+        PermissionGuard,
+        {
+          provide: AuthService,
+          useValue: {
+            getSessionUser: jest.fn(() => 'user-1'),
+            clearSession: jest.fn(),
+            buildSessionCookie: jest.fn(),
+            getFrontendRedirectUrl: jest.fn(),
+            authenticateGoogleUser: jest.fn(),
+            createSessionToken: jest.fn(),
+            normalizeEmail: jest.fn(),
+          },
+        },
         { provide: PrismaService, useValue: prismaMock },
       ],
     }).compile();
 
     app = moduleFixture.createNestApplication();
+    app.use((req: any, _res: any, next: () => void) => {
+      if (!req.headers.cookie) {
+        req.headers.cookie = 'app_session=test-session';
+      }
+      next();
+    });
     await app.init();
   });
 

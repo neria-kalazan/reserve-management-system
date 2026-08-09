@@ -1,9 +1,14 @@
-import { Controller, Get, Patch, Post, Param, Body, UsePipes, ValidationPipe } from '@nestjs/common';
+import { Controller, Get, Patch, Post, Param, Body, UseGuards, UsePipes, ValidationPipe } from '@nestjs/common';
+import { AuthGuard } from '../auth/auth.guard';
+import { PermissionGuard } from '../auth/permission.guard';
+import { RequirePermission } from '../auth/permission.decorator';
 import { ActivityTasksService } from './activity-tasks.service';
 import { CreateActivityTaskDto } from './dto/create-activity-task.dto';
 import { UpdateActivityTaskDto } from './dto/update-activity-task.dto';
 
 @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
+@UseGuards(AuthGuard, PermissionGuard)
+@RequirePermission('MANAGE_COMPANIES')
 @Controller()
 export class ActivityTasksController {
   constructor(private readonly activityTasksService: ActivityTasksService) {}
