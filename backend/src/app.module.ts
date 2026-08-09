@@ -21,6 +21,7 @@ import { AssignmentsModule } from './modules/assignments/assignments.module';
 import { CompanyDashboardModule } from './modules/company-dashboard/company-dashboard.module';
 import { ActivityOverviewModule } from './modules/activity-overview/activity-overview.module';
 import { TaskWorkspaceModule } from './modules/task-workspace/task-workspace.module';
+import { AuthModule } from './modules/auth/auth.module';
 
 @Module({
   imports: [
@@ -44,6 +45,7 @@ import { TaskWorkspaceModule } from './modules/task-workspace/task-workspace.mod
     CompanyDashboardModule,
     ActivityOverviewModule,
     TaskWorkspaceModule,
+    AuthModule,
   ],
   controllers: [AppController],
   providers: [AppService],
