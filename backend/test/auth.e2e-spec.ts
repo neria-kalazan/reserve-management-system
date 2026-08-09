@@ -77,6 +77,33 @@ describe('Auth e2e', () => {
     expect(res.status).toBe(401);
   });
 
+  it('returns the authenticated user and company id from /auth/me', async () => {
+    prisma.user.findUnique.mockResolvedValue({
+      id: 'user-1',
+      email: 'user@example.com',
+      firstName: 'Test',
+      lastName: 'User',
+      companyId: 'company-1',
+      isActive: true,
+    });
+    prisma.userPermission.findMany.mockResolvedValue([{ permission: { key: 'MANAGE_COMPANIES', description: 'Manage companies' } }]);
+
+    const res = await request(app.getHttpServer())
+      .get('/auth/me')
+      .set('Cookie', 'app_session=test-session')
+      .expect(200);
+
+    expect(res.body.authenticated).toBe(true);
+    expect(res.body.user).toEqual({
+      id: 'user-1',
+      email: 'user@example.com',
+      firstName: 'Test',
+      lastName: 'User',
+    });
+    expect(res.body.companyId).toBe('company-1');
+    expect(res.body.permissions).toEqual([{ key: 'MANAGE_COMPANIES', description: 'Manage companies' }]);
+  });
+
   it('allows an authenticated user with the required permission to access a protected endpoint', async () => {
     prisma.user.findUnique.mockResolvedValue({
       id: 'user-1',

@@ -4,6 +4,7 @@ import type { Request, Response } from 'express';
 import { AuthGuard } from './auth.guard';
 import { AuthService } from './auth.service';
 import { CurrentUser } from './current-user.decorator';
+import { PrismaService } from '../../prisma/prisma.service';
 
 @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
 @Controller('auth')
@@ -11,6 +12,7 @@ export class AuthController {
   constructor(
     private readonly authService: AuthService,
     private readonly configService: ConfigService,
+    private readonly prisma: PrismaService,
   ) {}
 
   @Get('google')
@@ -84,19 +86,26 @@ export class AuthController {
   @Get('me')
   @UseGuards(AuthGuard)
   async me(@CurrentUser() user: any) {
-    const permissions = await this.authService['prisma'].userPermission.findMany({
-      where: { userId: user.id },
-      select: { permission: { select: { key: true, description: true } } },
-    });
+    const [permissions, currentUser] = await Promise.all([
+      this.prisma.userPermission.findMany({
+        where: { userId: user.id },
+        select: { permission: { select: { key: true, description: true } } },
+      }),
+      this.prisma.user.findUnique({
+        where: { id: user.id },
+        select: { id: true, email: true, firstName: true, lastName: true, companyId: true },
+      }),
+    ]);
 
     return {
       authenticated: true,
       user: {
-        id: user.id,
-        email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName,
+        id: currentUser?.id ?? user.id,
+        email: currentUser?.email ?? user.email,
+        firstName: currentUser?.firstName ?? user.firstName,
+        lastName: currentUser?.lastName ?? user.lastName,
       },
+      companyId: currentUser?.companyId ?? null,
       permissions: permissions.map((item: any) => item.permission),
     };
   }
