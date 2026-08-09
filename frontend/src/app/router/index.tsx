@@ -1,7 +1,9 @@
 import { Navigate, RouterProvider, createBrowserRouter } from 'react-router-dom'
 
+import { ProtectedRoute, PublicOnlyRoute } from '@/app/auth'
 import { MainLayout } from '@/app/layout/main-layout'
 import { appRoutes, fallbackRoute } from '@/app/layout/route-config'
+import { LoginPage } from '@/app/pages/login-page'
 import { PlaceholderRoutePage } from '@/app/pages/placeholder-route-page'
 
 const placeholderPages = appRoutes.map((route) => ({
@@ -11,11 +13,25 @@ const placeholderPages = appRoutes.map((route) => ({
 
 const router = createBrowserRouter([
   {
-    path: '/',
-    element: <MainLayout />,
+    element: <PublicOnlyRoute />,
     children: [
-      { index: true, element: <Navigate to={fallbackRoute.path} replace /> },
-      ...placeholderPages,
+      {
+        path: '/login',
+        element: <LoginPage />,
+      },
+    ],
+  },
+  {
+    element: <ProtectedRoute />,
+    children: [
+      {
+        path: '/',
+        element: <MainLayout />,
+        children: [
+          { index: true, element: <Navigate to={fallbackRoute.path} replace /> },
+          ...placeholderPages,
+        ],
+      },
     ],
   },
   {

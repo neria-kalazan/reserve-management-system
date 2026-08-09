@@ -1,6 +1,7 @@
 import { Menu } from 'lucide-react'
 import { useLocation } from 'react-router-dom'
 
+import { useAuthLogout, useAuthSession } from '@/app/auth'
 import { routeMap } from '@/app/layout/route-config'
 import { Button } from '@/shared/components/ui/button'
 import { Separator } from '@/shared/components/ui/separator'
@@ -12,6 +13,12 @@ type TopBarProps = {
 export function TopBar({ onOpenMobileNav }: TopBarProps) {
   const location = useLocation()
   const route = routeMap.get(location.pathname)
+  const authSession = useAuthSession()
+  const logoutMutation = useAuthLogout()
+
+  const userDisplayName = authSession.user
+    ? `${authSession.user.firstName} ${authSession.user.lastName}`.trim()
+    : null
 
   return (
     <div className="sticky top-0 z-30 border-b border-border bg-background/95 backdrop-blur-sm">
@@ -34,10 +41,39 @@ export function TopBar({ onOpenMobileNav }: TopBarProps) {
         </div>
 
         <div className="hidden items-center gap-3 md:flex">
-          <span className="text-sm text-muted">תשתית עיצוב ותשתית טכנית</span>
+          {logoutMutation.error ? (
+            <span className="text-sm text-danger">לא הצלחנו להתנתק. נסו שוב.</span>
+          ) : (
+            <>
+              <span className="text-sm text-muted">תשתית עיצוב ותשתית טכנית</span>
+              <Separator orientation="vertical" className="h-6" />
+              <span className="text-sm font-medium text-foreground">RTL · Dark · Teal</span>
+            </>
+          )}
+
           <Separator orientation="vertical" className="h-6" />
-          <span className="text-sm font-medium text-foreground">RTL · Dark · Teal</span>
+          <span className="text-sm text-muted">{userDisplayName ?? 'משתמש מחובר'}</span>
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            loading={logoutMutation.isPending}
+            onClick={() => logoutMutation.mutate()}
+          >
+            התנתקות
+          </Button>
         </div>
+
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="md:hidden"
+          loading={logoutMutation.isPending}
+          onClick={() => logoutMutation.mutate()}
+        >
+          יציאה
+        </Button>
       </div>
     </div>
   )
