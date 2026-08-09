@@ -1,5 +1,6 @@
 export interface AuthUser {
   id: string
+  companyId: string
   email: string | null
   firstName: string
   lastName: string

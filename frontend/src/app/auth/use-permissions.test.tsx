@@ -16,7 +16,7 @@ describe('usePermissions', () => {
       isInitializing: false,
       isAuthenticated: true,
       permissions: [{ key: 'MANAGE_COMPANIES', description: 'Manage companies' }],
-      user: { id: 'user-1', email: 'user@example.com', firstName: 'First', lastName: 'Last' },
+      user: { id: 'user-1', companyId: 'company-1', email: 'user@example.com', firstName: 'First', lastName: 'Last' },
     } as unknown as ReturnType<typeof useAuthSession>)
 
     const { result } = renderHook(() => usePermissions())
@@ -29,7 +29,7 @@ describe('usePermissions', () => {
       isInitializing: false,
       isAuthenticated: true,
       permissions: [{ key: 'VIEW_SYSTEM_REPORTS', description: 'View reports' }],
-      user: { id: 'user-1', email: 'user@example.com', firstName: 'First', lastName: 'Last' },
+      user: { id: 'user-1', companyId: 'company-1', email: 'user@example.com', firstName: 'First', lastName: 'Last' },
     } as unknown as ReturnType<typeof useAuthSession>)
 
     const { result } = renderHook(() => usePermissions())
@@ -45,7 +45,7 @@ describe('usePermissions', () => {
         { key: 'MANAGE_COMPANIES', description: 'Manage companies' },
         { key: 'VIEW_SYSTEM_REPORTS', description: 'View reports' },
       ],
-      user: { id: 'user-1', email: 'user@example.com', firstName: 'First', lastName: 'Last' },
+      user: { id: 'user-1', companyId: 'company-1', email: 'user@example.com', firstName: 'First', lastName: 'Last' },
     } as unknown as ReturnType<typeof useAuthSession>)
 
     const { result } = renderHook(() => usePermissions())

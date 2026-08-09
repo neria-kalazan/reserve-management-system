@@ -42,6 +42,7 @@ describe('auth session query', () => {
       authenticated: true,
       user: {
         id: 'user-1',
+        companyId: 'company-1',
         email: 'user@example.com',
         firstName: 'First',
         lastName: 'Last',
@@ -59,6 +60,7 @@ describe('auth session query', () => {
 
     expect(result.current.user).toEqual({
       id: 'user-1',
+      companyId: 'company-1',
       email: 'user@example.com',
       firstName: 'First',
       lastName: 'Last',

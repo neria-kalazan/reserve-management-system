@@ -104,8 +104,8 @@ export class AuthController {
         email: currentUser?.email ?? user.email,
         firstName: currentUser?.firstName ?? user.firstName,
         lastName: currentUser?.lastName ?? user.lastName,
+        companyId: currentUser?.companyId ?? user.companyId,
       },
-      companyId: currentUser?.companyId ?? null,
       permissions: permissions.map((item: any) => item.permission),
     };
   }

@@ -43,6 +43,7 @@ describe('useAuthLogout', () => {
       status: 'authenticated',
       user: {
         id: 'user-1',
+        companyId: 'company-1',
         email: 'user@example.com',
         firstName: 'First',
         lastName: 'Last',

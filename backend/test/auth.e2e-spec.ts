@@ -99,9 +99,10 @@ describe('Auth e2e', () => {
       email: 'user@example.com',
       firstName: 'Test',
       lastName: 'User',
+      companyId: 'company-1',
     });
-    expect(res.body.companyId).toBe('company-1');
     expect(res.body.permissions).toEqual([{ key: 'MANAGE_COMPANIES', description: 'Manage companies' }]);
+    expect(res.body).not.toHaveProperty('companyId');
   });
 
   it('allows an authenticated user with the required permission to access a protected endpoint', async () => {

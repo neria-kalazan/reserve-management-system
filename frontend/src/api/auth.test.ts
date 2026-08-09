@@ -26,6 +26,7 @@ describe('getAuthMe', () => {
       authenticated: true,
       user: {
         id: 'user-1',
+        companyId: 'company-1',
         email: 'user@example.com',
         firstName: 'Test',
         lastName: 'User',
