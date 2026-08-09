@@ -179,7 +179,7 @@ describe('Company dashboard e2e', () => {
         {
           provide: AuthService,
           useValue: {
-            getSessionUser: jest.fn(() => 'user-1'),
+            getSessionUser: jest.fn((sessionToken: string) => (sessionToken === 'test-session' ? 'user-1' : undefined)),
             clearSession: jest.fn(),
             buildSessionCookie: jest.fn(),
             getFrontendRedirectUrl: jest.fn(),
