@@ -1,5 +1,6 @@
 import { NavLink } from 'react-router-dom'
 
+import { PermissionGate } from '@/app/auth'
 import { appRoutes } from '@/app/layout/route-config'
 import { ScrollArea } from '@/shared/components/ui/scroll-area'
 import { cn } from '@/shared/utils/cn'
@@ -23,8 +24,7 @@ export function Sidebar({ onNavigate }: SidebarProps) {
         <nav className="space-y-1">
           {appRoutes.map((route) => {
             const Icon = route.icon
-
-            return (
+            const navEntry = (
               <NavLink
                 key={route.path}
                 to={route.path}
@@ -54,6 +54,16 @@ export function Sidebar({ onNavigate }: SidebarProps) {
                   </>
                 )}
               </NavLink>
+            )
+
+            if (!route.requiredPermission) {
+              return navEntry
+            }
+
+            return (
+              <PermissionGate key={route.path} permission={route.requiredPermission}>
+                {navEntry}
+              </PermissionGate>
             )
           })}
         </nav>

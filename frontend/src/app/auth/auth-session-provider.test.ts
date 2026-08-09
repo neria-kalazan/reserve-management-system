@@ -30,16 +30,19 @@ describe('attachAuthStatusHandlers', () => {
         firstName: 'First',
         lastName: 'Last',
       },
-      permissions: [{ key: 'users.read', description: 'Read users' }],
+      permissions: [{ key: 'MANAGE_COMPANIES', description: 'Manage companies' }],
     })
 
     const setUnauthenticated = () => {
       queryClient.setQueryData(authSessionQueryKey, unauthenticatedAuthSession)
     }
 
-    const cleanup = attachAuthStatusHandlers(setUnauthenticated)
+    const cleanup = attachAuthStatusHandlers({
+      setUnauthenticated,
+      setForbidden: () => undefined,
+    })
 
-    expect(registerAuthStatusHandlerMock).toHaveBeenCalledTimes(1)
+    expect(registerAuthStatusHandlerMock).toHaveBeenCalledTimes(2)
     expect(registerAuthStatusHandlerMock).toHaveBeenCalledWith(401, expect.any(Function))
 
     const handler = registerAuthStatusHandlerMock.mock.calls[0]?.[1] as (() => void) | undefined
@@ -49,14 +52,23 @@ describe('attachAuthStatusHandlers', () => {
 
     cleanup()
     expect(clearAuthStatusHandlerMock).toHaveBeenCalledWith(401)
+    expect(clearAuthStatusHandlerMock).toHaveBeenCalledWith(403)
   })
 
-  it('does not register 403 as authentication state transition', () => {
-    attachAuthStatusHandlers(() => undefined)
+  it('registers 403 handler without transitioning to unauthenticated', () => {
+    const setUnauthenticated = vi.fn()
+    const setForbidden = vi.fn()
 
-    const statuses = registerAuthStatusHandlerMock.mock.calls.map((call) => call[0])
+    attachAuthStatusHandlers({
+      setUnauthenticated,
+      setForbidden,
+    })
 
-    expect(statuses).not.toContain(403)
-    expect(statuses).toContain(401)
+    const handlerCall = registerAuthStatusHandlerMock.mock.calls.find((call) => call[0] === 403)
+    const forbiddenHandler = handlerCall?.[1] as ((error: { message: string }) => void) | undefined
+    forbiddenHandler?.({ message: 'Forbidden' })
+
+    expect(setForbidden).toHaveBeenCalledWith('Forbidden')
+    expect(setUnauthenticated).not.toHaveBeenCalled()
   })
 })

@@ -28,7 +28,7 @@ describe('usePermissions', () => {
     useAuthSessionMock.mockReturnValue({
       isInitializing: false,
       isAuthenticated: true,
-      permissions: [{ key: 'VIEW_DASHBOARD', description: 'View dashboard' }],
+      permissions: [{ key: 'VIEW_SYSTEM_REPORTS', description: 'View reports' }],
       user: { id: 'user-1', email: 'user@example.com', firstName: 'First', lastName: 'Last' },
     } as unknown as ReturnType<typeof useAuthSession>)
 

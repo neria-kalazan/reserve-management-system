@@ -14,6 +14,7 @@ export interface AppRouteItem {
   label: string
   description: string
   icon: typeof LayoutDashboard
+  requiredPermission?: string
 }
 
 export const appRoutes: AppRouteItem[] = [
@@ -23,6 +24,7 @@ export const appRoutes: AppRouteItem[] = [
     label: 'דשבורד',
     description: 'סקירה תפעולית תתווסף בהמשך',
     icon: LayoutDashboard,
+    requiredPermission: 'MANAGE_COMPANIES',
   },
   {
     key: 'companies',
@@ -30,6 +32,7 @@ export const appRoutes: AppRouteItem[] = [
     label: 'פלוגות',
     description: 'ניהול מסגרות יתווסף בהמשך',
     icon: Building2,
+    requiredPermission: 'MANAGE_COMPANIES',
   },
   {
     key: 'users',
@@ -37,6 +40,7 @@ export const appRoutes: AppRouteItem[] = [
     label: 'משתמשים',
     description: 'ניהול כוח אדם יתווסף בהמשך',
     icon: Users,
+    requiredPermission: 'MANAGE_COMPANIES',
   },
   {
     key: 'activities',
@@ -44,6 +48,7 @@ export const appRoutes: AppRouteItem[] = [
     label: 'פעילויות',
     description: 'ניהול פעילויות יתווסף בהמשך',
     icon: Activity,
+    requiredPermission: 'MANAGE_COMPANIES',
   },
   {
     key: 'scheduling',
@@ -51,6 +56,7 @@ export const appRoutes: AppRouteItem[] = [
     label: 'שיבוץ',
     description: 'תשתית השיבוץ תתווסף בהמשך',
     icon: CalendarRange,
+    requiredPermission: 'MANAGE_COMPANIES',
   },
 ]
 

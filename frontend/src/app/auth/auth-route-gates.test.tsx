@@ -6,14 +6,30 @@ const { useAuthSessionMock } = vi.hoisted(() => ({
   useAuthSessionMock: vi.fn(),
 }))
 
+const { useForbiddenStateStoreMock } = vi.hoisted(() => ({
+  useForbiddenStateStoreMock: vi.fn(),
+}))
+
 vi.mock('@/app/auth/use-auth-session', () => ({
   useAuthSession: useAuthSessionMock,
+}))
+
+vi.mock('@/app/auth/use-forbidden-state-store', () => ({
+  useForbiddenStateStore: useForbiddenStateStoreMock,
 }))
 
 import { ProtectedRoute } from '@/app/auth/auth-route-gates'
 
 describe('ProtectedRoute', () => {
+  const createForbiddenStoreValue = () => ({
+    isForbidden: false,
+    message: undefined,
+    clearForbidden: vi.fn(),
+  })
+
   it('does not redirect during initialization', () => {
+    useForbiddenStateStoreMock.mockImplementation((selector) => selector(createForbiddenStoreValue()))
+
     useAuthSessionMock.mockReturnValueOnce({
       isInitializing: true,
       isAuthenticated: false,
@@ -36,6 +52,8 @@ describe('ProtectedRoute', () => {
   })
 
   it('allows authenticated user to access protected route', () => {
+    useForbiddenStateStoreMock.mockImplementation((selector) => selector(createForbiddenStoreValue()))
+
     useAuthSessionMock.mockReturnValueOnce({
       isInitializing: false,
       isAuthenticated: true,
@@ -58,6 +76,8 @@ describe('ProtectedRoute', () => {
   })
 
   it('redirects unauthenticated user to login', () => {
+    useForbiddenStateStoreMock.mockImplementation((selector) => selector(createForbiddenStoreValue()))
+
     useAuthSessionMock.mockReturnValueOnce({
       isInitializing: false,
       isAuthenticated: false,
@@ -77,5 +97,34 @@ describe('ProtectedRoute', () => {
     )
 
     expect(screen.getByText('login-screen')).toBeDefined()
+  })
+
+  it('renders forbidden state for authenticated users on 403 flow', () => {
+    useForbiddenStateStoreMock.mockImplementation((selector) => selector({
+      isForbidden: true,
+      message: 'אין הרשאה',
+      clearForbidden: vi.fn(),
+    }))
+
+    useAuthSessionMock.mockReturnValueOnce({
+      isInitializing: false,
+      isAuthenticated: true,
+      error: null,
+      refetch: vi.fn(),
+    })
+
+    render(
+      <MemoryRouter initialEntries={['/dashboard']}>
+        <Routes>
+          <Route element={<ProtectedRoute />}>
+            <Route path="/dashboard" element={<div>protected-content</div>} />
+          </Route>
+          <Route path="/login" element={<div>login-screen</div>} />
+        </Routes>
+      </MemoryRouter>,
+    )
+
+    expect(screen.getByText('אין הרשאה לביצוע הפעולה')).toBeDefined()
+    expect(screen.queryByText('login-screen')).toBeNull()
   })
 })
