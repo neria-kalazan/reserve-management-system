@@ -6,6 +6,7 @@ import { appRoutes, fallbackRoute } from '@/app/layout/route-config'
 import { ActivationPage } from '@/app/pages/activation-page'
 import { LoginPage } from '@/app/pages/login-page'
 import { PlaceholderRoutePage } from '@/app/pages/placeholder-route-page'
+import { ActivitiesPage } from '@/features/activities/pages/activities-page'
 import { DashboardPage } from '@/features/dashboard/pages/dashboard-page'
 
 const placeholderPages = appRoutes.map((route) => ({
@@ -16,7 +17,9 @@ const placeholderPages = appRoutes.map((route) => ({
       index: true,
       element: route.key === 'dashboard'
         ? <DashboardPage />
-        : <PlaceholderRoutePage title={route.label} description={route.description} />,
+        : route.key === 'activities'
+          ? <ActivitiesPage />
+          : <PlaceholderRoutePage title={route.label} description={route.description} />,
     },
   ],
 }))
