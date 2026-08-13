@@ -3,6 +3,7 @@ import { Navigate, RouterProvider, createBrowserRouter } from 'react-router-dom'
 import { PermissionRoute, ProtectedRoute, PublicOnlyRoute } from '@/app/auth'
 import { MainLayout } from '@/app/layout/main-layout'
 import { appRoutes, fallbackRoute } from '@/app/layout/route-config'
+import { ActivationPage } from '@/app/pages/activation-page'
 import { LoginPage } from '@/app/pages/login-page'
 import { PlaceholderRoutePage } from '@/app/pages/placeholder-route-page'
 import { DashboardPage } from '@/features/dashboard/pages/dashboard-page'
@@ -27,6 +28,10 @@ const router = createBrowserRouter([
       {
         path: '/login',
         element: <LoginPage />,
+      },
+      {
+        path: '/activate/:token',
+        element: <ActivationPage />,
       },
     ],
   },

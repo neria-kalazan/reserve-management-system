@@ -302,6 +302,19 @@ describe('Activations e2e', () => {
       })),
     };
 
+    const configValues: Record<string, string> = {
+      FRONTEND_URL: 'http://localhost:5173',
+      NODE_ENV: 'test',
+      OTP_LENGTH: '6',
+      OTP_TTL_SECONDS: '300',
+      OTP_MAX_ATTEMPTS: '5',
+      OTP_HASH_SECRET: 'test-otp-secret',
+      GOOGLE_CLIENT_ID: 'client-id',
+      GOOGLE_CLIENT_SECRET: 'client-secret',
+      GOOGLE_REDIRECT_URI: 'http://localhost:3000/auth/google/callback',
+      AUTH_ACTIVATION_REQUIRE_OTP: 'false',
+    };
+
     const moduleFixture: TestingModule = await Test.createTestingModule({
       controllers: [ActivationsController, AuthController],
       providers: [
@@ -320,21 +333,7 @@ describe('Activations e2e', () => {
         {
           provide: ConfigService,
           useValue: {
-            get: jest.fn((key: string) => {
-              const values: Record<string, string> = {
-                FRONTEND_URL: 'http://localhost:5173',
-                NODE_ENV: 'test',
-                OTP_LENGTH: '6',
-                OTP_TTL_SECONDS: '300',
-                OTP_MAX_ATTEMPTS: '5',
-                OTP_HASH_SECRET: 'test-otp-secret',
-                GOOGLE_CLIENT_ID: 'client-id',
-                GOOGLE_CLIENT_SECRET: 'client-secret',
-                GOOGLE_REDIRECT_URI: 'http://localhost:3000/auth/google/callback',
-              };
-
-              return values[key];
-            }),
+            get: jest.fn((key: string) => configValues[key]),
           },
         },
         { provide: PrismaService, useValue: prismaMock },
@@ -785,7 +784,29 @@ describe('Activations e2e', () => {
       .expect(400);
   });
 
-  it('does not start Google linking before successful OTP verification', async () => {
+  it('starts Google linking after phone verification without OTP when MVP skip is enabled', async () => {
+    const token = await createActivationToken();
+    await request(app.getHttpServer())
+      .post(`/activations/${token}/verify-phone`)
+      .send({ phone: '0547724987' })
+      .expect(201);
+
+    const res = await request(app.getHttpServer())
+      .get(`/activations/${token}/link-google`)
+      .redirects(0)
+      .expect(302);
+
+    expect(new URL(res.headers.location).searchParams.get('state')).toBeTruthy();
+  });
+
+  it('continues to require OTP before linking when OTP requirement flag is enabled', async () => {
+    const getConfig = (app.get(ConfigService) as any).get as jest.Mock;
+    const configValues = {
+      ...Object.fromEntries(getConfig.mock.calls.map(([key]: [string]) => [key, getConfig(key)])),
+      AUTH_ACTIVATION_REQUIRE_OTP: 'true',
+    };
+    getConfig.mockImplementation((key: string) => configValues[key]);
+
     const token = await createActivationToken();
     await request(app.getHttpServer())
       .post(`/activations/${token}/verify-phone`)
@@ -795,11 +816,17 @@ describe('Activations e2e', () => {
     await request(app.getHttpServer())
       .get(`/activations/${token}/link-google`)
       .expect(400);
+
+    configValues.AUTH_ACTIVATION_REQUIRE_OTP = 'false';
+    getConfig.mockImplementation((key: string) => configValues[key]);
   });
 
   it('starts Google linking with an unpredictable state bound to the activation', async () => {
     const token = await createActivationToken();
-    await completeOtpVerification(token);
+    await request(app.getHttpServer())
+      .post(`/activations/${token}/verify-phone`)
+      .send({ phone: '0547724987' })
+      .expect(201);
 
     const first = await request(app.getHttpServer())
       .get(`/activations/${token}/link-google`)
@@ -820,7 +847,10 @@ describe('Activations e2e', () => {
 
   it('rejects expired, revoked, and used activations before Google linking starts', async () => {
     let token = await createActivationToken();
-    await completeOtpVerification(token);
+    await request(app.getHttpServer())
+      .post(`/activations/${token}/verify-phone`)
+      .send({ phone: '0547724987' })
+      .expect(201);
     Array.from(state.activations.values())[0].expiresAt = new Date(Date.now() - 1000);
     await request(app.getHttpServer())
       .get(`/activations/${token}/link-google`)
@@ -828,7 +858,10 @@ describe('Activations e2e', () => {
 
     state.activations.clear();
     token = await createActivationToken();
-    await completeOtpVerification(token);
+    await request(app.getHttpServer())
+      .post(`/activations/${token}/verify-phone`)
+      .send({ phone: '0547724987' })
+      .expect(201);
     Array.from(state.activations.values())[0].revokedAt = new Date();
     await request(app.getHttpServer())
       .get(`/activations/${token}/link-google`)
@@ -836,7 +869,10 @@ describe('Activations e2e', () => {
 
     state.activations.clear();
     token = await createActivationToken();
-    await completeOtpVerification(token);
+    await request(app.getHttpServer())
+      .post(`/activations/${token}/verify-phone`)
+      .send({ phone: '0547724987' })
+      .expect(201);
     Array.from(state.activations.values())[0].usedAt = new Date();
     await request(app.getHttpServer())
       .get(`/activations/${token}/link-google`)
@@ -845,7 +881,10 @@ describe('Activations e2e', () => {
 
   it('rejects expired and reused OAuth states', async () => {
     const token = await createActivationToken();
-    await completeOtpVerification(token);
+    await request(app.getHttpServer())
+      .post(`/activations/${token}/verify-phone`)
+      .send({ phone: '0547724987' })
+      .expect(201);
 
     const start = await request(app.getHttpServer())
       .get(`/activations/${token}/link-google`)
@@ -871,7 +910,10 @@ describe('Activations e2e', () => {
 
   it('completes Google linking, stores googleSubject, activates the user, creates a session, and consumes the activation', async () => {
     const token = await createActivationToken();
-    await completeOtpVerification(token);
+    await request(app.getHttpServer())
+      .post(`/activations/${token}/verify-phone`)
+      .send({ phone: '0547724987' })
+      .expect(201);
     authServiceMock.authenticateGoogleUser.mockClear();
 
     const start = await request(app.getHttpServer())
@@ -901,7 +943,10 @@ describe('Activations e2e', () => {
 
   it('does not allow a consumed activation token to start linking again', async () => {
     const token = await createActivationToken();
-    await completeOtpVerification(token);
+    await request(app.getHttpServer())
+      .post(`/activations/${token}/verify-phone`)
+      .send({ phone: '0547724987' })
+      .expect(201);
 
     const start = await request(app.getHttpServer())
       .get(`/activations/${token}/link-google`)
@@ -922,7 +967,10 @@ describe('Activations e2e', () => {
 
   it('rejects linking when user is already activated and keeps activation unused', async () => {
     const token = await createActivationToken();
-    await completeOtpVerification(token);
+    await request(app.getHttpServer())
+      .post(`/activations/${token}/verify-phone`)
+      .send({ phone: '0547724987' })
+      .expect(201);
 
     const start = await request(app.getHttpServer())
       .get(`/activations/${token}/link-google`)
@@ -950,7 +998,10 @@ describe('Activations e2e', () => {
 
   it('rolls back activation completion state when transaction fails after user update', async () => {
     const token = await createActivationToken();
-    await completeOtpVerification(token);
+    await request(app.getHttpServer())
+      .post(`/activations/${token}/verify-phone`)
+      .send({ phone: '0547724987' })
+      .expect(201);
 
     const start = await request(app.getHttpServer())
       .get(`/activations/${token}/link-google`)
@@ -982,7 +1033,10 @@ describe('Activations e2e', () => {
 
   it('rejects Google subject collisions without partially activating the target user', async () => {
     const token = await createActivationToken();
-    await completeOtpVerification(token);
+    await request(app.getHttpServer())
+      .post(`/activations/${token}/verify-phone`)
+      .send({ phone: '0547724987' })
+      .expect(201);
 
     const start = await request(app.getHttpServer())
       .get(`/activations/${token}/link-google`)

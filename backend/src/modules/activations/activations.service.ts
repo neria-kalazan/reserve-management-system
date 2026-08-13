@@ -7,6 +7,7 @@ import { AuthService, GoogleProfilePayload } from '../auth/auth.service';
 
 const ACTIVATION_TTL_MS = 24 * 60 * 60 * 1000;
 const GOOGLE_LINK_STATE_TTL_MS = 10 * 60 * 1000;
+const AUTH_ACTIVATION_REQUIRE_OTP = 'AUTH_ACTIVATION_REQUIRE_OTP';
 
 interface GoogleLinkStateRecord {
   activationId: string;
@@ -295,17 +296,19 @@ export class ActivationsService {
         throw new ConflictException('Google identity is already linked');
       }
 
-      const successfulOtpChallenge = await tx.activationOtpChallenge.findFirst({
-        where: {
-          activationId: activation.id,
-          usedAt: { not: null },
-        },
-        orderBy: { createdAt: 'desc' },
-        select: { id: true },
-      });
+      if (this.isOtpRequiredForActivation()) {
+        const successfulOtpChallenge = await tx.activationOtpChallenge.findFirst({
+          where: {
+            activationId: activation.id,
+            usedAt: { not: null },
+          },
+          orderBy: { createdAt: 'desc' },
+          select: { id: true },
+        });
 
-      if (!successfulOtpChallenge) {
-        throw new BadRequestException('OTP verification is required');
+        if (!successfulOtpChallenge) {
+          throw new BadRequestException('OTP verification is required');
+        }
       }
 
       const collision = await tx.user.findFirst({
@@ -399,17 +402,19 @@ export class ActivationsService {
       throw new ConflictException('Google identity is already linked');
     }
 
-    const successfulOtpChallenge = await this.prisma.activationOtpChallenge.findFirst({
-      where: {
-        activationId: activation.id,
-        usedAt: { not: null },
-      },
-      orderBy: { createdAt: 'desc' },
-      select: { id: true },
-    });
+    if (this.isOtpRequiredForActivation()) {
+      const successfulOtpChallenge = await this.prisma.activationOtpChallenge.findFirst({
+        where: {
+          activationId: activation.id,
+          usedAt: { not: null },
+        },
+        orderBy: { createdAt: 'desc' },
+        select: { id: true },
+      });
 
-    if (!successfulOtpChallenge) {
-      throw new BadRequestException('OTP verification is required');
+      if (!successfulOtpChallenge) {
+        throw new BadRequestException('OTP verification is required');
+      }
     }
 
     return activation;
@@ -431,6 +436,11 @@ export class ActivationsService {
         createdAt: true,
       },
     });
+  }
+
+  private isOtpRequiredForActivation() {
+    const raw = (this.configService.get<string>(AUTH_ACTIVATION_REQUIRE_OTP) ?? 'false').trim().toLowerCase();
+    return raw === '1' || raw === 'true' || raw === 'yes' || raw === 'on';
   }
 
   private async getValidActivationByToken(token: string) {

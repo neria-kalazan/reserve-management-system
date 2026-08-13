@@ -8,6 +8,7 @@
     "build": "pnpm --filter backend build",
     "build:frontend": "pnpm --filter frontend build",
     "start": "pnpm --filter backend start",
+    "start:dev": "bash -c 'trap \"kill 0\" INT TERM EXIT; pnpm --filter backend start:dev & pnpm --filter frontend dev & wait'",
     "dev": "pnpm --filter backend start:dev",
     "dev:frontend": "pnpm --filter frontend dev"
   },
