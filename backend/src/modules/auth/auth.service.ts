@@ -4,6 +4,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { randomBytes } from 'node:crypto';
 
 export interface GoogleProfilePayload {
+  sub?: string;
   email?: string;
   verified_email?: boolean;
 }
@@ -37,22 +38,87 @@ export class AuthService {
     return email.trim().toLowerCase();
   }
 
-  async authenticateGoogleUser(profile: GoogleProfilePayload): Promise<AuthenticatedUserPayload> {
-    const email = this.normalizeEmail(profile.email ?? '');
+  buildGoogleAuthorizationUrl(state?: string) {
+    const clientId = this.configService.get<string>('GOOGLE_CLIENT_ID');
+    const redirectUri = this.configService.get<string>('GOOGLE_REDIRECT_URI');
 
-    if (!email || !profile.verified_email) {
-      throw new UnauthorizedException('Google identity could not be verified');
+    if (!clientId || !redirectUri) {
+      throw new UnauthorizedException('Google OAuth is not configured');
     }
 
-    const users = await this.prisma.user.findMany({
-      where: { email },
+    const url = new URL('https://accounts.google.com/o/oauth2/v2/auth');
+    url.searchParams.set('client_id', clientId);
+    url.searchParams.set('redirect_uri', redirectUri);
+    url.searchParams.set('response_type', 'code');
+    url.searchParams.set('scope', 'openid email profile');
+    url.searchParams.set('access_type', 'offline');
+    url.searchParams.set('prompt', 'select_account');
+
+    if (state) {
+      url.searchParams.set('state', state);
+    }
+
+    return url.toString();
+  }
+
+  async exchangeGoogleCode(code: string): Promise<GoogleProfilePayload> {
+    const clientId = this.configService.get<string>('GOOGLE_CLIENT_ID');
+    const clientSecret = this.configService.get<string>('GOOGLE_CLIENT_SECRET');
+    const redirectUri = this.configService.get<string>('GOOGLE_REDIRECT_URI');
+
+    if (!clientId || !clientSecret || !redirectUri) {
+      throw new UnauthorizedException('Google OAuth is not configured');
+    }
+
+    const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        code,
+        client_id: clientId,
+        client_secret: clientSecret,
+        redirect_uri: redirectUri,
+        grant_type: 'authorization_code',
+      }),
+    });
+
+    if (!tokenResponse.ok) {
+      throw new UnauthorizedException('Failed to exchange Google OAuth code');
+    }
+
+    const tokenData = await tokenResponse.json() as { access_token?: string };
+
+    const userInfoResponse = await fetch('https://openidconnect.googleapis.com/v1/userinfo', {
+      headers: { Authorization: `Bearer ${tokenData.access_token}` },
+    });
+
+    if (!userInfoResponse.ok) {
+      throw new UnauthorizedException('Failed to load Google user info');
+    }
+
+    const profile = await userInfoResponse.json() as { sub?: string; email?: string; email_verified?: boolean };
+
+    return {
+      sub: profile.sub,
+      email: profile.email,
+      verified_email: profile.email_verified,
+    };
+  }
+
+  async authenticateGoogleUser(profile: GoogleProfilePayload): Promise<AuthenticatedUserPayload> {
+    const googleSubject = profile.sub?.trim();
+
+    if (!googleSubject) {
+      throw new UnauthorizedException('Authentication failed');
+    }
+
+    const user = await this.prisma.user.findFirst({
+      where: { googleSubject },
       select: { id: true, email: true, firstName: true, lastName: true, isActive: true },
     });
 
-    const user = users[0];
-
     if (!user) {
-      throw new UnauthorizedException('No matching application user found');
+      throw new UnauthorizedException('Authentication failed');
     }
 
     if (!user.isActive) {

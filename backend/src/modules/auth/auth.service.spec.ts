@@ -9,7 +9,7 @@ describe('AuthService', () => {
   beforeEach(() => {
     prisma = {
       user: {
-        findMany: jest.fn(),
+        findFirst: jest.fn(),
         update: jest.fn(),
       },
     };
@@ -35,25 +35,33 @@ describe('AuthService', () => {
   });
 
   it('resolves a Google identity to an existing active user and updates lastLoginAt', async () => {
-    prisma.user.findMany.mockResolvedValue([{ id: 'user-1', email: 'ada@example.com', isActive: true }]);
+    prisma.user.findFirst.mockResolvedValue({ id: 'user-1', email: 'ada@example.com', firstName: 'Ada', lastName: 'Lovelace', isActive: true });
     prisma.user.update.mockResolvedValue({ id: 'user-1', lastLoginAt: new Date() });
 
-    const result = await service.authenticateGoogleUser({ email: 'Ada@Example.com', verified_email: true } as any);
+    const result = await service.authenticateGoogleUser({ sub: 'google-sub-1', email: 'Ada@Example.com', verified_email: true } as any);
 
     expect(result.user.id).toBe('user-1');
+    expect(prisma.user.findFirst).toHaveBeenCalledWith({
+      where: { googleSubject: 'google-sub-1' },
+      select: { id: true, email: true, firstName: true, lastName: true, isActive: true },
+    });
     expect(prisma.user.update).toHaveBeenCalled();
   });
 
   it('rejects an unknown Google identity', async () => {
-    prisma.user.findMany.mockResolvedValue([]);
+    prisma.user.findFirst.mockResolvedValue(null);
 
-    await expect(service.authenticateGoogleUser({ email: 'unknown@example.com', verified_email: true } as any)).rejects.toThrow(UnauthorizedException);
+    await expect(service.authenticateGoogleUser({ sub: 'missing-sub', email: 'unknown@example.com', verified_email: true } as any)).rejects.toThrow(UnauthorizedException);
   });
 
   it('rejects inactive users', async () => {
-    prisma.user.findMany.mockResolvedValue([{ id: 'user-2', email: 'inactive@example.com', isActive: false }]);
+    prisma.user.findFirst.mockResolvedValue({ id: 'user-2', email: 'inactive@example.com', firstName: 'Inactive', lastName: 'User', isActive: false });
 
-    await expect(service.authenticateGoogleUser({ email: 'inactive@example.com', verified_email: true } as any)).rejects.toThrow(UnauthorizedException);
+    await expect(service.authenticateGoogleUser({ sub: 'inactive-sub', email: 'inactive@example.com', verified_email: true } as any)).rejects.toThrow(UnauthorizedException);
+  });
+
+  it('rejects identities without a Google subject', async () => {
+    await expect(service.authenticateGoogleUser({ email: 'ada@example.com', verified_email: true } as any)).rejects.toThrow(UnauthorizedException);
   });
 
   it('creates a session cookie payload for a successful login', () => {

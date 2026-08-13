@@ -42,6 +42,8 @@ describe('Auth e2e', () => {
         authenticateGoogleUser: jest.fn(),
         createSessionToken: jest.fn(),
         normalizeEmail: jest.fn(),
+        buildGoogleAuthorizationUrl: jest.fn(() => 'https://accounts.google.com/o/oauth2/v2/auth?state=test-state'),
+        exchangeGoogleCode: jest.fn(),
       })
       .overrideProvider(ConfigService)
       .useValue({

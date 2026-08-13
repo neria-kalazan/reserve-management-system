@@ -22,6 +22,7 @@ import { CompanyDashboardModule } from './modules/company-dashboard/company-dash
 import { ActivityOverviewModule } from './modules/activity-overview/activity-overview.module';
 import { TaskWorkspaceModule } from './modules/task-workspace/task-workspace.module';
 import { AuthModule } from './modules/auth/auth.module';
+import { ActivationsModule } from './modules/activations/activations.module';
 
 @Module({
   imports: [
@@ -46,6 +47,7 @@ import { AuthModule } from './modules/auth/auth.module';
     ActivityOverviewModule,
     TaskWorkspaceModule,
     AuthModule,
+    ActivationsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

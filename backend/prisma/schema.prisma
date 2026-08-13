@@ -46,6 +46,7 @@ model Company {
   roles          Role[]
   qualifications Qualification[]
   activities     Activity[]
+  activations    Activation[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -199,14 +200,21 @@ model User {
   phone          String
   email          String?
   personalNumber String
+  googleSubject  String?   @unique
 
   lastLoginAt DateTime?
-  isActive    Boolean   @default(true)
+  activatedAt     DateTime?
+  phoneVerifiedAt DateTime?
+  googleLinkedAt  DateTime?
+  isActive        Boolean   @default(true)
 
   company Company @relation(fields: [companyId], references: [id])
   unit    Unit    @relation("UserUnit", fields: [unitId], references: [id])
 
   ownedCompany Company? @relation("CompanyOwner")
+
+  createdActivations Activation[] @relation("ActivationCreatedByUser")
+  activations        Activation[] @relation("ActivationTargetUser")
 
   userRoles            UserRole[]
   userQualifications   UserQualification[]
@@ -222,9 +230,51 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@unique([phone])
   @@unique([companyId, personalNumber])
   @@index([companyId])
   @@index([unitId])
+}
+
+model Activation {
+  id              String   @id @default(uuid()) @db.Uuid
+  userId          String   @db.Uuid
+  createdByUserId String   @db.Uuid
+  companyId       String   @db.Uuid
+  tokenHash       String   @unique
+  expiresAt       DateTime
+  usedAt          DateTime?
+  revokedAt       DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user          User                    @relation("ActivationTargetUser", fields: [userId], references: [id], onDelete: Cascade)
+  createdByUser User                    @relation("ActivationCreatedByUser", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  company       Company                 @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  otpChallenges ActivationOtpChallenge[]
+
+  @@index([userId])
+  @@index([createdByUserId])
+  @@index([companyId])
+  @@index([expiresAt])
+}
+
+model ActivationOtpChallenge {
+  id            String   @id @default(uuid()) @db.Uuid
+  activationId  String   @db.Uuid
+  codeHash      String
+  expiresAt     DateTime
+  usedAt        DateTime?
+  attemptCount  Int      @default(0)
+  maxAttempts   Int
+  lockedAt      DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  activation Activation @relation(fields: [activationId], references: [id], onDelete: Cascade)
+
+  @@index([activationId])
+  @@index([expiresAt])
 }
 
 model Unit {

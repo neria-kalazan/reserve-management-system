@@ -18,7 +18,7 @@ export function DashboardPage() {
         ) : dashboardQuery.isError ? (
           <ErrorState
             title="טעינת הדשבורד נכשלה"
-            description={dashboardQuery.error.message}
+            description="לא הצלחנו לטעון את נתוני הדשבורד. אפשר לנסות שוב."
             action={
               <Button type="button" variant="secondary" onClick={() => void dashboardQuery.refetch()}>
                 ניסיון חוזר

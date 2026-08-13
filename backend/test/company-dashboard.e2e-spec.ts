@@ -202,6 +202,29 @@ describe('Company dashboard e2e', () => {
     await app.init();
   });
 
+  it('returns 401 for an unauthenticated dashboard request', async () => {
+    await request(app.getHttpServer())
+      .get('/companies/company-1/dashboard')
+      .set('Cookie', 'app_session=missing-session')
+      .expect(401);
+  });
+
+  it('returns 403 for an authenticated user without the required permission', async () => {
+    prismaMock.user.findUnique.mockResolvedValue({
+      id: 'user-1',
+      email: 'test@example.com',
+      firstName: 'Test',
+      lastName: 'User',
+      isActive: true,
+    });
+    prismaMock.userPermission.findMany.mockResolvedValue([]);
+
+    await request(app.getHttpServer())
+      .get('/companies/company-1/dashboard')
+      .set('Cookie', 'app_session=test-session')
+      .expect(403);
+  });
+
   it('returns the dashboard payload for an active company activity', async () => {
     const companyRes = await request(app.getHttpServer()).post('/companies').send({ name: 'Dashboard Co' }).expect(201);
     const companyId = companyRes.body.id;

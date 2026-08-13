@@ -67,6 +67,8 @@ describe('DashboardPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'ניסיון חוזר' }))
 
     expect(screen.getByText('טעינת הדשבורד נכשלה')).toBeDefined()
+    expect(screen.getByText('לא הצלחנו לטעון את נתוני הדשבורד. אפשר לנסות שוב.')).toBeDefined()
+    expect(screen.queryByText('Network error')).toBeNull()
     expect(refetch).toHaveBeenCalledTimes(1)
   })
 
@@ -127,5 +129,39 @@ describe('DashboardPage', () => {
 
     expect(screen.getByText('אין פעילות פעילה')).toBeDefined()
     expect(screen.getByText('לא הוגדרה כרגע פעילות פעילה לפלוגה.')).toBeDefined()
+  })
+
+  it('renders legitimate zero and empty dashboard data', () => {
+    const emptyDashboard: CompanyDashboardResponse = {
+      activeActivity: null,
+      manpowerSummary: {
+        totalActiveUsers: 0,
+        usersParticipatingInActivity: 0,
+        todayAvailabilitySummary: { statusCounts: {} },
+      },
+      tasksSummary: {
+        totalTaskInstances: 0,
+        unassignedTaskInstances: 0,
+        validationIssuesSummary: { requiredErrorCount: 0, warningCount: 0 },
+      },
+      validationIssues: {
+        requiredErrorCount: 0,
+        warningCount: 0,
+        issues: [],
+      },
+    }
+    useCompanyDashboardMock.mockReturnValue({
+      isPending: false,
+      isError: false,
+      data: emptyDashboard,
+    } as unknown as ReturnType<typeof useCompanyDashboard>)
+
+    render(<DashboardPage />)
+
+    expect(screen.getByText('אין פעילות פעילה')).toBeDefined()
+    expect(screen.getByText('אין דיווחי סטטוס להיום.')).toBeDefined()
+    expect(screen.getAllByText('0').length).toBeGreaterThanOrEqual(4)
+    expect(screen.getByText('תקין')).toBeDefined()
+    expect(screen.getByText('לא נמצאו בעיות אימות.')).toBeDefined()
   })
 })

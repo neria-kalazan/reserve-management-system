@@ -242,6 +242,8 @@ export async function seedDemo(prisma: PrismaClient) {
       personalNumber: '100001',
       unit: 'מפל"ג',
       role: 'מ"פ',
+      phone: '0547724987',
+      email: 'neriakalazan@gmail.com',
     },
     {
       firstName: 'דוד',
@@ -249,6 +251,7 @@ export async function seedDemo(prisma: PrismaClient) {
       personalNumber: '100002',
       unit: 'מחלקה 1',
       role: 'סמ"פ',
+        phone: '0500000002',
     },
     {
       firstName: 'אורי',
@@ -256,6 +259,7 @@ export async function seedDemo(prisma: PrismaClient) {
       personalNumber: '100003',
       unit: 'מחלקה 2',
       role: 'מ"מ',
+        phone: '0500000003',
     },
     {
       firstName: 'נועם',
@@ -263,6 +267,7 @@ export async function seedDemo(prisma: PrismaClient) {
       personalNumber: '100004',
       unit: 'מחלקה 3',
       role: 'לוחם',
+        phone: '0500000004',
     },
     {
       firstName: 'אלון',
@@ -270,6 +275,7 @@ export async function seedDemo(prisma: PrismaClient) {
       personalNumber: '100005',
       unit: 'חפ"ק',
       role: 'נהג חפ"ק',
+        phone: '0500000005',
     },
     {
       firstName: 'מיכאל',
@@ -363,7 +369,14 @@ export async function seedDemo(prisma: PrismaClient) {
           personalNumber: userData.personalNumber,
         },
       },
-      update: {},
+      update: {
+        unitId: units[userData.unit].id,
+        firstName: userData.firstName,
+        lastName: userData.lastName,
+        phone: userData.phone ?? '0500000000',
+        email: userData.email ?? null,
+        isActive: true,
+      },
       create: {
         companyId: company.id,
         unitId: units[userData.unit].id,
@@ -555,28 +568,37 @@ export async function seedDemo(prisma: PrismaClient) {
 
 
   // Optionally assign any existing demo permissions if present (do not create permissions)
-  console.log('🌱 Assigning existing permissions (if any)...');
-  const demoPermissionKeys = ['users.manage', 'users.view', 'roles.manage'];
-  const foundPermissions = {} as Record<string, any>;
-  for (const key of demoPermissionKeys) {
-    const p = await prisma.permission.findFirst({ where: { key } });
-    if (p) foundPermissions[key] = p;
-  }
+  console.log('🌱 Seeding and assigning demo permissions...');
 
-  if (Object.keys(foundPermissions).length) {
-    // assign first permission to the company commander if exists
-    const commander = await prisma.user.findFirst({ where: { companyId: company.id, personalNumber: '100001' } });
-    if (commander) {
-      for (const p of Object.values(foundPermissions)) {
-        await prisma.userPermission.upsert({
-          where: {
-            userId_permissionId: { userId: commander.id, permissionId: p.id },
-          },
-          update: {},
-          create: { userId: commander.id, permissionId: p.id },
-        });
-      }
-    }
+  // All protected company-facing APIs currently require MANAGE_COMPANIES.
+  // Seed and assign it to the demo commander for an end-to-end local demo.
+  const manageCompaniesPermission = await prisma.permission.upsert({
+    where: { key: 'MANAGE_COMPANIES' },
+    update: {},
+    create: {
+      key: 'MANAGE_COMPANIES',
+      description: 'Manage companies and commander-facing company operations',
+    },
+  });
+
+  const commander = await prisma.user.findFirst({
+    where: { companyId: company.id, personalNumber: '100001' },
+  });
+
+  if (commander) {
+    await prisma.userPermission.upsert({
+      where: {
+        userId_permissionId: {
+          userId: commander.id,
+          permissionId: manageCompaniesPermission.id,
+        },
+      },
+      update: {},
+      create: {
+        userId: commander.id,
+        permissionId: manageCompaniesPermission.id,
+      },
+    });
   }
 
 
