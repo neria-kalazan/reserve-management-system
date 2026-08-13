@@ -7,29 +7,47 @@ vi.mock('@/app/auth/use-auth-session', () => ({ useAuthSession: vi.fn() }))
 vi.mock('@/features/activities/api/activities', () => ({
   getCompanyActivities: vi.fn(),
   getActivityById: vi.fn(),
+  getActivityOverview: vi.fn(),
+  getActivityAvailability: vi.fn(),
+  generateActivityAvailability: vi.fn(),
+  bulkUpdateActivityAvailability: vi.fn(),
   postCompanyActivity: vi.fn(),
   patchActivity: vi.fn(),
 }))
 
 import { useAuthSession } from '@/app/auth/use-auth-session'
 import {
+  bulkUpdateActivityAvailability,
+  generateActivityAvailability,
+  getActivityAvailability,
   getActivityById,
+  getActivityOverview,
   getCompanyActivities,
   patchActivity,
   postCompanyActivity,
 } from '@/features/activities/api/activities'
 import {
   activitiesListQueryKey,
+  activityAvailabilityQueryKey,
   activityDetailQueryKey,
+  activityOverviewQueryKey,
+  useActivityAvailability,
   useActivityById,
+  useActivityOverview,
+  useBulkUpdateActivityAvailability,
   useCompanyActivities,
   useCreateActivity,
+  useGenerateActivityAvailability,
   useUpdateActivity,
 } from '@/features/activities/queries/use-activities'
 
 const useAuthSessionMock = vi.mocked(useAuthSession)
 const getCompanyActivitiesMock = vi.mocked(getCompanyActivities)
 const getActivityByIdMock = vi.mocked(getActivityById)
+const getActivityOverviewMock = vi.mocked(getActivityOverview)
+const getActivityAvailabilityMock = vi.mocked(getActivityAvailability)
+const generateActivityAvailabilityMock = vi.mocked(generateActivityAvailability)
+const bulkUpdateActivityAvailabilityMock = vi.mocked(bulkUpdateActivityAvailability)
 const postCompanyActivityMock = vi.mocked(postCompanyActivity)
 const patchActivityMock = vi.mocked(patchActivity)
 
@@ -104,6 +122,126 @@ describe('use-activities hooks', () => {
     })
 
     expect(getActivityByIdMock).not.toHaveBeenCalled()
+  })
+
+  it('queries availability by id for authenticated users', async () => {
+    useAuthSessionMock.mockReturnValue({
+      isAuthenticated: true,
+      user: { id: 'user-1', companyId: 'company-1' },
+    } as ReturnType<typeof useAuthSession>)
+    getActivityAvailabilityMock.mockResolvedValueOnce([{ id: 'status-1' }] as never)
+
+    const { result } = renderHook(() => useActivityAvailability('activity-1'), {
+      wrapper: createWrapper(createQueryClient()),
+    })
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    expect(getActivityAvailabilityMock).toHaveBeenCalledWith('activity-1')
+    expect(activityAvailabilityQueryKey('activity-1')).toEqual(['activities', 'activity-1', 'availability'])
+  })
+
+  it('does not query availability when id is missing', () => {
+    useAuthSessionMock.mockReturnValue({
+      isAuthenticated: true,
+      user: { id: 'user-1', companyId: 'company-1' },
+    } as ReturnType<typeof useAuthSession>)
+
+    renderHook(() => useActivityAvailability(undefined), {
+      wrapper: createWrapper(createQueryClient()),
+    })
+
+    expect(getActivityAvailabilityMock).not.toHaveBeenCalled()
+  })
+
+  it('queries overview by id for authenticated users', async () => {
+    useAuthSessionMock.mockReturnValue({
+      isAuthenticated: true,
+      user: { id: 'user-1', companyId: 'company-1' },
+    } as ReturnType<typeof useAuthSession>)
+    getActivityOverviewMock.mockResolvedValueOnce({
+      activity: { id: 'activity-1' },
+      manpowerSummary: { participantCount: 2 },
+    } as never)
+
+    const { result } = renderHook(() => useActivityOverview('activity-1'), {
+      wrapper: createWrapper(createQueryClient()),
+    })
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    expect(getActivityOverviewMock).toHaveBeenCalledWith('activity-1')
+    expect(activityOverviewQueryKey('activity-1')).toEqual(['activities', 'activity-1', 'overview'])
+  })
+
+  it('does not query overview when id is missing', () => {
+    useAuthSessionMock.mockReturnValue({
+      isAuthenticated: true,
+      user: { id: 'user-1', companyId: 'company-1' },
+    } as ReturnType<typeof useAuthSession>)
+
+    renderHook(() => useActivityOverview(undefined), {
+      wrapper: createWrapper(createQueryClient()),
+    })
+
+    expect(getActivityOverviewMock).not.toHaveBeenCalled()
+  })
+
+  it('generate availability mutation invalidates availability cache', async () => {
+    const queryClient = createQueryClient()
+    const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries')
+
+    useAuthSessionMock.mockReturnValue({
+      isAuthenticated: true,
+      user: { id: 'user-1', companyId: 'company-1' },
+    } as ReturnType<typeof useAuthSession>)
+
+    generateActivityAvailabilityMock.mockResolvedValueOnce([{ id: 'status-1' }] as never)
+
+    const { result } = renderHook(() => useGenerateActivityAvailability('activity-1'), {
+      wrapper: createWrapper(queryClient),
+    })
+
+    await result.current.mutateAsync()
+
+    expect(generateActivityAvailabilityMock).toHaveBeenCalledWith('activity-1')
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: ['activities', 'activity-1', 'availability'],
+    })
+  })
+
+  it('bulk update availability mutation invalidates availability cache', async () => {
+    const queryClient = createQueryClient()
+    const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries')
+
+    useAuthSessionMock.mockReturnValue({
+      isAuthenticated: true,
+      user: { id: 'user-1', companyId: 'company-1' },
+    } as ReturnType<typeof useAuthSession>)
+
+    bulkUpdateActivityAvailabilityMock.mockResolvedValueOnce({
+      updatedCount: 1,
+      updatedRecords: [{ id: 'status-1', availability: 'MORNING' }],
+    } as never)
+
+    const { result } = renderHook(() => useBulkUpdateActivityAvailability('activity-1'), {
+      wrapper: createWrapper(queryClient),
+    })
+
+    await result.current.mutateAsync({
+      userIds: ['user-1'],
+      startDate: '2026-08-13',
+      endDate: '2026-08-15',
+      availability: 'MORNING',
+    })
+
+    expect(bulkUpdateActivityAvailabilityMock).toHaveBeenCalledWith('activity-1', {
+      userIds: ['user-1'],
+      startDate: '2026-08-13',
+      endDate: '2026-08-15',
+      availability: 'MORNING',
+    })
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: ['activities', 'activity-1', 'availability'],
+    })
   })
 
   it('create mutation invalidates list and detail caches', async () => {

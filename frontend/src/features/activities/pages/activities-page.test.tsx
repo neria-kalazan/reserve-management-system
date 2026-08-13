@@ -107,6 +107,9 @@ describe('ActivitiesPage', () => {
 
     expect(screen.getByText('אין תעסוקות להצגה')).toBeDefined()
     expect(screen.getByText('לא הוגדרו עדיין תעסוקות לפלוגה.')).toBeDefined()
+
+    fireEvent.click(screen.getByRole('button', { name: 'יצירת תעסוקה ראשונה' }))
+    expect(navigateMock).toHaveBeenCalledWith('/activities/new')
   })
 
   it('renders activities with status and dates', () => {
@@ -158,5 +161,18 @@ describe('ActivitiesPage', () => {
     fireEvent.click(openButtons[0]!)
 
     expect(navigateMock).toHaveBeenCalledWith('/activities/activity-1')
+  })
+
+  it('navigates to create activity page from header action', () => {
+    useCompanyActivitiesMock.mockReturnValue({
+      isPending: false,
+      isError: false,
+      data: activities,
+    } as unknown as ReturnType<typeof useCompanyActivities>)
+
+    render(<ActivitiesPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'תעסוקה חדשה' }))
+    expect(navigateMock).toHaveBeenCalledWith('/activities/new')
   })
 })

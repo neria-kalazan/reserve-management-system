@@ -88,6 +88,11 @@ export function ActivitiesPage() {
       <PageHeader
         title="תעסוקות"
         description="ניהול תעסוקות הפלוגה ומעקב אחר מצב התעסוקה הפעילה."
+        actions={
+          <Button type="button" onClick={() => navigate('/activities/new')}>
+            תעסוקה חדשה
+          </Button>
+        }
       />
       <ContentContainer className="space-y-5 pb-10">
         {activitiesQuery.isPending ? (
@@ -107,6 +112,11 @@ export function ActivitiesPage() {
             title="אין תעסוקות להצגה"
             description="לא הוגדרו עדיין תעסוקות לפלוגה."
             icon={<FolderOpen className="h-5 w-5" aria-hidden="true" />}
+            action={
+              <Button type="button" variant="secondary" onClick={() => navigate('/activities/new')}>
+                יצירת תעסוקה ראשונה
+              </Button>
+            }
           />
         ) : (
           <div className="space-y-4">
