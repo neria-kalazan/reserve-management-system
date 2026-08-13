@@ -105,6 +105,7 @@ describe('Auth e2e', () => {
     });
     expect(res.body.permissions).toEqual([{ key: 'MANAGE_COMPANIES', description: 'Manage companies' }]);
     expect(res.body).not.toHaveProperty('companyId');
+    expect(prisma.user.findUnique).toHaveBeenCalledTimes(1);
   });
 
   it('allows an authenticated user with the required permission to access a protected endpoint', async () => {

@@ -43,7 +43,14 @@ describe('AuthGuard', () => {
 
   it('populates request.user for a valid session', async () => {
     authService.getSessionUser.mockReturnValue('user-1');
-    prisma.user.findUnique.mockResolvedValue({ id: 'user-1', isActive: true });
+    prisma.user.findUnique.mockResolvedValue({
+      id: 'user-1',
+      email: 'user@example.com',
+      firstName: 'Test',
+      lastName: 'User',
+      companyId: 'company-1',
+      isActive: true,
+    });
     const request: any = { headers: { cookie: 'app_session=valid' } };
     const context = {
       switchToHttp: () => ({
@@ -52,6 +59,42 @@ describe('AuthGuard', () => {
     } as unknown as ExecutionContext;
 
     await expect(guard.canActivate(context)).resolves.toBe(true);
+    expect(prisma.user.findUnique).toHaveBeenCalledWith({
+      where: { id: 'user-1' },
+      select: { id: true, email: true, firstName: true, lastName: true, companyId: true, isActive: true },
+    });
     expect(request.user.id).toBe('user-1');
+    expect(request.user.companyId).toBe('company-1');
+  });
+
+  it('rejects inactive business users', async () => {
+    authService.getSessionUser.mockReturnValue('user-1');
+    prisma.user.findUnique.mockResolvedValue({
+      id: 'user-1',
+      email: 'user@example.com',
+      firstName: 'Inactive',
+      lastName: 'User',
+      companyId: 'company-1',
+      isActive: false,
+    });
+    const context = {
+      switchToHttp: () => ({
+        getRequest: () => ({ headers: { cookie: 'app_session=valid' } }),
+      }),
+    } as unknown as ExecutionContext;
+
+    await expect(guard.canActivate(context)).rejects.toThrow(UnauthorizedException);
+  });
+
+  it('does not treat non-business identities as authenticated users', async () => {
+    authService.getSessionUser.mockReturnValue('system-user-1');
+    prisma.user.findUnique.mockResolvedValue(null);
+    const context = {
+      switchToHttp: () => ({
+        getRequest: () => ({ headers: { cookie: 'app_session=valid' } }),
+      }),
+    } as unknown as ExecutionContext;
+
+    await expect(guard.canActivate(context)).rejects.toThrow(UnauthorizedException);
   });
 });

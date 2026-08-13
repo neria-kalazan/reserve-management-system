@@ -48,11 +48,24 @@ describe('Activations e2e', () => {
     };
 
     prismaMock = {
-      $transaction: jest.fn(async (callback: any) => callback({
-        activation: prismaMock.activation,
-        activationOtpChallenge: prismaMock.activationOtpChallenge,
-        user: prismaMock.user,
-      })),
+      $transaction: jest.fn(async (callback: any) => {
+        const usersSnapshot = new Map(Array.from(state.users.entries()).map(([id, user]) => [id, { ...user }]));
+        const activationsSnapshot = new Map(Array.from(state.activations.entries()).map(([id, activation]) => [id, { ...activation }]));
+        const otpChallengesSnapshot = new Map(Array.from(state.otpChallenges.entries()).map(([id, challenge]) => [id, { ...challenge }]));
+
+        try {
+          return await callback({
+            activation: prismaMock.activation,
+            activationOtpChallenge: prismaMock.activationOtpChallenge,
+            user: prismaMock.user,
+          });
+        } catch (error) {
+          state.users = usersSnapshot;
+          state.activations = activationsSnapshot;
+          state.otpChallenges = otpChallengesSnapshot;
+          throw error;
+        }
+      }),
       user: {
         findUnique: jest.fn(async ({ where, select }: any) => {
           const id = where?.id;
@@ -487,9 +500,12 @@ describe('Activations e2e', () => {
   });
 
   it('rejects an unknown activation token', async () => {
-    await request(app.getHttpServer())
+    const res = await request(app.getHttpServer())
       .get('/activations/unknown-token')
       .expect(404);
+
+    expect(res.body.message).toBe('Activation not found');
+    expect(JSON.stringify(res.body)).not.toMatch(/tokenHash|codeHash|prisma|stack|sql/i);
   });
 
   it('rejects an expired activation token', async () => {
@@ -497,9 +513,12 @@ describe('Activations e2e', () => {
     const activation = Array.from(state.activations.values())[0];
     activation.expiresAt = new Date(Date.now() - 1000);
 
-    await request(app.getHttpServer())
+    const res = await request(app.getHttpServer())
       .get(`/activations/${token}`)
       .expect(400);
+
+    expect(res.body.message).toBe('Activation is no longer valid');
+    expect(JSON.stringify(res.body)).not.toMatch(/tokenHash|codeHash|prisma|stack|sql/i);
   });
 
   it('rejects a revoked activation token', async () => {
@@ -507,9 +526,12 @@ describe('Activations e2e', () => {
     const activation = Array.from(state.activations.values())[0];
     activation.revokedAt = new Date();
 
-    await request(app.getHttpServer())
+    const res = await request(app.getHttpServer())
       .get(`/activations/${token}`)
       .expect(400);
+
+    expect(res.body.message).toBe('Activation is no longer valid');
+    expect(JSON.stringify(res.body)).not.toMatch(/tokenHash|codeHash|prisma|stack|sql/i);
   });
 
   it('rejects a used activation token', async () => {
@@ -517,9 +539,12 @@ describe('Activations e2e', () => {
     const activation = Array.from(state.activations.values())[0];
     activation.usedAt = new Date();
 
-    await request(app.getHttpServer())
+    const res = await request(app.getHttpServer())
       .get(`/activations/${token}`)
       .expect(400);
+
+    expect(res.body.message).toBe('Activation is no longer valid');
+    expect(JSON.stringify(res.body)).not.toMatch(/tokenHash|codeHash|prisma|stack|sql/i);
   });
 
   it('verifies the correct phone without creating a session or linking Google', async () => {
@@ -544,6 +569,7 @@ describe('Activations e2e', () => {
       .expect(400);
 
     expect(res.body.message).toBe('Verification failed');
+    expect(JSON.stringify(res.body)).not.toMatch(/0547724987|target@example.com|phone/i);
     expect(state.users.get(targetUserId)?.phoneVerifiedAt ?? null).toBeNull();
     expect(warnSpy).toHaveBeenCalled();
   });
@@ -581,6 +607,8 @@ describe('Activations e2e', () => {
       activationId: expect.any(String),
       maxAttempts: 5,
     });
+    expect(response.body).not.toHaveProperty('otp');
+    expect(response.body).not.toHaveProperty('codeHash');
     expect(otp).toMatch(/^\d{6}$/);
     expect(challenge.codeHash).not.toBe(otp);
     expect(challenge.codeHash).toHaveLength(64);
@@ -602,6 +630,8 @@ describe('Activations e2e', () => {
       .expect(201);
 
     expect(res.body).toEqual({ verified: true, activationId: expect.any(String), challengeId: challenge.id });
+    expect(res.body).not.toHaveProperty('otp');
+    expect(res.body).not.toHaveProperty('codeHash');
     expect(state.otpChallenges.get(challenge.id)?.usedAt).toBeInstanceOf(Date);
     expect(state.users.get(targetUserId)?.activatedAt ?? null).toBeNull();
     expect(state.users.get(targetUserId)?.googleSubject ?? null).toBeNull();
@@ -623,7 +653,24 @@ describe('Activations e2e', () => {
       .expect(400);
 
     expect(res.body.message).toBe('OTP verification failed');
+    expect(JSON.stringify(res.body)).not.toMatch(/codeHash|attemptCount|maxAttempts|prisma|stack|sql/i);
     expect(state.otpChallenges.get(challenge.id)?.attemptCount).toBe(1);
+  });
+
+  it('returns generic OTP verification failure when no challenge exists', async () => {
+    const token = await createActivationToken();
+    await request(app.getHttpServer())
+      .post(`/activations/${token}/verify-phone`)
+      .send({ phone: '0547724987' })
+      .expect(201);
+
+    const res = await request(app.getHttpServer())
+      .post(`/activations/${token}/verify-otp`)
+      .send({ otp: '123456' })
+      .expect(400);
+
+    expect(res.body.message).toBe('OTP verification failed');
+    expect(JSON.stringify(res.body)).not.toMatch(/challenge not found|codeHash|prisma|stack|sql/i);
   });
 
   it('locks the challenge after the maximum number of failed attempts', async () => {
@@ -655,24 +702,28 @@ describe('Activations e2e', () => {
 
     let otpFlow = await requestOtpForActivation(token);
     state.otpChallenges.get(otpFlow.challenge.id)!.lockedAt = new Date();
-    await request(app.getHttpServer())
+    let res = await request(app.getHttpServer())
       .post(`/activations/${token}/verify-otp`)
       .send({ otp: otpFlow.otp })
       .expect(400);
+    expect(res.body.message).toBe('OTP verification failed');
 
     otpFlow = await requestOtpForActivation(token);
     state.otpChallenges.get(otpFlow.challenge.id)!.usedAt = new Date();
-    await request(app.getHttpServer())
+    res = await request(app.getHttpServer())
       .post(`/activations/${token}/verify-otp`)
       .send({ otp: otpFlow.otp })
       .expect(400);
+    expect(res.body.message).toBe('OTP verification failed');
 
     otpFlow = await requestOtpForActivation(token);
     state.otpChallenges.get(otpFlow.challenge.id)!.expiresAt = new Date(Date.now() - 1000);
-    await request(app.getHttpServer())
+    res = await request(app.getHttpServer())
       .post(`/activations/${token}/verify-otp`)
       .send({ otp: otpFlow.otp })
       .expect(400);
+    expect(res.body.message).toBe('OTP verification failed');
+    expect(JSON.stringify(res.body)).not.toMatch(/locked|expired|used|attemptCount|maxAttempts|codeHash|prisma|stack|sql/i);
   });
 
   it('invalidates the previous active OTP challenge when a new OTP is requested', async () => {
@@ -809,10 +860,13 @@ describe('Activations e2e', () => {
       .redirects(0)
       .expect(302);
 
-    await request(app.getHttpServer())
+    const res = await request(app.getHttpServer())
       .get('/auth/google/callback')
       .query({ code: 'link-code', state: stateValue })
       .expect(400);
+
+    expect(res.body.message).toBe('OAuth state is no longer valid');
+    expect(JSON.stringify(res.body)).not.toMatch(/activationId|userId|tokenHash|codeHash|prisma|stack|sql/i);
   });
 
   it('completes Google linking, stores googleSubject, activates the user, creates a session, and consumes the activation', async () => {
@@ -838,10 +892,92 @@ describe('Activations e2e', () => {
     expect(user.googleSubject).toBe('google-sub-new');
     expect(user.googleLinkedAt).toBeInstanceOf(Date);
     expect(user.activatedAt).toBeInstanceOf(Date);
+    expect(user.lastLoginAt).toBeInstanceOf(Date);
     expect(activation.usedAt).toBeInstanceOf(Date);
     expect(state.createdSessions).toHaveLength(1);
     expect(authServiceMock.authenticateGoogleUser).not.toHaveBeenCalled();
     expect(callback.headers['set-cookie']).toBeDefined();
+  });
+
+  it('does not allow a consumed activation token to start linking again', async () => {
+    const token = await createActivationToken();
+    await completeOtpVerification(token);
+
+    const start = await request(app.getHttpServer())
+      .get(`/activations/${token}/link-google`)
+      .redirects(0)
+      .expect(302);
+    const stateValue = new URL(start.headers.location).searchParams.get('state');
+
+    await request(app.getHttpServer())
+      .get('/auth/google/callback')
+      .query({ code: 'link-code', state: stateValue })
+      .redirects(0)
+      .expect(302);
+
+    await request(app.getHttpServer())
+      .get(`/activations/${token}/link-google`)
+      .expect(400);
+  });
+
+  it('rejects linking when user is already activated and keeps activation unused', async () => {
+    const token = await createActivationToken();
+    await completeOtpVerification(token);
+
+    const start = await request(app.getHttpServer())
+      .get(`/activations/${token}/link-google`)
+      .redirects(0)
+      .expect(302);
+    const stateValue = new URL(start.headers.location).searchParams.get('state');
+    const activation = Array.from(state.activations.values())[0];
+
+    state.users.set(targetUserId, {
+      ...state.users.get(targetUserId),
+      activatedAt: new Date('2026-03-01T00:00:00.000Z'),
+    });
+
+    await request(app.getHttpServer())
+      .get('/auth/google/callback')
+      .query({ code: 'link-code', state: stateValue })
+      .expect(409);
+
+    const user = state.users.get(targetUserId);
+    expect(user.googleSubject ?? null).toBeNull();
+    expect(user.googleLinkedAt ?? null).toBeNull();
+    expect(activation.usedAt ?? null).toBeNull();
+    expect(state.createdSessions).toHaveLength(0);
+  });
+
+  it('rolls back activation completion state when transaction fails after user update', async () => {
+    const token = await createActivationToken();
+    await completeOtpVerification(token);
+
+    const start = await request(app.getHttpServer())
+      .get(`/activations/${token}/link-google`)
+      .redirects(0)
+      .expect(302);
+    const stateValue = new URL(start.headers.location).searchParams.get('state');
+
+    const activation = Array.from(state.activations.values())[0];
+    const originalUpdate = prismaMock.activation.update;
+    prismaMock.activation.update = jest.fn(async () => {
+      throw new Error('forced-activation-update-failure');
+    });
+
+    await request(app.getHttpServer())
+      .get('/auth/google/callback')
+      .query({ code: 'link-code', state: stateValue })
+      .expect(500);
+
+    prismaMock.activation.update = originalUpdate;
+
+    const user = state.users.get(targetUserId);
+    expect(user.googleSubject ?? null).toBeNull();
+    expect(user.googleLinkedAt ?? null).toBeNull();
+    expect(user.activatedAt ?? null).toBeNull();
+    expect(user.lastLoginAt ?? null).toBeNull();
+    expect(activation.usedAt ?? null).toBeNull();
+    expect(state.createdSessions).toHaveLength(0);
   });
 
   it('rejects Google subject collisions without partially activating the target user', async () => {
@@ -856,12 +992,14 @@ describe('Activations e2e', () => {
 
     const activation = Array.from(state.activations.values())[0];
 
-    await request(app.getHttpServer())
+    const res = await request(app.getHttpServer())
       .get('/auth/google/callback')
       .query({ code: 'collision-code', state: stateValue })
       .expect(409);
 
     const user = state.users.get(targetUserId);
+    expect(res.body.message).toBe('Google identity is already linked');
+    expect(JSON.stringify(res.body)).not.toMatch(/linked@example.com|55555555-5555-4555-8555-555555555555|google-sub-existing|prisma|stack|sql/i);
     expect(user.googleSubject ?? null).toBeNull();
     expect(user.activatedAt ?? null).toBeNull();
     expect(activation.usedAt ?? null).toBeNull();

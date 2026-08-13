@@ -32,9 +32,20 @@ describe('PermissionGuard', () => {
     ]);
 
     const context = createContext(TestController.prototype.decoratedMethod, TestController);
-    (context.switchToHttp().getRequest() as any).user = { id: 'user-1' };
+    (context.switchToHttp().getRequest() as any).user = {
+      id: 'user-1',
+      email: 'user@example.com',
+      firstName: 'Test',
+      lastName: 'User',
+      companyId: 'company-1',
+      isActive: true,
+    };
 
     await expect(guard.canActivate(context)).resolves.toBe(true);
+    expect(prisma.userPermission.findMany).toHaveBeenCalledWith({
+      where: { userId: 'user-1' },
+      select: { permission: { select: { key: true } } },
+    });
   });
 
   it('throws forbidden when the user does not have the required permission', async () => {
@@ -43,7 +54,14 @@ describe('PermissionGuard', () => {
     ]);
 
     const context = createContext(TestController.prototype.decoratedMethod, TestController);
-    (context.switchToHttp().getRequest() as any).user = { id: 'user-1' };
+    (context.switchToHttp().getRequest() as any).user = {
+      id: 'user-1',
+      email: 'user@example.com',
+      firstName: 'Test',
+      lastName: 'User',
+      companyId: 'company-1',
+      isActive: true,
+    };
 
     await expect(guard.canActivate(context)).rejects.toThrow(ForbiddenException);
   });
@@ -59,6 +77,25 @@ describe('PermissionGuard', () => {
     const context = createContext(() => undefined, TestController);
 
     await expect(guard.canActivate(context)).resolves.toBe(true);
+  });
+
+  it('uses request user context id and does not depend on email identity fallback', async () => {
+    prisma.userPermission.findMany.mockResolvedValue([{ permission: { key: 'MANAGE_USERS' } }]);
+    const context = createContext(TestController.prototype.decoratedMethod, TestController);
+    (context.switchToHttp().getRequest() as any).user = {
+      id: 'business-user-42',
+      email: null,
+      firstName: 'No',
+      lastName: 'Email',
+      companyId: 'company-1',
+      isActive: true,
+    };
+
+    await expect(guard.canActivate(context)).resolves.toBe(true);
+    expect(prisma.userPermission.findMany).toHaveBeenCalledWith({
+      where: { userId: 'business-user-42' },
+      select: { permission: { select: { key: true } } },
+    });
   });
 });
 

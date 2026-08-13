@@ -177,21 +177,21 @@ export class ActivationsService {
     const challenge = await this.getLatestChallenge(activation.id);
 
     if (!challenge) {
-      throw new BadRequestException('OTP challenge not found');
+      throw new BadRequestException('OTP verification failed');
     }
 
     const now = new Date();
 
     if (challenge.expiresAt <= now) {
-      throw new BadRequestException('OTP challenge has expired');
+      throw new BadRequestException('OTP verification failed');
     }
 
     if (challenge.lockedAt) {
-      throw new BadRequestException('OTP challenge is locked');
+      throw new BadRequestException('OTP verification failed');
     }
 
     if (challenge.usedAt) {
-      throw new BadRequestException('OTP challenge has already been used');
+      throw new BadRequestException('OTP verification failed');
     }
 
     const verified = this.otpService.verifyOtp(otp, challenge.codeHash);
@@ -285,6 +285,10 @@ export class ActivationsService {
 
       if (!activation.user.phoneVerifiedAt) {
         throw new BadRequestException('Phone verification is required');
+      }
+
+      if (activation.user.activatedAt) {
+        throw new ConflictException('User is already activated');
       }
 
       if (activation.user.googleSubject) {
@@ -387,6 +391,10 @@ export class ActivationsService {
       throw new BadRequestException('Phone verification is required');
     }
 
+    if (activation.user.activatedAt) {
+      throw new ConflictException('User is already activated');
+    }
+
     if (activation.user.googleSubject) {
       throw new ConflictException('Google identity is already linked');
     }
@@ -441,6 +449,7 @@ export class ActivationsService {
             lastName: true,
             phone: true,
             phoneVerifiedAt: true,
+            activatedAt: true,
             googleSubject: true,
             isActive: true,
           },

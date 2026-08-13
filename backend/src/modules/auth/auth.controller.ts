@@ -4,6 +4,7 @@ import type { Request, Response } from 'express';
 import { AuthGuard } from './auth.guard';
 import { AuthService } from './auth.service';
 import { CurrentUser } from './current-user.decorator';
+import type { AuthenticatedBusinessUser } from './authenticated-user.interface';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ActivationsService } from '../activations/activations.service';
 
@@ -49,26 +50,20 @@ export class AuthController {
 
   @Get('me')
   @UseGuards(AuthGuard)
-  async me(@CurrentUser() user: any) {
-    const [permissions, currentUser] = await Promise.all([
-      this.prisma.userPermission.findMany({
-        where: { userId: user.id },
-        select: { permission: { select: { key: true, description: true } } },
-      }),
-      this.prisma.user.findUnique({
-        where: { id: user.id },
-        select: { id: true, email: true, firstName: true, lastName: true, companyId: true },
-      }),
-    ]);
+  async me(@CurrentUser() user: AuthenticatedBusinessUser) {
+    const permissions = await this.prisma.userPermission.findMany({
+      where: { userId: user.id },
+      select: { permission: { select: { key: true, description: true } } },
+    });
 
     return {
       authenticated: true,
       user: {
-        id: currentUser?.id ?? user.id,
-        email: currentUser?.email ?? user.email,
-        firstName: currentUser?.firstName ?? user.firstName,
-        lastName: currentUser?.lastName ?? user.lastName,
-        companyId: currentUser?.companyId ?? user.companyId,
+        id: user.id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        companyId: user.companyId,
       },
       permissions: permissions.map((item: any) => item.permission),
     };

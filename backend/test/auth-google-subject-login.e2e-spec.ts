@@ -110,6 +110,7 @@ describe('Auth Google Subject Login e2e', () => {
       .expect(401);
 
     expect(res.body.message).toBe('Authentication failed');
+    expect(JSON.stringify(res.body)).not.toMatch(/googleSubject|email|userId|prisma|stack|sql/i);
     expect(prisma.user.update).not.toHaveBeenCalled();
   });
 
@@ -122,11 +123,13 @@ describe('Auth Google Subject Login e2e', () => {
 
     prisma.user.findFirst.mockResolvedValue(null);
 
-    await request(app.getHttpServer())
+    const res = await request(app.getHttpServer())
       .get('/auth/google/callback')
       .query({ code: 'email-only-match-code' })
       .expect(401);
 
+    expect(res.body.message).toBe('Authentication failed');
+    expect(JSON.stringify(res.body)).not.toMatch(/target@example.com|googleSubject|userId|prisma|stack|sql/i);
     expect(prisma.user.findMany).not.toHaveBeenCalled();
     expect(prisma.user.update).not.toHaveBeenCalled();
   });

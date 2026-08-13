@@ -2,6 +2,11 @@ import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from
 import type { Request } from 'express';
 import { AuthService } from './auth.service';
 import { PrismaService } from '../../prisma/prisma.service';
+import { AuthenticatedBusinessUser } from './authenticated-user.interface';
+
+interface AuthenticatedRequest extends Request {
+  user?: AuthenticatedBusinessUser;
+}
 
 @Injectable()
 export class AuthGuard implements CanActivate {
@@ -11,7 +16,7 @@ export class AuthGuard implements CanActivate {
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const request = context.switchToHttp().getRequest<Request & { user?: any }>();
+    const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
     const sessionToken = this.getSessionToken(request);
 
     if (!sessionToken) {
@@ -26,7 +31,7 @@ export class AuthGuard implements CanActivate {
 
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      select: { id: true, email: true, firstName: true, lastName: true, isActive: true },
+      select: { id: true, email: true, firstName: true, lastName: true, companyId: true, isActive: true },
     });
 
     if (!user || !user.isActive) {
