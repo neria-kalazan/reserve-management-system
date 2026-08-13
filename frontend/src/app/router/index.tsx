@@ -10,6 +10,7 @@ import { ActivityAvailabilityPage } from '@/features/activities/pages/activity-a
 import { ActivityCreatePage } from '@/features/activities/pages/activity-create-page'
 import { ActivityDetailsPage } from '@/features/activities/pages/activity-details-page'
 import { ActivityEditPage } from '@/features/activities/pages/activity-edit-page'
+import { ActivityTaskCreatePage } from '@/features/activities/pages/activity-task-create-page'
 import { ActivitiesPage } from '@/features/activities/pages/activities-page'
 import { DashboardPage } from '@/features/dashboard/pages/dashboard-page'
 
@@ -90,6 +91,16 @@ const router = createBrowserRouter([
               {
                 index: true,
                 element: <ActivityEditPage />,
+              },
+            ],
+          },
+          {
+            path: '/activities/:activityId/tasks/new',
+            element: <PermissionRoute route={activitiesRoute} />,
+            children: [
+              {
+                index: true,
+                element: <ActivityTaskCreatePage />,
               },
             ],
           },

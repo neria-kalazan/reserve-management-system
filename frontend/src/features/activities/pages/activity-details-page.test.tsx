@@ -6,6 +6,10 @@ vi.mock('@/features/activities/queries/use-activities', () => ({
   useActivityOverview: vi.fn(),
 }))
 
+vi.mock('@/features/activities/queries/use-activity-tasks', () => ({
+  useActivityTasks: vi.fn(),
+}))
+
 const { navigateMock, useParamsMock } = vi.hoisted(() => ({
   navigateMock: vi.fn(),
   useParamsMock: vi.fn(),
@@ -22,15 +26,18 @@ vi.mock('react-router-dom', async () => {
 })
 
 import { useActivityById, useActivityOverview } from '@/features/activities/queries/use-activities'
+import { useActivityTasks } from '@/features/activities/queries/use-activity-tasks'
 import { ActivityDetailsPage } from '@/features/activities/pages/activity-details-page'
 
 const useActivityByIdMock = vi.mocked(useActivityById)
 const useActivityOverviewMock = vi.mocked(useActivityOverview)
+const useActivityTasksMock = vi.mocked(useActivityTasks)
 
 describe('ActivityDetailsPage', () => {
   beforeEach(() => {
     useActivityByIdMock.mockReset()
     useActivityOverviewMock.mockReset()
+    useActivityTasksMock.mockReset()
     navigateMock.mockReset()
     useParamsMock.mockReset()
     useParamsMock.mockReturnValue({ activityId: 'activity-1' })
@@ -40,6 +47,12 @@ describe('ActivityDetailsPage', () => {
       data: undefined,
       refetch: vi.fn(),
     } as unknown as ReturnType<typeof useActivityOverview>)
+    useActivityTasksMock.mockReturnValue({
+      isPending: false,
+      isError: false,
+      data: [],
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useActivityTasks>)
   })
 
   it('renders loading state', () => {
@@ -154,6 +167,38 @@ describe('ActivityDetailsPage', () => {
     expect(screen.getByText('6')).toBeDefined()
     expect(screen.getByText('הכנה')).toBeDefined()
     expect(screen.getByText('אימות')).toBeDefined()
+  })
+
+  it('renders read-only task list scoped to the activity', () => {
+    useActivityByIdMock.mockReturnValue({
+      isPending: false,
+      isError: false,
+      data: {
+        id: 'activity-1',
+        companyId: 'company-1',
+        name: 'תעסוקה מבצעית',
+        startDate: '2026-08-10T00:00:00.000Z',
+        endDate: '2026-08-15T00:00:00.000Z',
+        status: 'ACTIVE',
+        createdAt: '2026-08-10T00:00:00.000Z',
+        updatedAt: '2026-08-10T00:00:00.000Z',
+      },
+    } as unknown as ReturnType<typeof useActivityById>)
+    useActivityTasksMock.mockReturnValue({
+      isPending: false,
+      isError: false,
+      data: [
+        { id: 'task-1', activityId: 'activity-1', name: 'הכנה', description: 'תיאור קצר' },
+        { id: 'task-2', activityId: 'activity-1', name: 'סיור', description: null },
+      ],
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useActivityTasks>)
+
+    render(<ActivityDetailsPage />)
+
+    expect(screen.getByText('משימות')).toBeDefined()
+    expect(screen.getByText('הכנה')).toBeDefined()
+    expect(screen.getByText('סיור')).toBeDefined()
   })
 
   it('renders overview error state with retry when the overview request fails', () => {

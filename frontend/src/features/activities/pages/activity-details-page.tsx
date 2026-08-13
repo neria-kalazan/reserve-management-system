@@ -5,7 +5,9 @@ import { useNavigate, useParams } from 'react-router-dom'
 import type { ApiError } from '@/api/client'
 import { ContentContainer } from '@/app/layout/content-container'
 import { PageHeader } from '@/app/layout/page-header'
+import { ActivityTaskList } from '@/features/activities/components/activity-task-list'
 import { useActivityById, useActivityOverview } from '@/features/activities/queries/use-activities'
+import { useActivityTasks } from '@/features/activities/queries/use-activity-tasks'
 import type { ActivityOverview } from '@/features/activities/types/activity'
 import { ErrorState } from '@/shared/components/error-state'
 import { LoadingState } from '@/shared/components/loading-state'
@@ -55,6 +57,7 @@ export function ActivityDetailsPage() {
   const { activityId } = useParams<{ activityId: string }>()
   const activityQuery = useActivityById(activityId)
   const overviewQuery = useActivityOverview(activityId)
+  const tasksQuery = useActivityTasks(activityId)
 
   const isNotFound = useMemo(() => {
     if (!activityQuery.isError || !isApiError(activityQuery.error)) {
@@ -263,6 +266,24 @@ export function ActivityDetailsPage() {
                 ) : null}
               </CardContent>
             </Card>
+
+            {tasksQuery.isError ? (
+              <ActivityTaskList
+                tasks={tasksQuery.data}
+                isPending={tasksQuery.isPending}
+                isError={tasksQuery.isError}
+                error={tasksQuery.error as { status?: number; message?: string }}
+                refetch={() => void tasksQuery.refetch()}
+                onCreate={() => navigate(`/activities/${activityId}/tasks/new`)}
+              />
+            ) : (
+              <ActivityTaskList
+                tasks={tasksQuery.data}
+                isPending={tasksQuery.isPending}
+                isError={tasksQuery.isError}
+                onCreate={() => navigate(`/activities/${activityId}/tasks/new`)}
+              />
+            )}
           </>
         )}
       </ContentContainer>
