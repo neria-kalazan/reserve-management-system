@@ -11,6 +11,8 @@ import { ActivityCreatePage } from '@/features/activities/pages/activity-create-
 import { ActivityDetailsPage } from '@/features/activities/pages/activity-details-page'
 import { ActivityEditPage } from '@/features/activities/pages/activity-edit-page'
 import { ActivityTaskCreatePage } from '@/features/activities/pages/activity-task-create-page'
+import { ActivityTaskInstancesPage } from '@/features/activities/pages/activity-task-instances-page'
+import { ActivityTaskRequirementsPage } from '@/features/activities/pages/activity-task-requirements-page'
 import { ActivitiesPage } from '@/features/activities/pages/activities-page'
 import { DashboardPage } from '@/features/dashboard/pages/dashboard-page'
 
@@ -101,6 +103,26 @@ const router = createBrowserRouter([
               {
                 index: true,
                 element: <ActivityTaskCreatePage />,
+              },
+            ],
+          },
+          {
+            path: '/activities/:activityId/tasks/:taskId/task-instances',
+            element: <PermissionRoute route={activitiesRoute} />,
+            children: [
+              {
+                index: true,
+                element: <ActivityTaskInstancesPage />,
+              },
+            ],
+          },
+          {
+            path: '/activities/:activityId/tasks/:taskId/requirements',
+            element: <PermissionRoute route={activitiesRoute} />,
+            children: [
+              {
+                index: true,
+                element: <ActivityTaskRequirementsPage />,
               },
             ],
           },

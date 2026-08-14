@@ -275,6 +275,8 @@ export function ActivityDetailsPage() {
                 error={tasksQuery.error as { status?: number; message?: string }}
                 refetch={() => void tasksQuery.refetch()}
                 onCreate={() => navigate(`/activities/${activityId}/tasks/new`)}
+                onOpenTaskInstances={(task) => navigate(`/activities/${activityId}/tasks/${task.id}/task-instances`)}
+                onOpenRequirements={(task) => navigate(`/activities/${activityId}/tasks/${task.id}/requirements`)}
               />
             ) : (
               <ActivityTaskList
@@ -282,6 +284,8 @@ export function ActivityDetailsPage() {
                 isPending={tasksQuery.isPending}
                 isError={tasksQuery.isError}
                 onCreate={() => navigate(`/activities/${activityId}/tasks/new`)}
+                onOpenTaskInstances={(task) => navigate(`/activities/${activityId}/tasks/${task.id}/task-instances`)}
+                onOpenRequirements={(task) => navigate(`/activities/${activityId}/tasks/${task.id}/requirements`)}
               />
             )}
           </>

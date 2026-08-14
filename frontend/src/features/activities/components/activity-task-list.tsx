@@ -7,13 +7,33 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui
 
 import type { ActivityTask } from '@/features/activities/api/activity-tasks'
 
-function TaskListRow({ task }: { task: ActivityTask }) {
+function TaskListRow({
+  task,
+  onOpenRequirements,
+  onOpenTaskInstances,
+}: {
+  task: ActivityTask
+  onOpenRequirements?: ((task: ActivityTask) => void) | undefined
+  onOpenTaskInstances?: ((task: ActivityTask) => void) | undefined
+}) {
   return (
     <div className="flex flex-col gap-2 rounded-md border border-border bg-surface px-3 py-3 text-sm sm:flex-row sm:items-start sm:justify-between">
       <div className="min-w-0">
         <p className="truncate font-medium text-foreground">{task.name}</p>
         {task.description ? (
           <p className="mt-1 text-xs leading-5 text-muted">{task.description}</p>
+        ) : null}
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {onOpenTaskInstances ? (
+          <Button type="button" variant="secondary" size="sm" onClick={() => onOpenTaskInstances(task)}>
+            מופעים
+          </Button>
+        ) : null}
+        {onOpenRequirements ? (
+          <Button type="button" variant="secondary" size="sm" onClick={() => onOpenRequirements(task)}>
+            דרישות
+          </Button>
         ) : null}
       </div>
     </div>
@@ -27,6 +47,8 @@ export function ActivityTaskList({
   error,
   refetch,
   onCreate,
+  onOpenRequirements,
+  onOpenTaskInstances,
 }: {
   tasks: ActivityTask[] | undefined
   isPending: boolean
@@ -34,6 +56,8 @@ export function ActivityTaskList({
   error?: { status?: number; message?: string }
   refetch?: () => void
   onCreate?: () => void
+  onOpenRequirements?: (task: ActivityTask) => void
+  onOpenTaskInstances?: (task: ActivityTask) => void
 }) {
   if (isPending) {
     return (
@@ -74,7 +98,14 @@ export function ActivityTaskList({
       </CardHeader>
       <CardContent className="space-y-3 px-4 pb-4 sm:px-5 sm:pb-5">
         {tasks && tasks.length > 0 ? (
-          tasks.map((task) => <TaskListRow key={task.id} task={task} />)
+          tasks.map((task) => (
+            <TaskListRow
+              key={task.id}
+              task={task}
+              onOpenRequirements={onOpenRequirements}
+              onOpenTaskInstances={onOpenTaskInstances}
+            />
+          ))
         ) : (
           <div className="rounded-md border border-dashed border-border bg-surface px-3 py-8 text-center text-sm text-muted">
             אין משימות להצגה לתעסוקה זו.
