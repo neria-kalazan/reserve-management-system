@@ -162,6 +162,15 @@ export function ActivityDetailsPage() {
               <Button
                 type="button"
                 variant="secondary"
+                onClick={() => navigate(`/activities/${activityQuery.data?.id}/planning`)}
+              >
+                תכנון תפעולי
+              </Button>
+            ) : null}
+            {activityQuery.data ? (
+              <Button
+                type="button"
+                variant="secondary"
                 onClick={() => navigate(`/activities/${activityQuery.data?.id}/availability`)}
               >
                 זמינות

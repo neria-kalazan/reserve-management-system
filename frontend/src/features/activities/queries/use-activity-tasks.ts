@@ -3,13 +3,20 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAuthSession } from '@/app/auth/use-auth-session'
 import {
   createActivityTaskInstance,
+  createTaskInstanceAssignment,
   deleteActivityTaskInstance,
+  deleteAssignment,
   getActivityTaskInstances,
   getActivityTaskRequirements,
   getActivityTasks,
+  getAvailableUsers,
+  getCandidateEvaluation,
   getCompanyQualifications,
   getCompanyRoles,
+  getCompanyUsers,
+  getTaskInstanceAssignments,
   getTaskInstanceValidation,
+  getTaskInstanceWorkspace,
   postActivityTask,
   updateActivityTaskInstance,
   updateActivityTaskRequirements,
@@ -18,10 +25,16 @@ import type {
   ActivityTask,
   ActivityTaskInstance,
   ActivityTaskRequirements,
+  Assignment,
+  AvailableUser,
+  CandidateEvaluation,
   CompanyQualification,
   CompanyRole,
+  CompanyUser,
   CreateActivityTaskInput,
   CreateActivityTaskInstanceInput,
+  CreateAssignmentInput,
+  TaskInstanceWorkspace,
   TaskValidationResult,
   UpdateActivityTaskInstanceInput,
   UpdateActivityTaskRequirementsInput,
@@ -35,6 +48,21 @@ export const activityTaskRequirementsQueryKey = (activityTaskId: string | undefi
 
 export const activityTaskInstancesQueryKey = (activityTaskId: string | undefined) =>
   ['activity-tasks', activityTaskId, 'task-instances'] as const
+
+export const taskInstanceWorkspaceQueryKey = (taskInstanceId: string | undefined) =>
+  ['task-instances', taskInstanceId, 'workspace'] as const
+
+export const availableUsersQueryKey = (taskInstanceId: string | undefined) =>
+  ['task-instances', taskInstanceId, 'available-users'] as const
+
+export const companyUsersQueryKey = (companyId: string | undefined) =>
+  ['companies', companyId, 'users'] as const
+
+export const candidateEvaluationQueryKey = (taskInstanceId: string | undefined, userId: string | undefined) =>
+  ['task-instances', taskInstanceId, 'candidate-evaluation', userId] as const
+
+export const taskInstanceAssignmentsQueryKey = (taskInstanceId: string | undefined) =>
+  ['task-instances', taskInstanceId, 'assignments'] as const
 
 export const taskInstanceValidationQueryKey = (taskInstanceId: string | undefined) =>
   ['task-instances', taskInstanceId, 'validation'] as const
@@ -75,6 +103,16 @@ export function useCompanyQualifications(companyId: string | undefined) {
   return useQuery<CompanyQualification[]>({
     queryKey: ['companies', companyId, 'qualifications'],
     queryFn: () => getCompanyQualifications(companyId as string),
+    enabled: isAuthenticated && typeof companyId === 'string' && companyId.length > 0,
+  })
+}
+
+export function useCompanyUsers(companyId: string | undefined) {
+  const { isAuthenticated } = useAuthSession()
+
+  return useQuery<CompanyUser[]>({
+    queryKey: companyUsersQueryKey(companyId),
+    queryFn: () => getCompanyUsers(companyId as string),
     enabled: isAuthenticated && typeof companyId === 'string' && companyId.length > 0,
   })
 }
@@ -124,12 +162,57 @@ export function useActivityTaskInstances(activityTaskId: string | undefined) {
   })
 }
 
+export function useTaskInstanceWorkspace(taskInstanceId: string | undefined) {
+  const { isAuthenticated } = useAuthSession()
+
+  return useQuery<TaskInstanceWorkspace>({
+    queryKey: taskInstanceWorkspaceQueryKey(taskInstanceId),
+    queryFn: () => getTaskInstanceWorkspace(taskInstanceId as string),
+    enabled: isAuthenticated && typeof taskInstanceId === 'string' && taskInstanceId.length > 0,
+  })
+}
+
+export function useAvailableUsers(taskInstanceId: string | undefined) {
+  const { isAuthenticated } = useAuthSession()
+
+  return useQuery<AvailableUser[]>({
+    queryKey: availableUsersQueryKey(taskInstanceId),
+    queryFn: () => getAvailableUsers(taskInstanceId as string),
+    enabled: isAuthenticated && typeof taskInstanceId === 'string' && taskInstanceId.length > 0,
+  })
+}
+
 export function useTaskInstanceValidation(taskInstanceId: string | undefined) {
   const { isAuthenticated } = useAuthSession()
 
   return useQuery<TaskValidationResult>({
     queryKey: taskInstanceValidationQueryKey(taskInstanceId),
     queryFn: () => getTaskInstanceValidation(taskInstanceId as string),
+    enabled: isAuthenticated && typeof taskInstanceId === 'string' && taskInstanceId.length > 0,
+  })
+}
+
+export function useCandidateEvaluation(taskInstanceId: string | undefined, userId: string | undefined) {
+  const { isAuthenticated } = useAuthSession()
+
+  return useQuery<CandidateEvaluation>({
+    queryKey: candidateEvaluationQueryKey(taskInstanceId, userId),
+    queryFn: () => getCandidateEvaluation(taskInstanceId as string, userId as string),
+    enabled:
+      isAuthenticated &&
+      typeof taskInstanceId === 'string' &&
+      taskInstanceId.length > 0 &&
+      typeof userId === 'string' &&
+      userId.length > 0,
+  })
+}
+
+export function useTaskInstanceAssignments(taskInstanceId: string | undefined) {
+  const { isAuthenticated } = useAuthSession()
+
+  return useQuery<Assignment[]>({
+    queryKey: taskInstanceAssignmentsQueryKey(taskInstanceId),
+    queryFn: () => getTaskInstanceAssignments(taskInstanceId as string),
     enabled: isAuthenticated && typeof taskInstanceId === 'string' && taskInstanceId.length > 0,
   })
 }
@@ -186,6 +269,46 @@ export function useDeleteActivityTaskInstance() {
       await queryClient.invalidateQueries({
         queryKey: taskInstanceValidationQueryKey(deletedTaskInstance.id),
       })
+    },
+  })
+}
+
+export function useCreateTaskInstanceAssignment(taskInstanceId: string | undefined) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (body: CreateAssignmentInput) => {
+      if (typeof taskInstanceId !== 'string' || taskInstanceId.length === 0) {
+        throw new Error('Cannot create an assignment without a valid task instance id.')
+      }
+
+      return createTaskInstanceAssignment(taskInstanceId, body)
+    },
+    onSuccess: async () => {
+      if (typeof taskInstanceId !== 'string' || taskInstanceId.length === 0) {
+        return
+      }
+
+      await queryClient.invalidateQueries({ queryKey: taskInstanceAssignmentsQueryKey(taskInstanceId) })
+      await queryClient.invalidateQueries({ queryKey: taskInstanceValidationQueryKey(taskInstanceId) })
+      await queryClient.invalidateQueries({ queryKey: taskInstanceWorkspaceQueryKey(taskInstanceId) })
+      await queryClient.invalidateQueries({ queryKey: availableUsersQueryKey(taskInstanceId) })
+    },
+  })
+}
+
+export function useDeleteAssignment() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (assignmentId: string) => deleteAssignment(assignmentId),
+    onSuccess: async (deletedAssignment) => {
+      const taskInstanceId = deletedAssignment.taskInstanceId
+
+      await queryClient.invalidateQueries({ queryKey: taskInstanceAssignmentsQueryKey(taskInstanceId) })
+      await queryClient.invalidateQueries({ queryKey: taskInstanceValidationQueryKey(taskInstanceId) })
+      await queryClient.invalidateQueries({ queryKey: taskInstanceWorkspaceQueryKey(taskInstanceId) })
+      await queryClient.invalidateQueries({ queryKey: availableUsersQueryKey(taskInstanceId) })
     },
   })
 }

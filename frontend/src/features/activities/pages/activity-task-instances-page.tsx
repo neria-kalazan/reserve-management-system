@@ -8,8 +8,14 @@ import { PageHeader } from '@/app/layout/page-header'
 import { useActivityById } from '@/features/activities/queries/use-activities'
 import {
   useActivityTaskInstances,
+  useAvailableUsers,
+  useCandidateEvaluation,
+  useCompanyUsers,
   useCreateActivityTaskInstance,
+  useCreateTaskInstanceAssignment,
   useDeleteActivityTaskInstance,
+  useDeleteAssignment,
+  useTaskInstanceAssignments,
   useTaskInstanceValidation,
   useUpdateActivityTaskInstance,
 } from '@/features/activities/queries/use-activity-tasks'
@@ -17,6 +23,7 @@ import { ErrorState } from '@/shared/components/error-state'
 import { LoadingState } from '@/shared/components/loading-state'
 import { ValidationBadge } from '@/shared/components/status-badge'
 import { Alert, AlertDescription, AlertTitle } from '@/shared/components/ui/alert'
+import { Badge } from '@/shared/components/ui/badge'
 import { Button } from '@/shared/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/card'
 import { Input } from '@/shared/components/ui/input'
@@ -116,6 +123,403 @@ function TaskInstanceValidationStatus({ taskInstanceId }: { taskInstanceId: stri
             </li>
           ))}
         </ul>
+      ) : null}
+    </div>
+  )
+}
+
+function TaskInstanceAssignmentsList({ taskInstanceId }: { taskInstanceId: string }) {
+  const assignmentsQuery = useTaskInstanceAssignments(taskInstanceId)
+  const deleteAssignmentMutation = useDeleteAssignment()
+  const [deletingAssignmentIds, setDeletingAssignmentIds] = useState<Record<string, boolean>>({})
+  const [deleteErrors, setDeleteErrors] = useState<Record<string, string>>({})
+
+  const handleDeleteAssignment = async (assignmentId: string) => {
+    setDeleteErrors((current) => ({ ...current, [assignmentId]: '' }))
+    setDeletingAssignmentIds((current) => ({ ...current, [assignmentId]: true }))
+
+    try {
+      await deleteAssignmentMutation.mutateAsync(assignmentId)
+      setDeletingAssignmentIds((current) => ({ ...current, [assignmentId]: false }))
+    } catch (error) {
+      const message = isApiError(error) ? error.message : 'מחיקת השיבוץ נכשלה.'
+      setDeleteErrors((current) => ({ ...current, [assignmentId]: message }))
+      setDeletingAssignmentIds((current) => ({ ...current, [assignmentId]: false }))
+    }
+  }
+
+  if (assignmentsQuery.isPending) {
+    return (
+      <div className="mt-3">
+        <LoadingState title="טוען שיבוצים" description="רשימת המשתמשים המוקצים למופע נטענת כעת." />
+      </div>
+    )
+  }
+
+  if (assignmentsQuery.isError) {
+    return (
+      <div className="mt-3">
+        <ErrorState
+          title="טעינת שיבוצים נכשלה"
+          description="לא הצלחנו לטעון את רשימת המשתמשים המוקצים למופע. אפשר לנסות שוב."
+          action={
+            <Button type="button" variant="secondary" onClick={() => void assignmentsQuery.refetch()}>
+              ניסיון חוזר
+            </Button>
+          }
+        />
+      </div>
+    )
+  }
+
+  const assignments = assignmentsQuery.data ?? []
+
+  if (assignments.length === 0) {
+    return (
+      <div
+        data-testid="task-instance-assignments"
+        className="mt-3 rounded-md border border-dashed border-border bg-surface px-3 py-5 text-center text-sm text-muted"
+      >
+        אין משתמשים מוקצים כרגע למופע הזה.
+      </div>
+    )
+  }
+
+  return (
+    <div data-testid="task-instance-assignments" className="mt-3 space-y-2">
+      <p className="text-sm font-medium text-foreground">שיבוצים נוכחיים</p>
+      <div className="space-y-2">
+        {assignments.map((assignment) => {
+          const user = assignment.user
+
+          return (
+            <div key={assignment.id} className="rounded-md border border-border bg-surface px-3 py-2 text-sm text-foreground">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                <div className="min-w-0 flex-1">
+                  <div className="font-medium break-words text-right">
+                    {user.firstName} {user.lastName}
+                  </div>
+                </div>
+                <Badge className={user.isActive ? 'border-success/30 bg-success-soft text-success' : 'border-border-strong bg-border text-muted-foreground'}>
+                  {user.isActive ? 'פעיל' : 'לא פעיל'}
+                </Badge>
+              </div>
+
+              <div className="mt-1 space-y-1 text-xs text-muted text-right">
+                <div className="break-words">מספר אישי: {user.personalNumber}</div>
+                {user.phone ? <div className="break-words">טלפון: {user.phone}</div> : null}
+                {user.email ? <div className="break-words">אימייל: {user.email}</div> : null}
+              </div>
+
+              <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+                <Button
+                  type="button"
+                  variant="destructive"
+                  size="sm"
+                  className="w-full sm:w-auto"
+                  onClick={() => void handleDeleteAssignment(assignment.id)}
+                  disabled={deleteAssignmentMutation.isPending || Boolean(deletingAssignmentIds[assignment.id])}
+                  aria-busy={deleteAssignmentMutation.isPending || Boolean(deletingAssignmentIds[assignment.id])}
+                >
+                  {deleteAssignmentMutation.isPending || deletingAssignmentIds[assignment.id] ? 'מוחק…' : 'מחיקת שיבוץ'}
+                </Button>
+              </div>
+
+              {deleteErrors[assignment.id] ? (
+                <Alert className="mt-2 border-danger/30 bg-danger-soft/30 px-3 py-2">
+                  <AlertTitle className="text-xs text-danger">מחיקת השיבוץ נכשלה</AlertTitle>
+                  <AlertDescription className="text-xs text-danger/80">{deleteErrors[assignment.id]}</AlertDescription>
+                </Alert>
+              ) : null}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+function TaskInstanceCandidateList({ taskInstanceId }: { taskInstanceId: string }) {
+  const availableUsersQuery = useAvailableUsers(taskInstanceId)
+
+  if (availableUsersQuery.isPending) {
+    return (
+      <div className="mt-3">
+        <LoadingState title="טוען מועמדים" description="רשימת המועמדים הזמינים נטענת כעת." />
+      </div>
+    )
+  }
+
+  if (availableUsersQuery.isError) {
+    return (
+      <div className="mt-3">
+        <ErrorState
+          title="טעינת מועמדים נכשלה"
+          description="לא הצלחנו לטעון את רשימת המועמדים הזמינים. אפשר לנסות שוב."
+          action={
+            <Button type="button" variant="secondary" onClick={() => void availableUsersQuery.refetch()}>
+              ניסיון חוזר
+            </Button>
+          }
+        />
+      </div>
+    )
+  }
+
+  const availableUsers = availableUsersQuery.data ?? []
+
+  if (availableUsers.length === 0) {
+    return (
+      <div className="mt-3 rounded-md border border-dashed border-border bg-surface px-3 py-5 text-center text-sm text-muted">
+        אין מועמדים זמינים כרגע עבור המופע הזה.
+      </div>
+    )
+  }
+
+  return (
+    <div className="mt-3 space-y-2">
+      <p className="text-sm font-medium text-foreground">מועמדים זמינים</p>
+      <div className="space-y-2">
+        {availableUsers.map((user) => (
+          <div key={user.id} className="rounded-md border border-border bg-surface px-3 py-2 text-sm text-foreground">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0 flex-1">
+                <div className="font-medium break-words text-right">
+                  {user.firstName} {user.lastName}
+                </div>
+              </div>
+              <div className="text-xs text-muted text-right">
+                {user.isActive ? 'פעיל' : 'לא פעיל'}
+              </div>
+            </div>
+            <div className="mt-1 space-y-1 text-xs text-muted text-right">
+              {user.phone ? <div className="break-words">טלפון: {user.phone}</div> : null}
+              {user.email ? <div className="break-words">אימייל: {user.email}</div> : null}
+              <div className="break-words">מספר אישי: {user.personalNumber}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function CandidateEvaluationBadge({ severity }: { severity: 'NORMAL' | 'WARNING' | 'CRITICAL' }) {
+  const config = {
+    NORMAL: { label: 'תקין', className: 'border-success/30 bg-success-soft text-success' },
+    WARNING: { label: 'אזהרה', className: 'border-warning/30 bg-warning-soft text-warning' },
+    CRITICAL: { label: 'קריטי', className: 'border-danger/30 bg-danger-soft text-danger' },
+  }[severity]
+
+  return <Badge className={config.className}>{config.label}</Badge>
+}
+
+function TaskInstanceCandidateSearch({
+  taskInstanceId,
+  companyId,
+}: {
+  taskInstanceId: string
+  companyId: string | undefined
+}) {
+  const [searchText, setSearchText] = useState('')
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null)
+  const [assignmentError, setAssignmentError] = useState<string | undefined>(undefined)
+  const [assignmentSuccess, setAssignmentSuccess] = useState(false)
+  const companyUsersQuery = useCompanyUsers(companyId)
+  const assignmentMutation = useCreateTaskInstanceAssignment(taskInstanceId)
+  const evaluationQuery = useCandidateEvaluation(taskInstanceId, selectedUserId ?? undefined)
+
+  const matchingUsers = useMemo(() => {
+    const users = companyUsersQuery.data ?? []
+    const normalizedSearch = searchText.trim().toLocaleLowerCase()
+
+    if (!normalizedSearch) {
+      return users
+    }
+
+    return users.filter((user) => {
+      const candidateText = [user.firstName, user.lastName, user.email, user.phone, user.personalNumber]
+        .filter(Boolean)
+        .join(' ')
+        .toLocaleLowerCase()
+
+      return candidateText.includes(normalizedSearch)
+    })
+  }, [companyUsersQuery.data, searchText])
+
+  const selectedUser = companyUsersQuery.data?.find((user) => user.id === selectedUserId) ?? null
+
+  const handleAssign = async () => {
+    if (!selectedUserId) {
+      return
+    }
+
+    setAssignmentError(undefined)
+    setAssignmentSuccess(false)
+
+    try {
+      await assignmentMutation.mutateAsync({ userId: selectedUserId })
+      setAssignmentSuccess(true)
+    } catch (error) {
+      const message = isApiError(error)
+        ? error.message
+        : 'הקצאת המועמד נכשלה'
+      setAssignmentError(message)
+    }
+  }
+
+  const isSearchEmpty = matchingUsers.length === 0 && searchText.trim().length > 0
+
+  return (
+    <div className="mt-3 space-y-3 rounded-md border border-border bg-surface px-3 py-3">
+      {companyUsersQuery.isPending ? (
+        <LoadingState title="טוען משתמשי חברה" description="רשימת המשתמשים של החברה נטענת כעת." />
+      ) : companyUsersQuery.isError ? (
+        <ErrorState
+          title="טעינת משתמשי חברה נכשלה"
+          description="לא הצלחנו לטעון את רשימת המשתמשים של החברה. אפשר לנסות שוב."
+          action={
+            <Button type="button" variant="secondary" onClick={() => void companyUsersQuery.refetch()}>
+              ניסיון חוזר
+            </Button>
+          }
+        />
+      ) : (
+        <>
+          <div className="space-y-2">
+            <Label htmlFor={`candidate-search-${taskInstanceId}`}>חיפוש מועמד</Label>
+            <Input
+              id={`candidate-search-${taskInstanceId}`}
+              value={searchText}
+              onChange={(event) => setSearchText(event.target.value)}
+              placeholder="חיפוש לפי שם, מייל, טלפון או מספר אישי"
+            />
+          </div>
+
+          {isSearchEmpty ? (
+            <div className="rounded-md border border-dashed border-border bg-surface px-3 py-3 text-sm text-muted">
+              לא נמצאו משתמשים התואמים את החיפוש.
+            </div>
+          ) : null}
+
+          {matchingUsers.length > 0 ? (
+            <div className="space-y-2">
+              {matchingUsers.map((user) => {
+                const isSelected = user.id === selectedUserId
+
+                return (
+                  <div key={user.id} className="flex flex-col gap-3 rounded-md border border-border bg-surface px-3 py-2 text-sm sm:flex-row sm:items-center sm:justify-between">
+                    <div className="min-w-0 flex-1">
+                      <div className="font-medium text-foreground break-words text-right">
+                        {user.firstName} {user.lastName}
+                      </div>
+                      <div className="mt-1 text-xs text-muted text-right break-words">
+                        {user.email ? `${user.email} · ` : ''}
+                        {user.personalNumber}
+                      </div>
+                    </div>
+
+                    <Button
+                      type="button"
+                      variant={isSelected ? 'secondary' : 'primary'}
+                      size="sm"
+                      className="w-full sm:w-auto"
+                      onClick={() => {
+                        setSelectedUserId(user.id)
+                        setAssignmentError(undefined)
+                        setAssignmentSuccess(false)
+                      }}
+                    >
+                      {isSelected ? 'נבחר' : `בחר ${user.firstName} ${user.lastName}`}
+                    </Button>
+                  </div>
+                )
+              })}
+            </div>
+          ) : null}
+        </>
+      )}
+
+      {selectedUser ? (
+        <div className="rounded-md border border-border bg-surface px-3 py-3">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-medium text-foreground">מועמד נבחר</p>
+              <p className="text-sm text-muted">{selectedUser.firstName} {selectedUser.lastName}</p>
+            </div>
+            <Button type="button" variant="secondary" size="sm" onClick={() => setSelectedUserId(null)}>
+              סילוק בחירה
+            </Button>
+          </div>
+
+          {!selectedUserId ? null : (
+            <div className="mt-3 flex flex-col gap-2">
+              <Button
+                type="button"
+                variant="primary"
+                size="sm"
+                onClick={() => void handleAssign()}
+                disabled={assignmentMutation.isPending}
+                aria-busy={assignmentMutation.isPending}
+              >
+                הקצה מועמד
+              </Button>
+
+              {assignmentMutation.isPending ? (
+                <div className="text-xs text-muted">מוכן להקצאה…</div>
+              ) : null}
+
+              {assignmentSuccess ? (
+                <Alert className="border-success/30 bg-success-soft/30 px-3 py-2">
+                  <AlertTitle className="text-xs text-success">ההקצאה הצליחה</AlertTitle>
+                </Alert>
+              ) : null}
+
+              {assignmentError ? (
+                <Alert className="border-danger/30 bg-danger-soft/30 px-3 py-2">
+                  <AlertTitle className="text-xs text-danger">הקצאת המועמד נכשלה</AlertTitle>
+                  <AlertDescription className="text-xs text-danger/80">{assignmentError}</AlertDescription>
+                </Alert>
+              ) : null}
+            </div>
+          )}
+        </div>
+      ) : null}
+
+      {!selectedUserId ? null : evaluationQuery.isPending ? (
+        <LoadingState title="בודק הערכת מועמד…" description="הערכת המועמד מתקבלת מהשרת." />
+      ) : evaluationQuery.isError ? (
+        <ErrorState
+          title="הערכת מועמד נכשלה"
+          description="לא הצלחנו לטעון את הערכת המועמד. אפשר לנסות שוב."
+          action={
+            <Button type="button" variant="secondary" onClick={() => void evaluationQuery.refetch()}>
+              ניסיון חוזר
+            </Button>
+          }
+        />
+      ) : evaluationQuery.data ? (
+        <div className="space-y-3 rounded-md border border-border bg-surface px-3 py-3">
+          <div className="flex flex-col gap-2 text-right sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm font-medium text-foreground">הערכת מועמד</p>
+            <CandidateEvaluationBadge severity={evaluationQuery.data.severity} />
+          </div>
+
+          {evaluationQuery.data.reasonMessages.length > 0 ? (
+            <ul className="space-y-2 rounded-md border border-border bg-surface px-3 py-2 text-sm text-muted">
+              {evaluationQuery.data.reasonMessages.map((message, index) => (
+                <li key={`${message}-${index}`} className="flex items-start gap-2 text-right">
+                  <span className="mt-1 inline-block h-1.5 w-1.5 rounded-full bg-current" aria-hidden="true" />
+                  <span>{message}</span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <div className="rounded-md border border-dashed border-border bg-surface px-3 py-2 text-sm text-muted">
+              אין סיבות שהוחזרו מהשרת.
+            </div>
+          )}
+        </div>
       ) : null}
     </div>
   )
@@ -368,6 +772,9 @@ export function ActivityTaskInstancesPage() {
                       </div>
 
                       <TaskInstanceValidationStatus taskInstanceId={taskInstance.id} />
+                      <TaskInstanceAssignmentsList taskInstanceId={taskInstance.id} />
+                      <TaskInstanceCandidateList taskInstanceId={taskInstance.id} />
+                      <TaskInstanceCandidateSearch taskInstanceId={taskInstance.id} companyId={activityQuery.data?.companyId} />
                     </div>
                   ))
                 ) : (
