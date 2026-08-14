@@ -72,6 +72,12 @@ describe('Task instances available users e2e', () => {
           return { ...task, activity: activity ? { id: activity.id, companyId: activity.companyId } : null };
         }),
       },
+      activityTaskRoleRequirement: {
+        findMany: jest.fn(async () => []),
+      },
+      activityTaskQualificationRequirement: {
+        findMany: jest.fn(async () => []),
+      },
       taskInstance: {
         create: jest.fn(async ({ data }: any) => {
           const instance = { id: randomUUID(), activityTaskId: data.activityTaskId, title: data.title, startTime: data.startTime, endTime: data.endTime, createdAt: new Date(), updatedAt: new Date() };
@@ -108,6 +114,16 @@ describe('Task instances available users e2e', () => {
             return { id: 'user-1', email: 'test@example.com', firstName: 'Test', lastName: 'User', isActive: true };
           }
           return state.users.get(id) ?? null;
+        }),
+        findMany: jest.fn(async ({ where }: any) => {
+          const ids = where?.id?.in ?? Array.from(state.users.keys());
+          return Array.from(state.users.values())
+            .filter((user) => ids.includes(user.id))
+            .map((user) => ({
+              ...user,
+              userRoles: [],
+              userQualifications: [],
+            }));
         }),
       },
       activityUserStatus: {

@@ -185,6 +185,146 @@ export class TaskInstancesService {
     return this.prisma.taskInstance.delete({ where: { id } });
   }
 
+  private toDayStart(date: Date): Date {
+    const normalized = new Date(date);
+    normalized.setUTCHours(0, 0, 0, 0);
+    return normalized;
+  }
+
+  private buildCandidateEvaluation(
+    taskInstance: { startTime: Date; activityTask: { id: string; activity?: { id?: string; companyId?: string } } },
+    user: { id: string; companyId?: string; userRoles: Array<{ roleId: string }>; userQualifications: Array<{ qualificationId: string }> },
+    roleRequirements: Array<{ roleId: string; required: boolean }>,
+    qualificationRequirements: Array<{ qualificationId: string; required: boolean }>,
+    availabilityRecord: { status: string; availability: string } | null,
+  ) {
+    const reasonCodes: string[] = [];
+    const reasonMessages: string[] = [];
+
+    const availableRoleIds = new Set(user.userRoles.map((relation: { roleId: string }) => relation.roleId));
+    for (const requirement of roleRequirements) {
+      if (requirement.required && !availableRoleIds.has(requirement.roleId)) {
+        reasonCodes.push('MISSING_REQUIRED_ROLE');
+        reasonMessages.push('User is missing a required role');
+      }
+    }
+
+    const availableQualificationIds = new Set(user.userQualifications.map((relation: { qualificationId: string }) => relation.qualificationId));
+    for (const requirement of qualificationRequirements) {
+      if (requirement.required && !availableQualificationIds.has(requirement.qualificationId)) {
+        reasonCodes.push('MISSING_REQUIRED_QUALIFICATION');
+        reasonMessages.push('User is missing a required qualification');
+      }
+    }
+
+    if (availabilityRecord) {
+      const taskHour = taskInstance.startTime.getHours();
+      const isMorningTask = taskHour < 14;
+      const allowedAvailability = isMorningTask ? ['ALL_DAY', 'MORNING'] : ['ALL_DAY', 'EVENING'];
+
+      if (availabilityRecord.status !== 'ACTIVE') {
+        reasonCodes.push('USER_STATUS_NOT_ACTIVE');
+        reasonMessages.push('User status is not active for this task date');
+      }
+
+      if (availabilityRecord.availability !== 'ALL_DAY' && !allowedAvailability.includes(availabilityRecord.availability)) {
+        reasonCodes.push('UNAVAILABLE_FOR_TIME_WINDOW');
+        reasonMessages.push('User is not available for this task time');
+      }
+    } else {
+      reasonCodes.push('UNAVAILABLE_FOR_TIME_WINDOW');
+      reasonMessages.push('User is not available for this task time');
+    }
+
+    const severity = reasonCodes.includes('MISSING_REQUIRED_ROLE') || reasonCodes.includes('USER_STATUS_NOT_ACTIVE')
+      ? 'CRITICAL'
+      : reasonCodes.length > 0
+        ? 'WARNING'
+        : 'NORMAL';
+
+    return {
+      userId: user.id,
+      severity,
+      reasonCodes,
+      reasonMessages,
+    };
+  }
+
+  async evaluateCandidate(taskInstanceId: string, userId: string) {
+    const taskInstance = await this.prisma.taskInstance.findUnique({
+      where: { id: taskInstanceId },
+      select: {
+        id: true,
+        startTime: true,
+        activityTask: {
+          select: {
+            id: true,
+            activity: {
+              select: {
+                id: true,
+                companyId: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!taskInstance) {
+      throw new NotFoundException('Task instance not found');
+    }
+
+    const activity = taskInstance.activityTask?.activity;
+
+    if (!activity?.id) {
+      throw new NotFoundException('Activity not found');
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        companyId: true,
+        userRoles: { select: { roleId: true } },
+        userQualifications: { select: { qualificationId: true } },
+      },
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    if (user.companyId !== activity.companyId) {
+      throw new BadRequestException('User does not belong to the task instance company');
+    }
+
+    const [roleRequirements, qualificationRequirements, availabilityRecords] = await Promise.all([
+      this.prisma.activityTaskRoleRequirement.findMany({
+        where: { activityTaskId: taskInstance.activityTask.id },
+        select: { roleId: true, required: true },
+        orderBy: { createdAt: 'asc' },
+      }),
+      this.prisma.activityTaskQualificationRequirement.findMany({
+        where: { activityTaskId: taskInstance.activityTask.id },
+        select: { qualificationId: true, required: true },
+        orderBy: { createdAt: 'asc' },
+      }),
+      this.prisma.activityUserStatus.findMany({
+        where: {
+          activityId: activity.id,
+          userId: user.id,
+          date: this.toDayStart(taskInstance.startTime),
+        },
+        select: {
+          status: true,
+          availability: true,
+        },
+      }),
+    ]);
+
+    return this.buildCandidateEvaluation(taskInstance, user, roleRequirements, qualificationRequirements, availabilityRecords[0] ?? null);
+  }
+
   async findAvailableUsers(taskInstanceId: string) {
     const taskInstance = await this.prisma.taskInstance.findUnique({
       where: { id: taskInstanceId },
@@ -193,6 +333,7 @@ export class TaskInstancesService {
         startTime: true,
         activityTask: {
           select: {
+            id: true,
             activity: {
               select: {
                 id: true,
@@ -220,16 +361,65 @@ export class TaskInstancesService {
     const taskHour = taskInstance.startTime.getHours();
     const isMorningTask = taskHour < 14;
 
-    const availabilityRecords = await this.prisma.activityUserStatus.findMany({
-      where: {
-        activityId: activity.id,
-        date: availabilityDate,
-        status: 'ACTIVE',
-      },
-      select: {
-        status: true,
-        availability: true,
-        user: {
+    const [roleRequirementsResult, qualificationRequirementsResult, availabilityRecords, assignedUsers] = await Promise.all([
+      (async () => {
+        const result = this.prisma.activityTaskRoleRequirement.findMany
+          ? await this.prisma.activityTaskRoleRequirement.findMany({
+              where: { activityTaskId: taskInstance.activityTask?.id ?? '' },
+              select: { roleId: true, required: true },
+              orderBy: { createdAt: 'asc' },
+            })
+          : [];
+        return result ?? [];
+      })(),
+      (async () => {
+        const result = this.prisma.activityTaskQualificationRequirement.findMany
+          ? await this.prisma.activityTaskQualificationRequirement.findMany({
+              where: { activityTaskId: taskInstance.activityTask?.id ?? '' },
+              select: { qualificationId: true, required: true },
+              orderBy: { createdAt: 'asc' },
+            })
+          : [];
+        return result ?? [];
+      })(),
+      (async () => {
+        const result = this.prisma.activityUserStatus.findMany
+          ? await this.prisma.activityUserStatus.findMany({
+              where: {
+                activityId: activity.id,
+                date: availabilityDate,
+                status: 'ACTIVE',
+              },
+              select: {
+                userId: true,
+                status: true,
+                availability: true,
+              },
+            })
+          : [];
+        return result ?? [];
+      })(),
+      (async () => {
+        const result = this.prisma.assignment.findMany
+          ? await this.prisma.assignment.findMany({
+              where: { taskInstanceId },
+              select: { userId: true },
+            })
+          : [];
+        return result ?? [];
+      })(),
+    ]);
+
+    const roleRequirements = roleRequirementsResult ?? [];
+    const qualificationRequirements = qualificationRequirementsResult ?? [];
+
+    const assignedIds = new Set(assignedUsers.map((assignment: { userId: string }) => assignment.userId));
+    const availabilityByUser = new Map(availabilityRecords.map((record: { userId: string; status: string; availability: string }) => [record.userId, record]));
+
+    const candidateIds = Array.from(availabilityByUser.keys()).filter((userId) => !assignedIds.has(userId));
+    const candidateUsersResult = this.prisma.user.findMany
+      ? ((await this.prisma.user.findMany({
+          where: { id: { in: candidateIds } },
           select: {
             id: true,
             firstName: true,
@@ -238,35 +428,40 @@ export class TaskInstancesService {
             email: true,
             personalNumber: true,
             isActive: true,
+            userRoles: { select: { roleId: true } },
+            userQualifications: { select: { qualificationId: true } },
           },
-        },
-      },
-    });
+        })) ?? [])
+      : [];
 
-    const assignedUsers = await this.prisma.assignment.findMany({
-      where: { taskInstanceId },
-      select: { userId: true },
-    });
+    const candidateUsers = candidateUsersResult as Array<{ id: string; firstName: string; lastName: string; phone: string | null; email: string | null; personalNumber: string; isActive: boolean; userRoles: Array<{ roleId: string }>; userQualifications: Array<{ qualificationId: string }> }>;
 
-    const assignedIds = new Set(assignedUsers.map((assignment: { userId: string }) => assignment.userId));
+    const normalUserIds = new Set(
+      candidateUsers
+        .filter((user) => {
+          const availabilityRecord = availabilityByUser.get(user.id) ?? null;
+          const evaluation = this.buildCandidateEvaluation(
+            taskInstance,
+            user,
+            roleRequirements,
+            qualificationRequirements,
+            availabilityRecord,
+          );
+          return evaluation.severity === 'NORMAL';
+        })
+        .map((user) => user.id),
+    );
 
-    return availabilityRecords
-      .filter((record: { status: string; availability: string; user: any }) => {
-        if (record.status !== 'ACTIVE') {
-          return false;
-        }
-
-        if (record.availability === 'ALL_DAY') {
-          return true;
-        }
-
-        if (isMorningTask) {
-          return record.availability === 'MORNING';
-        }
-
-        return record.availability === 'EVENING';
-      })
-      .map((record: { user: any }) => record.user)
-      .filter((user: { id: string }) => !assignedIds.has(user.id));
+    return candidateUsers
+      .filter((user) => normalUserIds.has(user.id))
+      .map((user) => ({
+        id: user.id,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        phone: user.phone,
+        email: user.email,
+        personalNumber: user.personalNumber,
+        isActive: user.isActive,
+      }));
   }
 }

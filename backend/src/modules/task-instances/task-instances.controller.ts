@@ -39,6 +39,11 @@ export class TaskInstancesController {
     return this.taskInstancesService.findAvailableUsers(taskInstanceId);
   }
 
+  @Get('task-instances/:taskInstanceId/candidates/:userId/evaluation')
+  evaluateCandidate(@Param('taskInstanceId') taskInstanceId: string, @Param('userId') userId: string) {
+    return this.taskInstancesService.evaluateCandidate(taskInstanceId, userId);
+  }
+
   @Patch('task-instances/:id')
   update(@Param('id') id: string, @Body() dto: UpdateTaskInstanceDto) {
     return this.taskInstancesService.update(id, dto);

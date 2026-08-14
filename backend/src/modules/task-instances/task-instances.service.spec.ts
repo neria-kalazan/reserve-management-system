@@ -110,16 +110,25 @@ describe('TaskInstancesService', () => {
     prisma.taskInstance.findUnique.mockResolvedValue({
       id: 'instance-1',
       startTime,
-      activityTask: { activity: { id: 'activity-1', companyId: 'company-1' } },
+      activityTask: { id: 'task-1', activity: { id: 'activity-1', companyId: 'company-1' } },
     });
-    prisma.activityUserStatus.findMany.mockResolvedValue([
+    prisma.activityUserStatus.findMany.mockResolvedValue([{ userId: 'user-1', status, availability }]);
+    prisma.assignment.findMany.mockResolvedValue([]);
+    prisma.activityTaskRoleRequirement.findMany.mockResolvedValue([]);
+    prisma.activityTaskQualificationRequirement.findMany.mockResolvedValue([]);
+    prisma.user.findMany.mockResolvedValue([
       {
-        status,
-        availability,
-        user: { id: 'user-1', firstName: 'Ada', lastName: 'Lovelace', phone: null, email: 'ada@example.com', personalNumber: 'P1', isActive: true },
+        id: 'user-1',
+        firstName: 'Ada',
+        lastName: 'Lovelace',
+        phone: null,
+        email: 'ada@example.com',
+        personalNumber: 'P1',
+        isActive: true,
+        userRoles: [],
+        userQualifications: [],
       },
     ]);
-    prisma.assignment.findMany.mockResolvedValue([]);
 
     const res = await service.findAvailableUsers('instance-1');
 
@@ -134,21 +143,222 @@ describe('TaskInstancesService', () => {
     prisma.taskInstance.findUnique.mockResolvedValue({
       id: 'instance-1',
       startTime: new Date('2026-01-01T09:00:00.000Z'),
-      activityTask: { activity: { id: 'activity-1', companyId: 'company-1' } },
+      activityTask: { id: 'task-1', activity: { id: 'activity-1', companyId: 'company-1' } },
     });
-    prisma.activityUserStatus.findMany.mockResolvedValue([
-      { status: 'ACTIVE', availability: 'ALL_DAY', user: { id: 'user-1', firstName: 'Ada', lastName: 'Lovelace', phone: null, email: 'ada@example.com', personalNumber: 'P1', isActive: true } },
-    ]);
+    prisma.activityUserStatus.findMany.mockResolvedValue([{ userId: 'user-1', status: 'ACTIVE', availability: 'ALL_DAY' }]);
     prisma.assignment.findMany.mockResolvedValue([{ userId: 'user-1' }]);
+    prisma.activityTaskRoleRequirement.findMany.mockResolvedValue([]);
+    prisma.activityTaskQualificationRequirement.findMany.mockResolvedValue([]);
+    prisma.user.findMany.mockImplementation(({ where }: any) => {
+      if (!where?.id?.in?.length) {
+        return [];
+      }
+      return [{
+        id: 'user-1',
+        firstName: 'Ada',
+        lastName: 'Lovelace',
+        phone: null,
+        email: 'ada@example.com',
+        personalNumber: 'P1',
+        isActive: true,
+        userRoles: [],
+        userQualifications: [],
+      }];
+    });
 
     const res = await service.findAvailableUsers('instance-1');
 
     expect(res).toEqual([]);
   });
 
+  it('findAvailableUsers: returns only NORMAL candidates', async () => {
+    prisma.taskInstance.findUnique.mockResolvedValue({
+      id: 'instance-1',
+      startTime: new Date('2026-01-01T09:00:00.000Z'),
+      activityTask: { id: 'task-1', activity: { id: 'activity-1', companyId: 'company-1' } },
+    });
+    prisma.activityUserStatus.findMany.mockResolvedValue([
+      {
+        userId: 'user-1',
+        status: 'ACTIVE',
+        availability: 'ALL_DAY',
+      },
+      {
+        userId: 'user-2',
+        status: 'ACTIVE',
+        availability: 'ALL_DAY',
+      },
+    ]);
+    prisma.assignment.findMany.mockResolvedValue([]);
+    prisma.activityTaskRoleRequirement.findMany.mockResolvedValue([{ roleId: 'role-1', required: true }]);
+    prisma.activityTaskQualificationRequirement.findMany.mockResolvedValue([{ qualificationId: 'qual-1', required: true }]);
+    prisma.user.findMany.mockResolvedValue([
+      {
+        id: 'user-1',
+        firstName: 'Ada',
+        lastName: 'Lovelace',
+        phone: null,
+        email: 'ada@example.com',
+        personalNumber: 'P1',
+        isActive: true,
+        userRoles: [{ roleId: 'role-1' }],
+        userQualifications: [{ qualificationId: 'qual-1' }],
+      },
+      {
+        id: 'user-2',
+        firstName: 'Grace',
+        lastName: 'Hopper',
+        phone: null,
+        email: 'grace@example.com',
+        personalNumber: 'P2',
+        isActive: true,
+        userRoles: [],
+        userQualifications: [{ qualificationId: 'qual-1' }],
+      },
+    ]);
+
+    const res = await service.findAvailableUsers('instance-1');
+
+    expect(res).toEqual([
+      {
+        id: 'user-1',
+        firstName: 'Ada',
+        lastName: 'Lovelace',
+        phone: null,
+        email: 'ada@example.com',
+        personalNumber: 'P1',
+        isActive: true,
+      },
+    ]);
+  });
+
   it('findAvailableUsers: throws when the task instance is missing', async () => {
     prisma.taskInstance.findUnique.mockResolvedValue(null);
 
     await expect(service.findAvailableUsers('instance-1')).rejects.toThrow(NotFoundException);
+  });
+
+  it('evaluateCandidate: returns NORMAL when the user has no exception', async () => {
+    prisma.taskInstance.findUnique.mockResolvedValue({
+      id: 'instance-1',
+      startTime: new Date('2026-01-01T09:00:00.000Z'),
+      activityTask: { id: 'task-1', activity: { id: 'activity-1', companyId: 'company-1' } },
+    });
+    prisma.user.findUnique.mockResolvedValue({
+      id: 'user-1',
+      companyId: 'company-1',
+      userRoles: [{ roleId: 'role-1' }],
+      userQualifications: [{ qualificationId: 'qual-1' }],
+    });
+    prisma.activityTaskRoleRequirement.findMany.mockResolvedValue([{ roleId: 'role-1', required: true }]);
+    prisma.activityTaskQualificationRequirement.findMany.mockResolvedValue([{ qualificationId: 'qual-1', required: true }]);
+    prisma.activityUserStatus.findMany.mockResolvedValue([{ userId: 'user-1', status: 'ACTIVE', availability: 'ALL_DAY' }]);
+
+    const res = await service.evaluateCandidate('instance-1', 'user-1');
+
+    expect(res).toEqual({
+      userId: 'user-1',
+      severity: 'NORMAL',
+      reasonCodes: [],
+      reasonMessages: [],
+    });
+  });
+
+  it('evaluateCandidate: returns WARNING for a missing required qualification', async () => {
+    prisma.taskInstance.findUnique.mockResolvedValue({
+      id: 'instance-1',
+      startTime: new Date('2026-01-01T09:00:00.000Z'),
+      activityTask: { id: 'task-1', activity: { id: 'activity-1', companyId: 'company-1' } },
+    });
+    prisma.user.findUnique.mockResolvedValue({
+      id: 'user-1',
+      companyId: 'company-1',
+      userRoles: [{ roleId: 'role-1' }],
+      userQualifications: [],
+    });
+    prisma.activityTaskRoleRequirement.findMany.mockResolvedValue([{ roleId: 'role-1', required: true }]);
+    prisma.activityTaskQualificationRequirement.findMany.mockResolvedValue([{ qualificationId: 'qual-1', required: true }]);
+    prisma.activityUserStatus.findMany.mockResolvedValue([{ userId: 'user-1', status: 'ACTIVE', availability: 'ALL_DAY' }]);
+
+    const res = await service.evaluateCandidate('instance-1', 'user-1');
+
+    expect(res).toEqual({
+      userId: 'user-1',
+      severity: 'WARNING',
+      reasonCodes: ['MISSING_REQUIRED_QUALIFICATION'],
+      reasonMessages: ['User is missing a required qualification'],
+    });
+  });
+
+  it('evaluateCandidate: returns CRITICAL for a missing required role', async () => {
+    prisma.taskInstance.findUnique.mockResolvedValue({
+      id: 'instance-1',
+      startTime: new Date('2026-01-01T09:00:00.000Z'),
+      activityTask: { id: 'task-1', activity: { id: 'activity-1', companyId: 'company-1' } },
+    });
+    prisma.user.findUnique.mockResolvedValue({
+      id: 'user-1',
+      companyId: 'company-1',
+      userRoles: [],
+      userQualifications: [{ qualificationId: 'qual-1' }],
+    });
+    prisma.activityTaskRoleRequirement.findMany.mockResolvedValue([{ roleId: 'role-1', required: true }]);
+    prisma.activityTaskQualificationRequirement.findMany.mockResolvedValue([{ qualificationId: 'qual-1', required: true }]);
+    prisma.activityUserStatus.findMany.mockResolvedValue([{ userId: 'user-1', status: 'ACTIVE', availability: 'ALL_DAY' }]);
+
+    const res = await service.evaluateCandidate('instance-1', 'user-1');
+
+    expect(res).toEqual({
+      userId: 'user-1',
+      severity: 'CRITICAL',
+      reasonCodes: ['MISSING_REQUIRED_ROLE'],
+      reasonMessages: ['User is missing a required role'],
+    });
+  });
+
+  it('evaluateCandidate: returns highest severity and all reason codes', async () => {
+    prisma.taskInstance.findUnique.mockResolvedValue({
+      id: 'instance-1',
+      startTime: new Date('2026-01-01T09:00:00.000Z'),
+      activityTask: { id: 'task-1', activity: { id: 'activity-1', companyId: 'company-1' } },
+    });
+    prisma.user.findUnique.mockResolvedValue({
+      id: 'user-1',
+      companyId: 'company-1',
+      userRoles: [],
+      userQualifications: [],
+    });
+    prisma.activityTaskRoleRequirement.findMany.mockResolvedValue([{ roleId: 'role-1', required: true }]);
+    prisma.activityTaskQualificationRequirement.findMany.mockResolvedValue([{ qualificationId: 'qual-1', required: true }]);
+    prisma.activityUserStatus.findMany.mockResolvedValue([{ userId: 'user-1', status: 'ACTIVE', availability: 'EVENING' }]);
+
+    const res = await service.evaluateCandidate('instance-1', 'user-1');
+
+    expect(res).toEqual({
+      userId: 'user-1',
+      severity: 'CRITICAL',
+      reasonCodes: ['MISSING_REQUIRED_ROLE', 'MISSING_REQUIRED_QUALIFICATION', 'UNAVAILABLE_FOR_TIME_WINDOW'],
+      reasonMessages: [
+        'User is missing a required role',
+        'User is missing a required qualification',
+        'User is not available for this task time',
+      ],
+    });
+  });
+
+  it('evaluateCandidate: rejects users outside the task company', async () => {
+    prisma.taskInstance.findUnique.mockResolvedValue({
+      id: 'instance-1',
+      startTime: new Date('2026-01-01T09:00:00.000Z'),
+      activityTask: { id: 'task-1', activity: { id: 'activity-1', companyId: 'company-1' } },
+    });
+    prisma.user.findUnique.mockResolvedValue({
+      id: 'user-1',
+      companyId: 'company-2',
+      userRoles: [],
+      userQualifications: [],
+    });
+
+    await expect(service.evaluateCandidate('instance-1', 'user-1')).rejects.toThrow(BadRequestException);
   });
 });
