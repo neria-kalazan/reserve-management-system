@@ -6,6 +6,10 @@ describe('AuthService', () => {
   let prisma: any;
   let config: any;
 
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
   beforeEach(() => {
     prisma = {
       user: {
@@ -71,5 +75,18 @@ describe('AuthService', () => {
     expect(cookie.name).toBe('app_session');
     expect(cookie.value).toContain('.');
     expect(cookie.options.httpOnly).toBe(true);
+    expect(cookie.options.maxAge).toBe(28_800_000);
+  });
+
+  it('keeps server-side sessions valid for eight hours', () => {
+    const createdAt = new Date('2026-08-15T00:00:00.000Z');
+    jest.useFakeTimers().setSystemTime(createdAt);
+    const token = service.createSessionToken('user-1');
+
+    jest.setSystemTime(new Date(createdAt.getTime() + 28_800_000 - 1));
+    expect(service.getSessionUser(token)).toBe('user-1');
+
+    jest.setSystemTime(new Date(createdAt.getTime() + 28_800_000));
+    expect(service.getSessionUser(token)).toBeNull();
   });
 });

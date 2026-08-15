@@ -3,6 +3,8 @@ import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
 import { randomBytes } from 'node:crypto';
 
+const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
+
 export interface GoogleProfilePayload {
   sub?: string;
   email?: string;
@@ -147,7 +149,7 @@ export class AuthService {
     const token = `${userId}.${random}`;
     this.sessions.set(token, {
       userId,
-      expiresAt: new Date(Date.now() + 8 * 60 * 60 * 1000),
+      expiresAt: new Date(Date.now() + SESSION_TTL_MS),
     });
     return token;
   }
@@ -187,7 +189,7 @@ export class AuthService {
         secure: isProduction,
         sameSite: 'lax' as const,
         path: '/',
-        maxAge: 60 * 60 * 8,
+        maxAge: SESSION_TTL_MS,
       },
     };
   }

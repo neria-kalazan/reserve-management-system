@@ -180,6 +180,7 @@ describe('Auth Google Subject Login e2e', () => {
 
     const cookieHeader = (res.headers['set-cookie'] ?? [])[0] as string;
     expect(cookieHeader).toContain('app_session=session-user.');
+    expect(cookieHeader).toContain('Max-Age=28800');
     expect(cookieHeader).toContain('HttpOnly');
     expect(cookieHeader).toContain('Path=/');
     expect(cookieHeader).toContain('SameSite=Lax');
