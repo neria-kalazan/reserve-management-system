@@ -1,14 +1,11 @@
 import {
-  Activity,
   BadgeCheck,
-  Building2,
-  CalendarRange,
   LayoutDashboard,
   Shield,
   Users,
 } from 'lucide-react'
 
-export type AppRouteKey = 'dashboard' | 'companies' | 'users' | 'qualifications' | 'units' | 'activities' | 'scheduling'
+export type AppRouteKey = 'dashboard' | 'users' | 'roles' | 'qualifications' | 'units'
 
 export interface AppRouteItem {
   key: AppRouteKey
@@ -24,31 +21,31 @@ export const appRoutes: AppRouteItem[] = [
     key: 'dashboard',
     path: '/dashboard',
     label: 'דשבורד',
-    description: 'סקירה תפעולית תתווסף בהמשך',
+    description: 'סקירה כללית של החברה',
     icon: LayoutDashboard,
-    requiredPermission: 'MANAGE_COMPANIES',
-  },
-  {
-    key: 'companies',
-    path: '/companies',
-    label: 'פלוגות',
-    description: 'ניהול מסגרות יתווסף בהמשך',
-    icon: Building2,
     requiredPermission: 'MANAGE_COMPANIES',
   },
   {
     key: 'users',
     path: '/users',
-    label: 'משתמשים',
-    description: 'ניהול כוח אדם יתווסף בהמשך',
+    label: 'חיילים',
+    description: 'ניהול אנשי צוות החברה',
     icon: Users,
+    requiredPermission: 'MANAGE_COMPANIES',
+  },
+  {
+    key: 'roles',
+    path: '/roles',
+    label: 'תפקידים',
+    description: 'ניהול תפקידי החברה',
+    icon: Shield,
     requiredPermission: 'MANAGE_COMPANIES',
   },
   {
     key: 'qualifications',
     path: '/qualifications',
     label: 'הסמכות',
-    description: 'ניהול הסמכות יתווסף בהמשך',
+    description: 'ניהול הסמכות של החברה',
     icon: BadgeCheck,
     requiredPermission: 'MANAGE_COMPANIES',
   },
@@ -56,24 +53,8 @@ export const appRoutes: AppRouteItem[] = [
     key: 'units',
     path: '/units',
     label: 'יחידות',
-    description: 'ניהול יחידות יתווסף בהמשך',
+    description: 'ניהול יחידות החברה',
     icon: Shield,
-    requiredPermission: 'MANAGE_COMPANIES',
-  },
-  {
-    key: 'activities',
-    path: '/activities',
-    label: 'פעילויות',
-    description: 'ניהול פעילויות יתווסף בהמשך',
-    icon: Activity,
-    requiredPermission: 'MANAGE_COMPANIES',
-  },
-  {
-    key: 'scheduling',
-    path: '/scheduling',
-    label: 'שיבוץ',
-    description: 'תשתית השיבוץ תתווסף בהמשך',
-    icon: CalendarRange,
     requiredPermission: 'MANAGE_COMPANIES',
   },
 ]
