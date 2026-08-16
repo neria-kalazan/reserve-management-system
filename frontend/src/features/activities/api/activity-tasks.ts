@@ -78,13 +78,6 @@ export interface CreateActivityTaskInstanceInput {
 
 export type UpdateActivityTaskInstanceInput = Partial<CreateActivityTaskInstanceInput>
 
-export interface CompanyRole {
-  id: string
-  name: string
-  description?: string | null
-  createdAt?: string
-}
-
 export interface CompanyQualification {
   id: string
   name: string

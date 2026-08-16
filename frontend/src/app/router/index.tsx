@@ -16,6 +16,7 @@ import { ActivityTaskInstancesPage } from '@/features/activities/pages/activity-
 import { ActivityTaskRequirementsPage } from '@/features/activities/pages/activity-task-requirements-page'
 import { ActivitiesPage } from '@/features/activities/pages/activities-page'
 import { DashboardPage } from '@/features/dashboard/pages/dashboard-page'
+import { RolesPage } from '@/features/roles/pages/roles-page'
 import { UsersPage } from '@/features/users/pages/users-page'
 
 const activitiesRoute = appRoutes.find((route) => route.key === 'activities') ?? fallbackRoute
@@ -32,7 +33,9 @@ const placeholderPages = appRoutes.map((route) => ({
           ? <ActivitiesPage />
           : route.key === 'users'
             ? <UsersPage />
-            : <PlaceholderRoutePage title={route.label} description={route.description} />,
+            : route.key === 'roles'
+              ? <RolesPage />
+              : <PlaceholderRoutePage title={route.label} description={route.description} />,
     },
   ],
 }))
@@ -157,6 +160,26 @@ const router = createBrowserRouter([
               {
                 index: true,
                 element: <PlaceholderRoutePage title="עריכת חייל" description="טופס עריכת חייל יתווסף בהמשך." />,
+              },
+            ],
+          },
+          {
+            path: '/roles/new',
+            element: <PermissionRoute route={appRoutes.find((route) => route.key === 'roles') ?? fallbackRoute} />,
+            children: [
+              {
+                index: true,
+                element: <PlaceholderRoutePage title="יצירת תפקיד" description="טופס יצירת תפקיד יתווסף בהמשך." />,
+              },
+            ],
+          },
+          {
+            path: '/roles/:roleId/edit',
+            element: <PermissionRoute route={appRoutes.find((route) => route.key === 'roles') ?? fallbackRoute} />,
+            children: [
+              {
+                index: true,
+                element: <PlaceholderRoutePage title="עריכת תפקיד" description="טופס עריכת תפקיד יתווסף בהמשך." />,
               },
             ],
           },
