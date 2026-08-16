@@ -98,6 +98,37 @@ describe('UnitFormPage', () => {
     expect(screen.getByDisplayValue('2')).toBeDefined()
   })
 
+  it('accepts zero and positive display orders and rejects negative values', async () => {
+    const createMutation = { mutateAsync: vi.fn().mockResolvedValue({ id: 'u-1' }), isPending: false }
+    useCreateUnitMock.mockReturnValue(createMutation as any)
+
+    const { unmount } = renderForm('/units/new')
+
+    fireEvent.change(screen.getByLabelText('שם המסגרת'), { target: { value: 'מסגרת אפס' } })
+    fireEvent.change(screen.getByLabelText('סדר תצוגה'), { target: { value: '0' } })
+    fireEvent.click(screen.getByRole('button', { name: 'שמירת מסגרת' }))
+
+    await waitFor(() => {
+      expect(createMutation.mutateAsync).toHaveBeenCalledWith({
+        name: 'מסגרת אפס',
+        description: null,
+        displayOrder: 0,
+      })
+    })
+
+    unmount()
+
+    useCreateUnitMock.mockReturnValue(createMutation as any)
+    renderForm('/units/new')
+
+    fireEvent.change(screen.getByLabelText('שם המסגרת'), { target: { value: 'מסגרת שלילית' } })
+    fireEvent.change(screen.getByLabelText('סדר תצוגה'), { target: { value: '-1' } })
+    fireEvent.click(screen.getByRole('button', { name: 'שמירת מסגרת' }))
+
+    expect(await screen.findByText('סדר תצוגה חייב להיות מספר שלם גדול או שווה ל-0.')).toBeDefined()
+    expect(createMutation.mutateAsync).toHaveBeenCalledTimes(1)
+  })
+
   it('creates a unit and navigates back to units list', async () => {
     const createMutation = { mutateAsync: vi.fn().mockResolvedValue({ id: 'u-1' }), isPending: false }
     useCreateUnitMock.mockReturnValue(createMutation as any)

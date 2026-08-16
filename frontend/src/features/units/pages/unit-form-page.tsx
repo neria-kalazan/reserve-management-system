@@ -67,8 +67,14 @@ export function UnitFormPage() {
       nextErrors.name = 'יש להזין שם מסגרת.'
     }
 
-    if (!form.displayOrder.trim()) {
+    const trimmedDisplayOrder = form.displayOrder.trim()
+    if (!trimmedDisplayOrder) {
       nextErrors.displayOrder = 'יש להזין סדר תצוגה.'
+    } else {
+      const parsedDisplayOrder = Number(trimmedDisplayOrder)
+      if (!Number.isInteger(parsedDisplayOrder) || parsedDisplayOrder < 0) {
+        nextErrors.displayOrder = 'סדר תצוגה חייב להיות מספר שלם גדול או שווה ל-0.'
+      }
     }
 
     setErrors(nextErrors)

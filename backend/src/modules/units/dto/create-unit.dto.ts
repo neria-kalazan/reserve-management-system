@@ -1,4 +1,4 @@
-import { IsInt, IsNotEmpty, IsOptional, IsPositive, IsString } from 'class-validator';
+import { IsInt, IsNotEmpty, IsOptional, IsString, Min } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class CreateUnitDto {
@@ -13,6 +13,6 @@ export class CreateUnitDto {
   @IsOptional()
   @Type(() => Number)
   @IsInt()
-  @IsPositive()
+  @Min(0)
   displayOrder?: number;
 }

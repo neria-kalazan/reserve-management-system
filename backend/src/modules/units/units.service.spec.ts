@@ -1,3 +1,9 @@
+import 'reflect-metadata';
+import { plainToInstance } from 'class-transformer';
+import { validate } from 'class-validator';
+
+import { CreateUnitDto } from './dto/create-unit.dto';
+import { UpdateUnitDto } from './dto/update-unit.dto';
 import { UnitsService } from './units.service';
 import { createPrismaMock } from '../../test/prisma.mock';
 
@@ -82,6 +88,20 @@ describe('UnitsService', () => {
     prisma.company.findUnique.mockResolvedValue(null);
 
     await expect(service.findAllByCompany('missing-company')).rejects.toThrow('Company not found');
+  });
+
+  it('displayOrder validation: accepts zero and positive integers while rejecting negatives and non-integers', async () => {
+    const validZeroDto = plainToInstance(CreateUnitDto, { name: 'מסגרת', displayOrder: 0 });
+    const validPositiveDto = plainToInstance(CreateUnitDto, { name: 'מסגרת', displayOrder: 5 });
+    const invalidNegativeDto = plainToInstance(CreateUnitDto, { name: 'מסגרת', displayOrder: -1 });
+    const invalidFloatDto = plainToInstance(CreateUnitDto, { name: 'מסגרת', displayOrder: 1.5 });
+    const updateValidZeroDto = plainToInstance(UpdateUnitDto, { displayOrder: 0 });
+
+    await expect(validate(validZeroDto)).resolves.toHaveLength(0);
+    await expect(validate(validPositiveDto)).resolves.toHaveLength(0);
+    await expect(validate(updateValidZeroDto)).resolves.toHaveLength(0);
+    await expect(validate(invalidNegativeDto)).resolves.not.toHaveLength(0);
+    await expect(validate(invalidFloatDto)).resolves.not.toHaveLength(0);
   });
 
   it('delete: removes an existing unit with no assigned personnel', async () => {
