@@ -28,3 +28,6 @@ export const postCompanyQualification = (companyId: string, body: CreateQualific
 
 export const patchQualification = (qualificationId: string, body: UpdateQualificationInput) =>
   api.patch<CompanyQualification>(`/qualifications/${encodeURIComponent(qualificationId)}`, body)
+
+export const deleteQualification = (qualificationId: string) =>
+  api.delete<CompanyQualification>(`/qualifications/${encodeURIComponent(qualificationId)}`)

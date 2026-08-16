@@ -73,7 +73,7 @@ export class UsersService {
     }
 
     return this.prisma.user.findMany({
-      where: { companyId },
+      where: { companyId, isActive: true },
       select: {
         id: true,
         firstName: true,

@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { useAuthSession } from '@/app/auth/use-auth-session'
-import { getCompanyQualifications, getQualificationById, patchQualification, postCompanyQualification } from '@/features/qualifications/api/qualifications'
+import { deleteQualification, getCompanyQualifications, getQualificationById, patchQualification, postCompanyQualification } from '@/features/qualifications/api/qualifications'
 import type { CompanyQualification, CreateQualificationInput, UpdateQualificationInput } from '@/features/qualifications/api/qualifications'
 
 export const companyQualificationsQueryKey = (companyId: string | undefined) =>
@@ -66,6 +66,19 @@ export function useUpdateQualification() {
         queryClient.invalidateQueries({ queryKey: companyQualificationsQueryKey(companyId) }),
         queryClient.invalidateQueries({ queryKey: qualificationDetailQueryKey(variables.qualificationId) }),
       ])
+    },
+  })
+}
+
+export function useDeleteQualification() {
+  const queryClient = useQueryClient()
+  const { user } = useAuthSession()
+  const companyId = user?.companyId
+
+  return useMutation({
+    mutationFn: (qualificationId: string) => deleteQualification(qualificationId),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: companyQualificationsQueryKey(companyId) })
     },
   })
 }

@@ -28,3 +28,6 @@ export const postCompanyRole = (companyId: string, body: CreateRoleInput) =>
 
 export const patchRole = (roleId: string, body: UpdateRoleInput) =>
   api.patch<CompanyRole>(`/roles/${encodeURIComponent(roleId)}`, body)
+
+export const deleteRole = (roleId: string) =>
+  api.delete<CompanyRole>(`/roles/${encodeURIComponent(roleId)}`)

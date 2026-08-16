@@ -6,6 +6,7 @@ import {
   getUserById,
   getUserQualifications,
   getUserRoles,
+  importCompanyUsers,
   patchUser,
   postCompanyUser,
 } from '@/features/users/api/users'
@@ -88,6 +89,29 @@ export function useCreateUser() {
   })
 }
 
+export function useImportCompanyUsers() {
+  const queryClient = useQueryClient()
+  const { user } = useAuthSession()
+  const companyId = user?.companyId
+
+  return useMutation({
+    mutationFn: async (file: File) => {
+      if (typeof companyId !== 'string' || companyId.length === 0) {
+        throw new Error('לא ניתן לייבא אנשי צוות ללא הקשר חברתתי מאומת.')
+      }
+
+      if (!(file instanceof File)) {
+        throw new Error('לא נבחר קובץ.')
+      }
+
+      return importCompanyUsers(companyId, file)
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: companyUsersQueryKey(companyId) })
+    },
+  })
+}
+
 export function useUpdateUser() {
   const queryClient = useQueryClient()
   const { user } = useAuthSession()
@@ -100,6 +124,22 @@ export function useUpdateUser() {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: companyUsersQueryKey(companyId) }),
         queryClient.invalidateQueries({ queryKey: userDetailQueryKey(variables.userId) }),
+      ])
+    },
+  })
+}
+
+export function useDeactivateUser() {
+  const queryClient = useQueryClient()
+  const { user } = useAuthSession()
+  const companyId = user?.companyId
+
+  return useMutation({
+    mutationFn: (userId: string) => patchUser(userId, { isActive: false }),
+    onSuccess: async (_updatedUser: CompanyUser, userId: string) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: companyUsersQueryKey(companyId) }),
+        queryClient.invalidateQueries({ queryKey: userDetailQueryKey(userId) }),
       ])
     },
   })

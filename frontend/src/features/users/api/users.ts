@@ -48,8 +48,32 @@ export interface UpdateUserInput {
   isActive?: boolean
 }
 
+export interface UserImportRowError {
+  row: number
+  reason: string
+}
+
+export interface UserImportResult {
+  created: number
+  failed: number
+  errors: UserImportRowError[]
+}
+
 export const getCompanyUsers = (companyId: string) =>
   api.get<CompanyUser[]>(`/companies/${encodeURIComponent(companyId)}/users`)
+
+export const importCompanyUsers = (companyId: string, file: File) => {
+  const formData = new FormData()
+  formData.append('file', file)
+
+  return api.instance
+    .post<UserImportResult>(`/companies/${encodeURIComponent(companyId)}/users/import`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    })
+    .then((response) => response.data)
+}
 
 export const getUserById = (userId: string) =>
   api.get<CompanyUser & { company: { id: string; name: string }; unit: CompanyUnit | null }>(`/users/${encodeURIComponent(userId)}`)

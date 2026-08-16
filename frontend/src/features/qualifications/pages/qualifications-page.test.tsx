@@ -1,20 +1,22 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/features/qualifications/queries/use-qualifications', () => ({
   useCompanyQualifications: vi.fn(),
+  useDeleteQualification: vi.fn(),
 }))
 vi.mock('@/app/auth/use-auth-session', () => ({
   useAuthSession: vi.fn(),
 }))
 
 import { useAuthSession } from '@/app/auth/use-auth-session'
-import { useCompanyQualifications } from '@/features/qualifications/queries/use-qualifications'
+import { useCompanyQualifications, useDeleteQualification } from '@/features/qualifications/queries/use-qualifications'
 import { QualificationsPage } from '@/features/qualifications/pages/qualifications-page'
 
 const useAuthSessionMock = vi.mocked(useAuthSession)
 const useCompanyQualificationsMock = vi.mocked(useCompanyQualifications)
+const useDeleteQualificationMock = vi.mocked(useDeleteQualification)
 
 const makeQualification = (index: number) => ({
   id: `qualification-${index}`,
@@ -29,6 +31,7 @@ describe('QualificationsPage', () => {
   beforeEach(() => {
     useAuthSessionMock.mockReset()
     useCompanyQualificationsMock.mockReset()
+    useDeleteQualificationMock.mockReset()
     useAuthSessionMock.mockReturnValue({
       user: { companyId: 'company-1' },
     } as ReturnType<typeof useAuthSession>)
@@ -59,6 +62,10 @@ describe('QualificationsPage', () => {
       data: qualifications,
       refetch: vi.fn(),
     } as unknown as ReturnType<typeof useCompanyQualifications>)
+    useDeleteQualificationMock.mockReturnValue({
+      isPending: false,
+      mutateAsync: vi.fn(),
+    } as unknown as ReturnType<typeof useDeleteQualification>)
 
     render(
       <MemoryRouter>
@@ -72,6 +79,86 @@ describe('QualificationsPage', () => {
     expect(screen.getByText('תיאור 1')).toBeDefined()
     expect(screen.getByRole('button', { name: 'הבא' })).toBeDefined()
     expect(screen.getAllByRole('button', { name: 'עריכה' }).length).toBeGreaterThan(0)
+    expect(screen.getAllByRole('button', { name: 'מחק' }).length).toBeGreaterThan(0)
+  })
+
+  it('opens confirmation and does not delete on cancel', () => {
+    const deleteQualification = vi.fn()
+
+    useCompanyQualificationsMock.mockReturnValue({
+      isPending: false,
+      isError: false,
+      data: makeQualifications(2),
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useCompanyQualifications>)
+    useDeleteQualificationMock.mockReturnValue({
+      isPending: false,
+      mutateAsync: deleteQualification,
+    } as unknown as ReturnType<typeof useDeleteQualification>)
+
+    render(
+      <MemoryRouter>
+        <QualificationsPage />
+      </MemoryRouter>,
+    )
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'מחק' })[0])
+
+    expect(screen.getByText(/האם למחוק את ההסמכה/i)).toBeDefined()
+    fireEvent.click(screen.getByRole('button', { name: 'ביטול' }))
+    expect(deleteQualification).not.toHaveBeenCalled()
+  })
+
+  it('calls delete mutation when confirmed and refreshes the list', async () => {
+    const deleteQualification = vi.fn().mockResolvedValue({ id: 'qualification-1' })
+
+    useCompanyQualificationsMock.mockReturnValue({
+      isPending: false,
+      isError: false,
+      data: makeQualifications(2),
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useCompanyQualifications>)
+    useDeleteQualificationMock.mockReturnValue({
+      isPending: false,
+      mutateAsync: deleteQualification,
+    } as unknown as ReturnType<typeof useDeleteQualification>)
+
+    render(
+      <MemoryRouter>
+        <QualificationsPage />
+      </MemoryRouter>,
+    )
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'מחק' })[0])
+    fireEvent.click(screen.getByRole('button', { name: 'אישור מחיקה' }))
+
+    await waitFor(() => expect(deleteQualification).toHaveBeenCalledWith('qualification-1'))
+  })
+
+  it('shows delete error when the request fails', async () => {
+    const deleteQualification = vi.fn().mockRejectedValue(new Error('Delete failed'))
+
+    useCompanyQualificationsMock.mockReturnValue({
+      isPending: false,
+      isError: false,
+      data: makeQualifications(2),
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useCompanyQualifications>)
+    useDeleteQualificationMock.mockReturnValue({
+      isPending: false,
+      mutateAsync: deleteQualification,
+    } as unknown as ReturnType<typeof useDeleteQualification>)
+
+    render(
+      <MemoryRouter>
+        <QualificationsPage />
+      </MemoryRouter>,
+    )
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'מחק' })[0])
+    fireEvent.click(screen.getByRole('button', { name: 'אישור מחיקה' }))
+
+    await waitFor(() => expect(screen.getByText('Delete failed')).toBeDefined())
   })
 
   it('renders the error and empty states without breaking the page', () => {

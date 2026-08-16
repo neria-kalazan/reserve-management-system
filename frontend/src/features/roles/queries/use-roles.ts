@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { useAuthSession } from '@/app/auth/use-auth-session'
-import { getCompanyRoles, getRoleById, patchRole, postCompanyRole } from '@/features/roles/api/roles'
+import { deleteRole, getCompanyRoles, getRoleById, patchRole, postCompanyRole } from '@/features/roles/api/roles'
 import type { CompanyRole, CreateRoleInput, UpdateRoleInput } from '@/features/roles/api/roles'
 
 export const companyRolesQueryKey = (companyId: string | undefined) =>
@@ -66,6 +66,19 @@ export function useUpdateRole() {
         queryClient.invalidateQueries({ queryKey: companyRolesQueryKey(companyId) }),
         queryClient.invalidateQueries({ queryKey: roleDetailQueryKey(variables.roleId) }),
       ])
+    },
+  })
+}
+
+export function useDeleteRole() {
+  const queryClient = useQueryClient()
+  const { user } = useAuthSession()
+  const companyId = user?.companyId
+
+  return useMutation({
+    mutationFn: (roleId: string) => deleteRole(roleId),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: companyRolesQueryKey(companyId) })
     },
   })
 }

@@ -20,4 +20,21 @@ describe('QualificationsService', () => {
     const res = await service.create('c1', { name: 'חובש' } as any);
     expect(res).toBeDefined();
   });
+
+  it('delete: removes an existing qualification', async () => {
+    prisma.qualification.findUnique.mockResolvedValue({ id: 'q1', companyId: 'c1', name: 'חובש' });
+    prisma.qualification.delete.mockResolvedValue({ id: 'q1', companyId: 'c1', name: 'חובש' });
+
+    const res = await service.delete('q1');
+
+    expect(prisma.qualification.findUnique).toHaveBeenCalledWith({ where: { id: 'q1' } });
+    expect(prisma.qualification.delete).toHaveBeenCalledWith({ where: { id: 'q1' } });
+    expect(res).toMatchObject({ id: 'q1', name: 'חובש' });
+  });
+
+  it('delete: throws when qualification does not exist', async () => {
+    prisma.qualification.findUnique.mockResolvedValue(null);
+
+    await expect(service.delete('missing-qualification')).rejects.toThrow('Qualification not found');
+  });
 });

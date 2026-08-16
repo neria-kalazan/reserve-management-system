@@ -31,3 +31,6 @@ export const postCompanyUnit = (companyId: string, body: CreateUnitInput) =>
 
 export const patchUnit = (unitId: string, body: UpdateUnitInput) =>
   api.patch<CompanyUnit>(`/units/${encodeURIComponent(unitId)}`, body)
+
+export const deleteUnit = (unitId: string) =>
+  api.delete<CompanyUnit>(`/units/${encodeURIComponent(unitId)}`)

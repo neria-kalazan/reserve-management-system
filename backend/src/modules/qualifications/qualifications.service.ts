@@ -115,6 +115,8 @@ export class QualificationsService {
       throw new NotFoundException('Qualification not found');
     }
 
-    throw new BadRequestException('Qualification deletion is not supported yet because the Qualification model has no soft-delete field');
+    return this.prisma.qualification.delete({
+      where: { id },
+    });
   }
 }

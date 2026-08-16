@@ -115,6 +115,8 @@ export class RolesService {
       throw new NotFoundException('Role not found');
     }
 
-    throw new BadRequestException('Role deletion is not supported yet because the Role model has no soft-delete field');
+    return this.prisma.role.delete({
+      where: { id },
+    });
   }
 }

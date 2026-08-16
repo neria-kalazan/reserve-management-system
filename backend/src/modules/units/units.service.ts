@@ -136,6 +136,16 @@ export class UnitsService {
       throw new NotFoundException('Unit not found');
     }
 
-    throw new BadRequestException('Unit deactivation or deletion is not supported yet because the Unit model has no active/status field');
+    const assignedPersonnelCount = await this.prisma.user.count({
+      where: { unitId: id },
+    });
+
+    if (assignedPersonnelCount > 0) {
+      throw new BadRequestException('לא ניתן למחוק מסגרת כשיש אנשי צוות משויכים אליה.');
+    }
+
+    return this.prisma.unit.delete({
+      where: { id },
+    });
   }
 }

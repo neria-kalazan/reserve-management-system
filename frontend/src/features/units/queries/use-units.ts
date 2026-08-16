@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { useAuthSession } from '@/app/auth/use-auth-session'
-import { getCompanyUnits, getUnitById, patchUnit, postCompanyUnit } from '@/features/units/api/units'
+import { deleteUnit, getCompanyUnits, getUnitById, patchUnit, postCompanyUnit } from '@/features/units/api/units'
 import type { CompanyUnit, CreateUnitInput, UpdateUnitInput } from '@/features/units/api/units'
 
 export const companyUnitsQueryKey = (companyId: string | undefined) =>
@@ -66,6 +66,19 @@ export function useUpdateUnit() {
         queryClient.invalidateQueries({ queryKey: companyUnitsQueryKey(companyId) }),
         queryClient.invalidateQueries({ queryKey: unitDetailQueryKey(variables.unitId) }),
       ])
+    },
+  })
+}
+
+export function useDeleteUnit() {
+  const queryClient = useQueryClient()
+  const { user } = useAuthSession()
+  const companyId = user?.companyId
+
+  return useMutation({
+    mutationFn: (unitId: string) => deleteUnit(unitId),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: companyUnitsQueryKey(companyId) })
     },
   })
 }
