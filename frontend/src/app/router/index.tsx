@@ -16,9 +16,13 @@ import { ActivityTaskInstancesPage } from '@/features/activities/pages/activity-
 import { ActivityTaskRequirementsPage } from '@/features/activities/pages/activity-task-requirements-page'
 import { ActivitiesPage } from '@/features/activities/pages/activities-page'
 import { DashboardPage } from '@/features/dashboard/pages/dashboard-page'
+import { QualificationFormPage } from '@/features/qualifications/pages/qualification-form-page'
 import { QualificationsPage } from '@/features/qualifications/pages/qualifications-page'
+import { RoleFormPage } from '@/features/roles/pages/role-form-page'
 import { RolesPage } from '@/features/roles/pages/roles-page'
+import { UnitFormPage } from '@/features/units/pages/unit-form-page'
 import { UnitsPage } from '@/features/units/pages/units-page'
+import { UserFormPage } from '@/features/users/pages/user-form-page'
 import { UsersPage } from '@/features/users/pages/users-page'
 
 const activitiesRoute = appRoutes.find((route) => route.key === 'activities') ?? fallbackRoute
@@ -155,7 +159,7 @@ const router = createBrowserRouter([
             children: [
               {
                 index: true,
-                element: <PlaceholderRoutePage title="יצירת חייל" description="טופס יצירת חייל יתווסף בהמשך." />,
+                element: <UserFormPage />, 
               },
             ],
           },
@@ -165,7 +169,7 @@ const router = createBrowserRouter([
             children: [
               {
                 index: true,
-                element: <PlaceholderRoutePage title="עריכת חייל" description="טופס עריכת חייל יתווסף בהמשך." />,
+                element: <UserFormPage />, 
               },
             ],
           },
@@ -175,7 +179,7 @@ const router = createBrowserRouter([
             children: [
               {
                 index: true,
-                element: <PlaceholderRoutePage title="יצירת תפקיד" description="טופס יצירת תפקיד יתווסף בהמשך." />,
+                element: <RoleFormPage />,
               },
             ],
           },
@@ -185,7 +189,7 @@ const router = createBrowserRouter([
             children: [
               {
                 index: true,
-                element: <PlaceholderRoutePage title="עריכת תפקיד" description="טופס עריכת תפקיד יתווסף בהמשך." />,
+                element: <RoleFormPage />,
               },
             ],
           },
@@ -195,7 +199,7 @@ const router = createBrowserRouter([
             children: [
               {
                 index: true,
-                element: <PlaceholderRoutePage title="יצירת הסמכה" description="טופס יצירת הסמכה יתווסף בהמשך." />,
+                element: <QualificationFormPage />,
               },
             ],
           },
@@ -205,7 +209,7 @@ const router = createBrowserRouter([
             children: [
               {
                 index: true,
-                element: <PlaceholderRoutePage title="עריכת הסמכה" description="טופס עריכת הסמכה יתווסף בהמשך." />,
+                element: <QualificationFormPage />,
               },
             ],
           },
@@ -215,7 +219,7 @@ const router = createBrowserRouter([
             children: [
               {
                 index: true,
-                element: <PlaceholderRoutePage title="יצירת יחידה" description="טופס יצירת יחידה יתווסף בהמשך." />,
+                element: <UnitFormPage />,
               },
             ],
           },
@@ -225,7 +229,7 @@ const router = createBrowserRouter([
             children: [
               {
                 index: true,
-                element: <PlaceholderRoutePage title="עריכת יחידה" description="טופס עריכת יחידה יתווסף בהמשך." />,
+                element: <UnitFormPage />,
               },
             ],
           },

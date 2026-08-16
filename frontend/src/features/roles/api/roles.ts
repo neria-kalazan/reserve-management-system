@@ -7,5 +7,24 @@ export interface CompanyRole {
   createdAt?: string
 }
 
+export interface CreateRoleInput {
+  name: string
+  description?: string | null
+}
+
+export interface UpdateRoleInput {
+  name?: string
+  description?: string | null
+}
+
 export const getCompanyRoles = (companyId: string) =>
   api.get<CompanyRole[]>(`/companies/${encodeURIComponent(companyId)}/roles`)
+
+export const getRoleById = (roleId: string) =>
+  api.get<CompanyRole>(`/roles/${encodeURIComponent(roleId)}`)
+
+export const postCompanyRole = (companyId: string, body: CreateRoleInput) =>
+  api.post<CompanyRole>(`/companies/${encodeURIComponent(companyId)}/roles`, body)
+
+export const patchRole = (roleId: string, body: UpdateRoleInput) =>
+  api.patch<CompanyRole>(`/roles/${encodeURIComponent(roleId)}`, body)
