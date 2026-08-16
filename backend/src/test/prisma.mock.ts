@@ -13,6 +13,7 @@ export function createPrismaMock() {
       upsert: jest.fn(),
       create: jest.fn(),
       findMany: jest.fn(),
+      count: jest.fn(),
       delete: jest.fn(),
     },
     role: {
@@ -25,6 +26,7 @@ export function createPrismaMock() {
     qualification: {
       findUnique: jest.fn(),
       findMany: jest.fn(),
+      count: jest.fn(),
       upsert: jest.fn(),
       create: jest.fn(),
       delete: jest.fn(),

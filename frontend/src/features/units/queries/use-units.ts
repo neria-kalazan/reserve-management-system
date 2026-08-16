@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { useAuthSession } from '@/app/auth/use-auth-session'
 import { deleteUnit, getCompanyUnits, getUnitById, patchUnit, postCompanyUnit } from '@/features/units/api/units'
-import type { CompanyUnit, CreateUnitInput, UpdateUnitInput } from '@/features/units/api/units'
+import type { CompanyUnit, CompanyUnitsPageResult, CreateUnitInput, UpdateUnitInput } from '@/features/units/api/units'
 
 export const companyUnitsQueryKey = (companyId: string | undefined) =>
   ['companies', companyId, 'units'] as const
@@ -10,13 +10,17 @@ export const companyUnitsQueryKey = (companyId: string | undefined) =>
 export const unitDetailQueryKey = (unitId: string | undefined) =>
   ['units', unitId] as const
 
-export function useCompanyUnits(companyId: string | undefined) {
+export function useCompanyUnits(
+  companyId: string | undefined,
+  params?: { page?: number; pageSize?: number; sortBy?: string; sortOrder?: 'asc' | 'desc' },
+) {
   const { isAuthenticated } = useAuthSession()
 
-  return useQuery<CompanyUnit[]>({
-    queryKey: companyUnitsQueryKey(companyId),
-    queryFn: () => getCompanyUnits(companyId as string),
+  return useQuery<CompanyUnitsPageResult>({
+    queryKey: [...companyUnitsQueryKey(companyId), params ?? {}],
+    queryFn: () => getCompanyUnits(companyId as string, params),
     enabled: isAuthenticated && typeof companyId === 'string' && companyId.length > 0,
+    placeholderData: (previousData) => previousData as CompanyUnitsPageResult | undefined,
   })
 }
 

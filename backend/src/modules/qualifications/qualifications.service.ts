@@ -3,6 +3,11 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { Prisma } from '@prisma/client';
 import { CreateQualificationDto } from './dto/create-qualification.dto';
 import { UpdateQualificationDto } from './dto/update-qualification.dto';
+import {
+  COMPANY_QUALIFICATION_SORT_FIELD_MAP,
+  CompanyQualificationSortField,
+  FindCompanyQualificationsQueryDto,
+} from './dto/find-company-qualifications-query.dto';
 
 @Injectable()
 export class QualificationsService {
@@ -34,7 +39,7 @@ export class QualificationsService {
     }
   }
 
-  async findAllByCompany(companyId: string) {
+  async findAllByCompany(companyId: string, query: FindCompanyQualificationsQueryDto = {}) {
     const company = await this.prisma.company.findUnique({
       where: { id: companyId },
       select: { id: true },
@@ -44,18 +49,36 @@ export class QualificationsService {
       throw new NotFoundException('Company not found');
     }
 
-    return this.prisma.qualification.findMany({
-      where: { companyId },
-      select: {
-        id: true,
-        name: true,
-        description: true,
-        createdAt: true,
-      },
-      orderBy: {
-        createdAt: 'asc',
-      },
-    });
+    const page = query.page ?? 1;
+    const pageSize = query.pageSize ?? 10;
+    const sortBy = (query.sortBy ?? 'name') as CompanyQualificationSortField;
+    const sortOrder = query.sortOrder ?? 'asc';
+    const prismaSortField = COMPANY_QUALIFICATION_SORT_FIELD_MAP[sortBy];
+
+    const [items, total] = await Promise.all([
+      this.prisma.qualification.findMany({
+        where: { companyId },
+        select: {
+          id: true,
+          name: true,
+          description: true,
+          createdAt: true,
+        },
+        orderBy: { [prismaSortField]: sortOrder },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      this.prisma.qualification.count({
+        where: { companyId },
+      }),
+    ]);
+
+    return {
+      items,
+      total,
+      page,
+      pageSize,
+    };
   }
 
   async findOne(id: string) {

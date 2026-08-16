@@ -150,12 +150,12 @@ describe('UserFormPage', () => {
   it('renders create mode with the required fields and loads company options', () => {
     renderForm('/users/new')
 
-    expect(screen.getAllByText('יצירת חייל').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('יצירת כוח אדם').length).toBeGreaterThan(0)
     expect(screen.getByLabelText('שם פרטי')).toBeDefined()
     expect(screen.getByLabelText('שם משפחה')).toBeDefined()
     expect(screen.getByLabelText('מספר אישי')).toBeDefined()
     expect(screen.getByLabelText('טלפון')).toBeDefined()
-    expect(screen.getByLabelText('יחידה')).toBeDefined()
+    expect(screen.getByLabelText('מסגרת')).toBeDefined()
     expect(screen.getByText('תפקיד 1')).toBeDefined()
     expect(screen.getByText('סמכה 1')).toBeDefined()
   })
@@ -190,7 +190,7 @@ describe('UserFormPage', () => {
 
     renderForm('/users/user-123/edit')
 
-    expect(screen.getAllByText('עריכת חייל').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('עריכת כוח אדם').length).toBeGreaterThan(0)
     expect(screen.getByDisplayValue('אבי')).toBeDefined()
     expect(screen.getByDisplayValue('כהן')).toBeDefined()
     expect(screen.getByDisplayValue('0501234567')).toBeDefined()
@@ -204,7 +204,7 @@ describe('UserFormPage', () => {
 
     renderForm('/users/new')
 
-    fireEvent.click(screen.getByRole('button', { name: 'שמירת חייל' }))
+    fireEvent.click(screen.getByRole('button', { name: 'שמירת כוח אדם' }))
 
     expect(await screen.findByText('יש להזין שם פרטי.')).toBeDefined()
     expect(await screen.findByText('יש להזין שם משפחה.')).toBeDefined()
@@ -223,10 +223,10 @@ describe('UserFormPage', () => {
     fireEvent.change(screen.getByLabelText('מספר אישי'), { target: { value: '98765' } })
     fireEvent.change(screen.getByLabelText('טלפון'), { target: { value: '0507654321' } })
     fireEvent.change(screen.getByLabelText('דוא"ל'), { target: { value: 'daniel@example.com' } })
-    fireEvent.change(screen.getByLabelText('יחידה'), { target: { value: 'unit-2' } })
+    fireEvent.change(screen.getByLabelText('מסגרת'), { target: { value: 'unit-2' } })
     fireEvent.click(screen.getByLabelText('תפקיד 1'))
     fireEvent.click(screen.getByLabelText('סמכה 1'))
-    fireEvent.click(screen.getByRole('button', { name: 'שמירת חייל' }))
+    fireEvent.click(screen.getByRole('button', { name: 'שמירת כוח אדם' }))
 
     await waitFor(() => {
       expect(createMutation.mutateAsync).toHaveBeenCalledWith({
@@ -285,7 +285,7 @@ describe('UserFormPage', () => {
     fireEvent.click(screen.getByLabelText('תפקיד 2'))
     fireEvent.click(screen.getByLabelText('סמכה 1'))
     fireEvent.click(screen.getByLabelText('סמכה 2'))
-    fireEvent.click(screen.getByRole('button', { name: 'שמירת חייל' }))
+    fireEvent.click(screen.getByRole('button', { name: 'שמירת כוח אדם' }))
 
     await waitFor(() => {
       expect(updateMutation.mutateAsync).toHaveBeenCalledWith({

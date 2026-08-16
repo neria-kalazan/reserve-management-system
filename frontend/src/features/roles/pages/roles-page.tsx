@@ -8,30 +8,54 @@ import { useCompanyRoles, useDeleteRole } from '@/features/roles/queries/use-rol
 import { ErrorState } from '@/shared/components/error-state'
 import { LoadingState } from '@/shared/components/loading-state'
 import { Button } from '@/shared/components/ui/button'
+import { Pagination } from '@/shared/components/ui/pagination'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/shared/components/ui/table'
 
-const PAGE_SIZE = 10
+const PAGE_SIZE_OPTIONS = [10, 25, 50] as const
+const SORTABLE_COLUMNS = ['name', 'description'] as const
+
+type SortField = (typeof SORTABLE_COLUMNS)[number]
+type SortOrder = 'asc' | 'desc'
 
 export function RolesPage() {
   const navigate = useNavigate()
   const { user } = useAuthSession()
   const companyId = user?.companyId
-  const rolesQuery = useCompanyRoles(companyId)
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState<number>(10)
+  const [sortBy, setSortBy] = useState<SortField>('name')
+  const [sortOrder, setSortOrder] = useState<SortOrder>('asc')
+
+  const rolesQuery = useCompanyRoles(companyId, { page, pageSize, sortBy, sortOrder })
   const deleteRoleMutation = useDeleteRole()
   const deleteInFlight = deleteRoleMutation?.isPending ?? false
-  const [page, setPage] = useState(1)
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
 
-  const roles = rolesQuery.data ?? []
-  const totalPages = Math.max(1, Math.ceil(roles.length / PAGE_SIZE))
-  const safePage = Math.min(page, totalPages)
+  const roles = rolesQuery.data?.items ?? []
+  const total = rolesQuery.data?.total ?? 0
+  const currentPageSize = rolesQuery.data?.pageSize ?? pageSize
+  const totalPages = total === 0 ? 1 : Math.ceil(total / currentPageSize)
+  const boundedPage = Math.min(Math.max(page, 1), totalPages)
 
-  const pageRoles = useMemo(() => {
-    const from = (safePage - 1) * PAGE_SIZE
-    return roles.slice(from, from + PAGE_SIZE)
-  }, [safePage, roles])
+  const pageRoles = useMemo(() => roles, [roles])
+
+  const handleSort = (field: SortField) => {
+    if (sortBy === field) {
+      setSortOrder((current) => (current === 'asc' ? 'desc' : 'asc'))
+    } else {
+      setSortBy(field)
+      setSortOrder('asc')
+    }
+
+    setPage(1)
+  }
+
+  const handlePageSizeChange = (nextPageSize: number) => {
+    setPageSize(nextPageSize)
+    setPage(1)
+  }
 
   const goToPreviousPage = () => setPage((current) => Math.max(1, current - 1))
   const goToNextPage = () => setPage((current) => Math.min(totalPages, current + 1))
@@ -50,6 +74,35 @@ export function RolesPage() {
       setPendingDeleteId(null)
     }
   }
+
+  const getSortIndicator = (field: SortField) => {
+    if (sortBy !== field) {
+      return null
+    }
+
+    return sortOrder === 'asc' ? '↑' : '↓'
+  }
+
+  const getColumnLabel = (field: SortField) => {
+    const labels: Record<SortField, string> = {
+      name: 'שם',
+      description: 'תיאור',
+    }
+
+    return labels[field]
+  }
+
+  const renderSortButton = (field: SortField) => (
+    <button
+      type="button"
+      onClick={() => handleSort(field)}
+      className="inline-flex items-center gap-1 font-medium text-muted transition-colors hover:text-foreground"
+      aria-label={`מיון לפי ${getColumnLabel(field)}`}
+    >
+      <span>{getColumnLabel(field)}</span>
+      {getSortIndicator(field) ? <span aria-hidden="true">{getSortIndicator(field)}</span> : null}
+    </button>
+  )
 
   return (
     <>
@@ -70,7 +123,7 @@ export function RolesPage() {
           </div>
         ) : null}
 
-        {rolesQuery.isPending ? (
+        {rolesQuery.isPending && !rolesQuery.data ? (
           <LoadingState title="טוען תפקידים" description="רשימת התפקידים נטענת כעת." />
         ) : rolesQuery.isError ? (
           <ErrorState
@@ -88,8 +141,8 @@ export function RolesPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>שם</TableHead>
-                    <TableHead>תיאור</TableHead>
+                    <TableHead>{renderSortButton('name')}</TableHead>
+                    <TableHead>{renderSortButton('description')}</TableHead>
                     <TableHead className="w-32">פעולות</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -149,19 +202,15 @@ export function RolesPage() {
               </Table>
             </div>
 
-            <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-surface px-4 py-3">
-              <div className="text-sm text-muted">
-                {roles.length > 0 ? `עמוד ${safePage} מתוך ${totalPages}` : 'לא נמצאו תפקידים'}
-              </div>
-              <div className="flex items-center gap-2">
-                <Button type="button" variant="secondary" size="sm" onClick={goToPreviousPage} disabled={safePage <= 1}>
-                  הקודם
-                </Button>
-                <Button type="button" variant="secondary" size="sm" onClick={goToNextPage} disabled={safePage >= totalPages}>
-                  הבא
-                </Button>
-              </div>
-            </div>
+            <Pagination
+              page={boundedPage}
+              pageSize={currentPageSize}
+              total={total}
+              pageSizeOptions={PAGE_SIZE_OPTIONS}
+              onPageChange={(nextPage) => setPage(nextPage)}
+              onPageSizeChange={(nextPageSize) => handlePageSizeChange(nextPageSize)}
+              isLoading={rolesQuery.isFetching}
+            />
           </>
         )}
       </ContentContainer>

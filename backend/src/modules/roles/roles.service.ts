@@ -3,6 +3,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { Prisma } from '@prisma/client';
 import { CreateRoleDto } from './dto/create-role.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
+import { FindCompanyRolesQueryDto, CompanyRoleSortField } from './dto/find-company-roles-query.dto';
 
 @Injectable()
 export class RolesService {
@@ -34,7 +35,7 @@ export class RolesService {
     }
   }
 
-  async findAllByCompany(companyId: string) {
+  async findAllByCompany(companyId: string, query: FindCompanyRolesQueryDto = {}) {
     const company = await this.prisma.company.findUnique({
       where: { id: companyId },
       select: { id: true },
@@ -44,18 +45,35 @@ export class RolesService {
       throw new NotFoundException('Company not found');
     }
 
-    return this.prisma.role.findMany({
-      where: { companyId },
-      select: {
-        id: true,
-        name: true,
-        description: true,
-        createdAt: true,
-      },
-      orderBy: {
-        createdAt: 'asc',
-      },
-    });
+    const page = query.page ?? 1;
+    const pageSize = query.pageSize ?? 10;
+    const sortBy = (query.sortBy ?? 'name') as CompanyRoleSortField;
+    const sortOrder = query.sortOrder ?? 'asc';
+
+    const [items, total] = await Promise.all([
+      this.prisma.role.findMany({
+        where: { companyId },
+        select: {
+          id: true,
+          name: true,
+          description: true,
+          createdAt: true,
+        },
+        orderBy: { [sortBy]: sortOrder },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      this.prisma.role.count({
+        where: { companyId },
+      }),
+    ]);
+
+    return {
+      items,
+      total,
+      page,
+      pageSize,
+    };
   }
 
   async findOne(id: string) {

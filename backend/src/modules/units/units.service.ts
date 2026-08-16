@@ -3,6 +3,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { Prisma } from '@prisma/client';
 import { CreateUnitDto } from './dto/create-unit.dto';
 import { UpdateUnitDto } from './dto/update-unit.dto';
+import { COMPANY_UNIT_SORT_FIELD_MAP, FindCompanyUnitsQueryDto, CompanyUnitSortField } from './dto/find-company-units-query.dto';
 
 @Injectable()
 export class UnitsService {
@@ -34,7 +35,7 @@ export class UnitsService {
     }
   }
 
-  async findAllByCompany(companyId: string) {
+  async findAllByCompany(companyId: string, query: FindCompanyUnitsQueryDto = {}) {
     const company = await this.prisma.company.findUnique({
       where: { id: companyId },
       select: { id: true },
@@ -44,19 +45,37 @@ export class UnitsService {
       throw new NotFoundException('Company not found');
     }
 
-    return this.prisma.unit.findMany({
-      where: { companyId },
-      select: {
-        id: true,
-        name: true,
-        description: true,
-        displayOrder: true,
-        createdAt: true,
-      },
-      orderBy: {
-        displayOrder: 'asc',
-      },
-    });
+    const page = query.page ?? 1;
+    const pageSize = query.pageSize ?? 10;
+    const sortBy = (query.sortBy ?? 'displayOrder') as CompanyUnitSortField;
+    const sortOrder = query.sortOrder ?? 'asc';
+    const orderField = COMPANY_UNIT_SORT_FIELD_MAP[sortBy];
+
+    const [items, total] = await Promise.all([
+      this.prisma.unit.findMany({
+        where: { companyId },
+        select: {
+          id: true,
+          name: true,
+          description: true,
+          displayOrder: true,
+          createdAt: true,
+        },
+        orderBy: { [orderField]: sortOrder },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      this.prisma.unit.count({
+        where: { companyId },
+      }),
+    ]);
+
+    return {
+      items,
+      total,
+      page,
+      pageSize,
+    };
   }
 
   async findOne(id: string) {

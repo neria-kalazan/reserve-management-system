@@ -28,8 +28,8 @@ export const appRoutes: AppRouteItem[] = [
   {
     key: 'users',
     path: '/users',
-    label: 'חיילים',
-    description: 'ניהול אנשי צוות החברה',
+    label: 'כוח אדם',
+    description: 'ניהול אנשי החברה',
     icon: Users,
     requiredPermission: 'MANAGE_COMPANIES',
   },
@@ -52,8 +52,8 @@ export const appRoutes: AppRouteItem[] = [
   {
     key: 'units',
     path: '/units',
-    label: 'יחידות',
-    description: 'ניהול יחידות החברה',
+    label: 'מסגרות',
+    description: 'ניהול מסגרות החברה',
     icon: Shield,
     requiredPermission: 'MANAGE_COMPANIES',
   },

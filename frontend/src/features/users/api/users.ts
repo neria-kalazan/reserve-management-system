@@ -27,7 +27,17 @@ export interface CompanyUser {
   email: string | null
   personalNumber: string
   isActive: boolean
+  createdAt?: string
   unit: CompanyUnit | null
+  roles: CompanyRole[]
+  qualifications: CompanyQualification[]
+}
+
+export interface CompanyUsersPageResult {
+  items: CompanyUser[]
+  total: number
+  page: number
+  pageSize: number
 }
 
 export interface CreateUserInput {
@@ -59,8 +69,8 @@ export interface UserImportResult {
   errors: UserImportRowError[]
 }
 
-export const getCompanyUsers = (companyId: string) =>
-  api.get<CompanyUser[]>(`/companies/${encodeURIComponent(companyId)}/users`)
+export const getCompanyUsers = (companyId: string, params?: { page?: number; pageSize?: number; sortBy?: string; sortOrder?: 'asc' | 'desc' }) =>
+  api.get<CompanyUsersPageResult>(`/companies/${encodeURIComponent(companyId)}/users`, { params })
 
 export const importCompanyUsers = (companyId: string, file: File) => {
   const formData = new FormData()

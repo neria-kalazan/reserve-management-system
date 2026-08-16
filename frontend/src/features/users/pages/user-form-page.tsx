@@ -157,7 +157,7 @@ export function UserFormPage() {
     }
 
     if (!form.unitId) {
-      nextErrors.unitId = 'יש לבחור יחידה.'
+      nextErrors.unitId = 'יש לבחור מסגרת.'
     }
 
     setErrors(nextErrors)
@@ -221,18 +221,18 @@ export function UserFormPage() {
       await syncAssignments(userId, form.roleIds, form.qualificationIds)
       navigate('/users')
     } catch (error) {
-      setSaveError(error instanceof Error ? error.message : 'לא הצלחנו לשמור את החייל.')
+      setSaveError(error instanceof Error ? error.message : 'לא הצלחנו לשמור את כוח האדם.')
     }
   }
 
-  const title = isEditMode ? 'עריכת חייל' : 'יצירת חייל'
+  const title = isEditMode ? 'עריכת כוח אדם' : 'יצירת כוח אדם'
 
   if (isLoading) {
     return (
       <>
-        <PageHeader title={title} description="מכין את טופס החייל." />
+        <PageHeader title={title} description="מכין את טופס כוח האדם." />
         <ContentContainer className="pb-10">
-          <LoadingState title="טוען אפשרויות חייל" description="טוענים יחידות, תפקידים והסמכות." />
+          <LoadingState title="טוען אפשרויות כוח אדם" description="טוענים מסגרות, תפקידים והסמכות." />
         </ContentContainer>
       </>
     )
@@ -241,10 +241,10 @@ export function UserFormPage() {
   if (isError) {
     return (
       <>
-        <PageHeader title={title} description="לא ניתן לטעון את נתוני החייל." />
+        <PageHeader title={title} description="לא ניתן לטעון את נתוני כוח האדם." />
         <ContentContainer className="pb-10">
           <ErrorState
-            title="טעינת נתוני החייל נכשל"
+            title="טעינת נתוני כוח האדם נכשלה"
             description="לא הצלחנו לטעון את הנתונים הדרושים לטופס. אפשר לנסות שוב."
             action={
               <Button type="button" variant="secondary" onClick={() => window.location.reload()}>
@@ -261,7 +261,7 @@ export function UserFormPage() {
     <>
       <PageHeader
         title={title}
-        description={isEditMode ? 'עדכון פרטי חייל והקצאת תפקידים והסמכות.' : 'יצירת חייל חדש בתוך החברה הנוכחית.'}
+        description={isEditMode ? 'עדכון פרטי כוח האדם והקצאת תפקידים והסמכות.' : 'יצירת כוח אדם חדש בתוך החברה הנוכחית.'}
       />
 
       <ContentContainer className="pb-10">
@@ -326,7 +326,7 @@ export function UserFormPage() {
               </div>
 
               <div className="space-y-2 md:col-span-2">
-                <Label htmlFor="unit-select">יחידה</Label>
+                <Label htmlFor="unit-select">מסגרת</Label>
                 <select
                   id="unit-select"
                   value={form.unitId}
@@ -334,7 +334,7 @@ export function UserFormPage() {
                   className="flex h-10 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
                   aria-invalid={Boolean(errors.unitId)}
                 >
-                  <option value="">בחר יחידה</option>
+                  <option value="">בחר מסגרת</option>
                   {unitOptions.map((unit) => (
                     <option key={unit.id} value={unit.id}>
                       {unit.name}
@@ -390,7 +390,7 @@ export function UserFormPage() {
                 loading={createUserMutation.isPending || updateUserMutation.isPending}
                 onClick={() => void onSubmit()}
               >
-                שמירת חייל
+                שמירת כוח אדם
               </Button>
               <Button type="button" variant="secondary" onClick={() => navigate('/users')}>
                 ביטול

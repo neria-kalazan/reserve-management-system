@@ -20,7 +20,7 @@ const useDeleteUnitMock = vi.mocked(useDeleteUnit)
 
 const makeUnit = (index: number) => ({
   id: `unit-${index}`,
-  name: `יחידה ${index}`,
+  name: `מסגרת ${index}`,
   description: `תיאור ${index}`,
   displayOrder: index,
   createdAt: '2026-01-01T00:00:00.000Z',
@@ -60,7 +60,7 @@ describe('UnitsPage', () => {
     useCompanyUnitsMock.mockReturnValue({
       isPending: false,
       isError: false,
-      data: units,
+      data: { items: units, total: 22, page: 1, pageSize: 10 },
       refetch: vi.fn(),
     } as unknown as ReturnType<typeof useCompanyUnits>)
     useDeleteUnitMock.mockReturnValue({
@@ -76,7 +76,7 @@ describe('UnitsPage', () => {
 
     expect(screen.getByText('מסגרות')).toBeDefined()
     expect(screen.getByRole('button', { name: 'יצירת מסגרת' })).toBeDefined()
-    expect(screen.getByText('יחידה 1')).toBeDefined()
+    expect(screen.getByText('מסגרת 1')).toBeDefined()
     expect(screen.getByText('תיאור 1')).toBeDefined()
     expect(screen.getByRole('button', { name: 'הבא' })).toBeDefined()
     expect(screen.getAllByRole('button', { name: 'עריכה' }).length).toBeGreaterThan(0)
@@ -89,7 +89,7 @@ describe('UnitsPage', () => {
     useCompanyUnitsMock.mockReturnValue({
       isPending: false,
       isError: false,
-      data: makeUnits(2),
+      data: { items: makeUnits(2), total: 2, page: 1, pageSize: 10 },
       refetch: vi.fn(),
     } as unknown as ReturnType<typeof useCompanyUnits>)
     useDeleteUnitMock.mockReturnValue({
@@ -116,7 +116,7 @@ describe('UnitsPage', () => {
     useCompanyUnitsMock.mockReturnValue({
       isPending: false,
       isError: false,
-      data: makeUnits(2),
+      data: { items: makeUnits(2), total: 2, page: 1, pageSize: 10 },
       refetch: vi.fn(),
     } as unknown as ReturnType<typeof useCompanyUnits>)
     useDeleteUnitMock.mockReturnValue({
@@ -142,7 +142,7 @@ describe('UnitsPage', () => {
     useCompanyUnitsMock.mockReturnValue({
       isPending: false,
       isError: false,
-      data: makeUnits(2),
+      data: { items: makeUnits(2), total: 2, page: 1, pageSize: 10 },
       refetch: vi.fn(),
     } as unknown as ReturnType<typeof useCompanyUnits>)
     useDeleteUnitMock.mockReturnValue({
@@ -168,7 +168,7 @@ describe('UnitsPage', () => {
     useCompanyUnitsMock.mockReturnValue({
       isPending: false,
       isError: false,
-      data: units,
+      data: { items: units, total: 3, page: 1, pageSize: 10 },
       refetch: vi.fn(),
     } as unknown as ReturnType<typeof useCompanyUnits>)
 
@@ -178,7 +178,7 @@ describe('UnitsPage', () => {
       </MemoryRouter>,
     )
 
-    expect(useCompanyUnitsMock).toHaveBeenCalledWith('company-1')
+    expect(useCompanyUnitsMock).toHaveBeenCalledWith('company-1', { page: 1, pageSize: 10, sortBy: 'displayOrder', sortOrder: 'asc' })
   })
 
   it('renders the error and empty states without breaking the page', () => {
@@ -201,7 +201,7 @@ describe('UnitsPage', () => {
     useCompanyUnitsMock.mockReturnValue({
       isPending: false,
       isError: false,
-      data: [],
+      data: { items: [], total: 0, page: 1, pageSize: 10 },
       refetch: vi.fn(),
     } as unknown as ReturnType<typeof useCompanyUnits>)
 
@@ -220,7 +220,7 @@ describe('UnitsPage', () => {
     useCompanyUnitsMock.mockReturnValue({
       isPending: false,
       isError: false,
-      data: units,
+      data: { items: units.slice(10, 22), total: 22, page: 2, pageSize: 10 },
       refetch: vi.fn(),
     } as unknown as ReturnType<typeof useCompanyUnits>)
 
@@ -230,9 +230,7 @@ describe('UnitsPage', () => {
       </MemoryRouter>,
     )
 
-    fireEvent.click(screen.getByRole('button', { name: 'הבא' }))
-
-    expect(screen.getByText('יחידה 11')).toBeDefined()
-    expect(screen.queryByText('יחידה 1')).toBeNull()
+    expect(screen.getByText('מסגרת 11')).toBeDefined()
+    expect(screen.queryByText('מסגרת 1')).toBeNull()
   })
 })

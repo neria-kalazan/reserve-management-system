@@ -25,6 +25,13 @@ const makeRole = (index: number) => ({
   createdAt: '2026-01-01T00:00:00.000Z',
 })
 
+const makePageData = (roles: ReturnType<typeof makeRole>[], page = 1, pageSize = 10) => ({
+  items: roles.slice((page - 1) * pageSize, page * pageSize),
+  total: roles.length,
+  page,
+  pageSize,
+})
+
 const makeRoles = (count: number) => Array.from({ length: count }, (_, index) => makeRole(index + 1))
 
 describe('RolesPage', () => {
@@ -59,7 +66,7 @@ describe('RolesPage', () => {
     useCompanyRolesMock.mockReturnValue({
       isPending: false,
       isError: false,
-      data: roles,
+      data: makePageData(roles),
       refetch: vi.fn(),
     } as unknown as ReturnType<typeof useCompanyRoles>)
 
@@ -84,7 +91,7 @@ describe('RolesPage', () => {
     useCompanyRolesMock.mockReturnValue({
       isPending: false,
       isError: false,
-      data: roles,
+      data: makePageData(roles),
       refetch: vi.fn(),
     } as unknown as ReturnType<typeof useCompanyRoles>)
     useDeleteRoleMock.mockReturnValue({
@@ -111,7 +118,7 @@ describe('RolesPage', () => {
     useCompanyRolesMock.mockReturnValue({
       isPending: false,
       isError: false,
-      data: makeRoles(2),
+      data: makePageData(makeRoles(2)),
       refetch: vi.fn(),
     } as unknown as ReturnType<typeof useCompanyRoles>)
     useDeleteRoleMock.mockReturnValue({
@@ -137,7 +144,7 @@ describe('RolesPage', () => {
     useCompanyRolesMock.mockReturnValue({
       isPending: false,
       isError: false,
-      data: makeRoles(2),
+      data: makePageData(makeRoles(2)),
       refetch: vi.fn(),
     } as unknown as ReturnType<typeof useCompanyRoles>)
     useDeleteRoleMock.mockReturnValue({
@@ -177,7 +184,7 @@ describe('RolesPage', () => {
     useCompanyRolesMock.mockReturnValue({
       isPending: false,
       isError: false,
-      data: [],
+      data: { items: [], total: 0, page: 1, pageSize: 10 },
       refetch: vi.fn(),
     } as unknown as ReturnType<typeof useCompanyRoles>)
 
@@ -193,12 +200,12 @@ describe('RolesPage', () => {
   it('moves to the next page and shows the next slice of roles', () => {
     const roles = makeRoles(22)
 
-    useCompanyRolesMock.mockReturnValue({
+    useCompanyRolesMock.mockImplementation((_companyId, params) => ({
       isPending: false,
       isError: false,
-      data: roles,
+      data: makePageData(roles, params?.page ?? 1, params?.pageSize ?? 10),
       refetch: vi.fn(),
-    } as unknown as ReturnType<typeof useCompanyRoles>)
+    } as unknown as ReturnType<typeof useCompanyRoles>))
 
     render(
       <MemoryRouter>
@@ -208,7 +215,94 @@ describe('RolesPage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'הבא' }))
 
+    expect(useCompanyRolesMock).toHaveBeenLastCalledWith(
+      'company-1',
+      expect.objectContaining({ page: 2, pageSize: 10, sortBy: 'name', sortOrder: 'asc' }),
+    )
     expect(screen.getByText('תפקיד 11')).toBeDefined()
     expect(screen.queryByText('תפקיד 1')).toBeNull()
+  })
+
+  it('shows the correct range text and handles zero records without invalid ranges', () => {
+    useCompanyRolesMock.mockReturnValue({
+      isPending: false,
+      isError: false,
+      data: makePageData(makeRoles(22), 2, 10),
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useCompanyRoles>)
+
+    const { rerender } = render(
+      <MemoryRouter>
+        <RolesPage />
+      </MemoryRouter>,
+    )
+
+    expect(document.body.textContent).toMatch(/מציג.*1.*10.*22.*רשומות/i)
+
+    useCompanyRolesMock.mockReturnValue({
+      isPending: false,
+      isError: false,
+      data: { items: [], total: 0, page: 1, pageSize: 10 },
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useCompanyRoles>)
+
+    rerender(
+      <MemoryRouter>
+        <RolesPage />
+      </MemoryRouter>,
+    )
+
+    expect(screen.getByText('אין רשומות להצגה')).toBeDefined()
+  })
+
+  it('changes the page size, resets to page one, and requests the selected size', () => {
+    const roles = makeRoles(50)
+    useCompanyRolesMock.mockImplementation((_companyId, params) => ({
+      isPending: false,
+      isError: false,
+      data: makePageData(roles, params?.page ?? 1, params?.pageSize ?? 10),
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useCompanyRoles>))
+
+    render(
+      <MemoryRouter>
+        <RolesPage />
+      </MemoryRouter>,
+    )
+
+    fireEvent.change(screen.getByLabelText('מספר רשומות לעמוד'), { target: { value: '25' } })
+
+    expect(useCompanyRolesMock).toHaveBeenLastCalledWith(
+      'company-1',
+      expect.objectContaining({ page: 1, pageSize: 25, sortBy: 'name', sortOrder: 'asc' }),
+    )
+  })
+
+  it('sorts by a column, toggles order, and resets pagination to page one', () => {
+    const roles = makeRoles(20)
+    useCompanyRolesMock.mockImplementation((_companyId, params) => ({
+      isPending: false,
+      isError: false,
+      data: makePageData(roles, params?.page ?? 1, params?.pageSize ?? 10),
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useCompanyRoles>))
+
+    render(
+      <MemoryRouter>
+        <RolesPage />
+      </MemoryRouter>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'מיון לפי תיאור' }))
+    expect(useCompanyRolesMock).toHaveBeenLastCalledWith(
+      'company-1',
+      expect.objectContaining({ page: 1, pageSize: 10, sortBy: 'description', sortOrder: 'asc' }),
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'מיון לפי תיאור' }))
+    expect(useCompanyRolesMock).toHaveBeenLastCalledWith(
+      'company-1',
+      expect.objectContaining({ page: 1, pageSize: 10, sortBy: 'description', sortOrder: 'desc' }),
+    )
   })
 })

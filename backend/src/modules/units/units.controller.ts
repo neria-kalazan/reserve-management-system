@@ -1,10 +1,11 @@
-import { Controller, Get, Post, Patch, Delete, Param, Body, UseGuards, UsePipes, ValidationPipe } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Param, Body, Query, UseGuards, UsePipes, ValidationPipe } from '@nestjs/common';
 import { AuthGuard } from '../auth/auth.guard';
 import { PermissionGuard } from '../auth/permission.guard';
 import { RequirePermission } from '../auth/permission.decorator';
 import { UnitsService } from './units.service';
 import { CreateUnitDto } from './dto/create-unit.dto';
 import { UpdateUnitDto } from './dto/update-unit.dto';
+import { FindCompanyUnitsQueryDto } from './dto/find-company-units-query.dto';
 
 @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
 @UseGuards(AuthGuard, PermissionGuard)
@@ -19,8 +20,8 @@ export class UnitsController {
   }
 
   @Get('companies/:companyId/units')
-  findAllByCompany(@Param('companyId') companyId: string) {
-    return this.unitsService.findAllByCompany(companyId);
+  findAllByCompany(@Param('companyId') companyId: string, @Query() query: FindCompanyUnitsQueryDto) {
+    return this.unitsService.findAllByCompany(companyId, query);
   }
 
   @Get('units/:id')

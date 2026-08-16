@@ -3,6 +3,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { Prisma } from '@prisma/client';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { CompanyUserSortField, FindCompanyUsersQueryDto } from './dto/find-company-users-query.dto';
 
 @Injectable()
 export class UsersService {
@@ -62,7 +63,7 @@ export class UsersService {
     }
   }
 
-  async findAllByCompany(companyId: string) {
+  async findAllByCompany(companyId: string, query: FindCompanyUsersQueryDto = {}) {
     const company = await this.prisma.company.findUnique({
       where: { id: companyId },
       select: { id: true },
@@ -72,26 +73,72 @@ export class UsersService {
       throw new NotFoundException('Company not found');
     }
 
-    return this.prisma.user.findMany({
-      where: { companyId, isActive: true },
-      select: {
-        id: true,
-        firstName: true,
-        lastName: true,
-        phone: true,
-        email: true,
-        personalNumber: true,
-        isActive: true,
-        unit: {
-          select: {
-            id: true,
-            name: true,
-            description: true,
-            displayOrder: true,
+    const page = query.page ?? 1;
+    const pageSize = query.pageSize ?? 10;
+    const sortBy = (query.sortBy ?? 'firstName') as CompanyUserSortField;
+    const sortOrder = query.sortOrder ?? 'asc';
+
+    const where = { companyId, isActive: true };
+    const [rawItems, total] = await Promise.all([
+      this.prisma.user.findMany({
+        where,
+        orderBy: { [sortBy]: sortOrder },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          phone: true,
+          email: true,
+          personalNumber: true,
+          isActive: true,
+          createdAt: true,
+          unit: {
+            select: {
+              id: true,
+              name: true,
+              description: true,
+              displayOrder: true,
+            },
+          },
+          userRoles: {
+            select: {
+              role: {
+                select: {
+                  id: true,
+                  name: true,
+                },
+              },
+            },
+          },
+          userQualifications: {
+            select: {
+              qualification: {
+                select: {
+                  id: true,
+                  name: true,
+                },
+              },
+            },
           },
         },
-      },
-    });
+      }),
+      this.prisma.user.count({ where }),
+    ]);
+
+    const items = rawItems.map((user) => ({
+      ...user,
+      roles: user.userRoles.map((relation) => relation.role),
+      qualifications: user.userQualifications.map((relation) => relation.qualification),
+    }));
+
+    return {
+      items,
+      total,
+      page,
+      pageSize,
+    };
   }
 
   async findOne(id: string) {

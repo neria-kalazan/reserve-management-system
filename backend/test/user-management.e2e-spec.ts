@@ -272,8 +272,13 @@ describe('User management e2e', () => {
       .get(`/companies/${companyId}/users`)
       .expect(200)
       .expect((res) => {
-        expect(res.body).toHaveLength(1);
-        expect(res.body[0].personalNumber).toBe('P-001');
+        expect(res.body).toMatchObject({
+          page: 1,
+          pageSize: 10,
+          total: 1,
+        });
+        expect(res.body.items).toHaveLength(1);
+        expect(res.body.items[0].personalNumber).toBe('P-001');
       });
 
     await request(app.getHttpServer())

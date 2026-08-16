@@ -7,6 +7,13 @@ export interface CompanyQualification {
   createdAt?: string
 }
 
+export interface CompanyQualificationsPageResult {
+  items: CompanyQualification[]
+  total: number
+  page: number
+  pageSize: number
+}
+
 export interface CreateQualificationInput {
   name: string
   description?: string | null
@@ -17,8 +24,10 @@ export interface UpdateQualificationInput {
   description?: string | null
 }
 
-export const getCompanyQualifications = (companyId: string) =>
-  api.get<CompanyQualification[]>(`/companies/${encodeURIComponent(companyId)}/qualifications`)
+export const getCompanyQualifications = (
+  companyId: string,
+  params?: { page?: number; pageSize?: number; sortBy?: string; sortOrder?: 'asc' | 'desc' },
+) => api.get<CompanyQualificationsPageResult>(`/companies/${encodeURIComponent(companyId)}/qualifications`, { params })
 
 export const getQualificationById = (qualificationId: string) =>
   api.get<CompanyQualification>(`/qualifications/${encodeURIComponent(qualificationId)}`)

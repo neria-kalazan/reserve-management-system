@@ -21,6 +21,69 @@ describe('UnitsService', () => {
     expect(res).toBeDefined();
   });
 
+  it('findAllByCompany: applies default pagination and count metadata', async () => {
+    prisma.company.findUnique.mockResolvedValue({ id: 'c1' });
+    prisma.unit.findMany.mockResolvedValue([
+      { id: 'u1', name: 'מסגרת א', description: 'תיאור א', displayOrder: 1, createdAt: '2024-01-01T00:00:00.000Z' },
+      { id: 'u2', name: 'מסגרת ב', description: 'תיאור ב', displayOrder: 2, createdAt: '2024-01-02T00:00:00.000Z' },
+    ]);
+    prisma.unit.count.mockResolvedValue(2);
+
+    const result = await service.findAllByCompany('c1');
+
+    expect(prisma.unit.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { companyId: 'c1' },
+      orderBy: { displayOrder: 'asc' },
+      skip: 0,
+      take: 10,
+    }));
+    expect(result).toMatchObject({
+      items: expect.any(Array),
+      total: 2,
+      page: 1,
+      pageSize: 10,
+    });
+  });
+
+  it('findAllByCompany: respects explicit page, pageSize and sortBy', async () => {
+    prisma.company.findUnique.mockResolvedValue({ id: 'c1' });
+    prisma.unit.findMany.mockResolvedValue([
+      { id: 'u2', name: 'מסגרת ב', description: 'תיאור ב', displayOrder: 2, createdAt: '2024-01-02T00:00:00.000Z' },
+    ]);
+    prisma.unit.count.mockResolvedValue(1);
+
+    const result = await service.findAllByCompany('c1', {
+      page: 2,
+      pageSize: 5,
+      sortBy: 'name',
+      sortOrder: 'desc',
+    } as any);
+
+    expect(prisma.unit.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { companyId: 'c1' },
+      orderBy: { name: 'desc' },
+      skip: 5,
+      take: 5,
+    }));
+    expect(result).toMatchObject({ total: 1, page: 2, pageSize: 5 });
+  });
+
+  it('findAllByCompany: returns empty result set without crashing', async () => {
+    prisma.company.findUnique.mockResolvedValue({ id: 'c1' });
+    prisma.unit.findMany.mockResolvedValue([]);
+    prisma.unit.count.mockResolvedValue(0);
+
+    const result = await service.findAllByCompany('c1', { page: 1, pageSize: 10, sortBy: 'name', sortOrder: 'asc' } as any);
+
+    expect(result).toEqual({ items: [], total: 0, page: 1, pageSize: 10 });
+  });
+
+  it('findAllByCompany: enforces company scoping and throws when company missing', async () => {
+    prisma.company.findUnique.mockResolvedValue(null);
+
+    await expect(service.findAllByCompany('missing-company')).rejects.toThrow('Company not found');
+  });
+
   it('delete: removes an existing unit with no assigned personnel', async () => {
     prisma.unit.findUnique.mockResolvedValue({ id: 'u1', companyId: 'c1', name: 'מסגרת A' });
     prisma.user.count.mockResolvedValue(0);

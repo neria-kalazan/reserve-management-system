@@ -64,7 +64,7 @@ export function UnitFormPage() {
     const nextErrors: Partial<Record<keyof UnitFormState, string>> = {}
 
     if (!form.name.trim()) {
-      nextErrors.name = 'יש להזין שם יחידה.'
+      nextErrors.name = 'יש להזין שם מסגרת.'
     }
 
     if (!form.displayOrder.trim()) {
@@ -112,18 +112,18 @@ export function UnitFormPage() {
 
       navigate('/units')
     } catch (error) {
-      setSaveError(error instanceof Error ? error.message : 'לא הצלחנו לשמור את היחידה.')
+      setSaveError(error instanceof Error ? error.message : 'לא הצלחנו לשמור את המסגרת.')
     }
   }
 
-  const title = isEditMode ? 'עריכת יחידה' : 'יצירת יחידה'
+  const title = isEditMode ? 'עריכת מסגרת' : 'יצירת מסגרת'
 
   if (isEditMode && unitQuery.isPending) {
     return (
       <>
-        <PageHeader title={title} description="מכין את טופס היחידה." />
+        <PageHeader title={title} description="מכין את טופס המסגרת." />
         <ContentContainer className="pb-10">
-          <LoadingState title="טוען יחידה" description="הנתונים של היחידה נטענים כעת." />
+          <LoadingState title="טוען מסגרת" description="הנתונים של המסגרת נטענים כעת." />
         </ContentContainer>
       </>
     )
@@ -132,11 +132,11 @@ export function UnitFormPage() {
   if (isEditMode && unitQuery.isError) {
     return (
       <>
-        <PageHeader title={title} description="לא ניתן לטעון את היחידה." />
+        <PageHeader title={title} description="לא ניתן לטעון את המסגרת." />
         <ContentContainer className="pb-10">
           <ErrorState
-            title="טעינת היחידה נכשלה"
-            description="לא הצלחנו לטעון את היחידה. אפשר לנסות שוב."
+            title="טעינת המסגרת נכשלה"
+            description="לא הצלחנו לטעון את המסגרת. אפשר לנסות שוב."
             action={
               <Button type="button" variant="secondary" onClick={() => window.location.reload()}>
                 ניסיון חוזר
@@ -152,7 +152,7 @@ export function UnitFormPage() {
     <>
       <PageHeader
         title={title}
-        description={isEditMode ? 'עדכון פרטי היחידה בתוך החברה.' : 'יצירת יחידה חדשה בתוך החברה הנוכחית.'}
+        description={isEditMode ? 'עדכון פרטי המסגרת בתוך החברה.' : 'יצירת מסגרת חדשה בתוך החברה הנוכחית.'}
       />
 
       <ContentContainer className="pb-10">
@@ -162,12 +162,12 @@ export function UnitFormPage() {
           </CardHeader>
           <CardContent className="space-y-5">
             {saveError ? (
-              <ErrorState title="שמירת היחידה נכשלה" description={saveError} />
+              <ErrorState title="שמירת המסגרת נכשלה" description={saveError} />
             ) : null}
 
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="unit-name">שם היחידה</Label>
+                <Label htmlFor="unit-name">שם המסגרת</Label>
                 <Input
                   id="unit-name"
                   value={form.name}
@@ -208,7 +208,7 @@ export function UnitFormPage() {
                   loading={createUnitMutation.isPending || updateUnitMutation.isPending}
                   disabled={createUnitMutation.isPending || updateUnitMutation.isPending}
                 >
-                  שמירת יחידה
+                  שמירת מסגרת
                 </Button>
               </div>
             </div>

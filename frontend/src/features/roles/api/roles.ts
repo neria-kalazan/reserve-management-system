@@ -7,6 +7,13 @@ export interface CompanyRole {
   createdAt?: string
 }
 
+export interface CompanyRolesPageResult {
+  items: CompanyRole[]
+  total: number
+  page: number
+  pageSize: number
+}
+
 export interface CreateRoleInput {
   name: string
   description?: string | null
@@ -17,8 +24,10 @@ export interface UpdateRoleInput {
   description?: string | null
 }
 
-export const getCompanyRoles = (companyId: string) =>
-  api.get<CompanyRole[]>(`/companies/${encodeURIComponent(companyId)}/roles`)
+export const getCompanyRoles = (
+  companyId: string,
+  params?: { page?: number; pageSize?: number; sortBy?: string; sortOrder?: 'asc' | 'desc' },
+) => api.get<CompanyRolesPageResult>(`/companies/${encodeURIComponent(companyId)}/roles`, { params })
 
 export const getRoleById = (roleId: string) =>
   api.get<CompanyRole>(`/roles/${encodeURIComponent(roleId)}`)

@@ -1,10 +1,11 @@
-import { Controller, Get, Post, Patch, Delete, Param, Body, UseGuards, UsePipes, ValidationPipe } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Param, Body, Query, UseGuards, UsePipes, ValidationPipe } from '@nestjs/common';
 import { AuthGuard } from '../auth/auth.guard';
 import { PermissionGuard } from '../auth/permission.guard';
 import { RequirePermission } from '../auth/permission.decorator';
 import { RolesService } from './roles.service';
 import { CreateRoleDto } from './dto/create-role.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
+import { FindCompanyRolesQueryDto } from './dto/find-company-roles-query.dto';
 
 @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
 @UseGuards(AuthGuard, PermissionGuard)
@@ -19,8 +20,11 @@ export class RolesController {
   }
 
   @Get('companies/:companyId/roles')
-  findAllByCompany(@Param('companyId') companyId: string) {
-    return this.rolesService.findAllByCompany(companyId);
+  findAllByCompany(
+    @Param('companyId') companyId: string,
+    @Query() query: FindCompanyRolesQueryDto,
+  ) {
+    return this.rolesService.findAllByCompany(companyId, query);
   }
 
   @Get('roles/:id')

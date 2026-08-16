@@ -25,6 +25,13 @@ const makeQualification = (index: number) => ({
   createdAt: '2026-01-01T00:00:00.000Z',
 })
 
+const makePageData = (qualifications: ReturnType<typeof makeQualification>[], page = 1, pageSize = 10) => ({
+  items: qualifications.slice((page - 1) * pageSize, page * pageSize),
+  total: qualifications.length,
+  page,
+  pageSize,
+})
+
 const makeQualifications = (count: number) => Array.from({ length: count }, (_, index) => makeQualification(index + 1))
 
 describe('QualificationsPage', () => {
@@ -59,7 +66,7 @@ describe('QualificationsPage', () => {
     useCompanyQualificationsMock.mockReturnValue({
       isPending: false,
       isError: false,
-      data: qualifications,
+      data: makePageData(qualifications),
       refetch: vi.fn(),
     } as unknown as ReturnType<typeof useCompanyQualifications>)
     useDeleteQualificationMock.mockReturnValue({
@@ -88,7 +95,7 @@ describe('QualificationsPage', () => {
     useCompanyQualificationsMock.mockReturnValue({
       isPending: false,
       isError: false,
-      data: makeQualifications(2),
+      data: makePageData(makeQualifications(2)),
       refetch: vi.fn(),
     } as unknown as ReturnType<typeof useCompanyQualifications>)
     useDeleteQualificationMock.mockReturnValue({
@@ -115,7 +122,7 @@ describe('QualificationsPage', () => {
     useCompanyQualificationsMock.mockReturnValue({
       isPending: false,
       isError: false,
-      data: makeQualifications(2),
+      data: makePageData(makeQualifications(2)),
       refetch: vi.fn(),
     } as unknown as ReturnType<typeof useCompanyQualifications>)
     useDeleteQualificationMock.mockReturnValue({
@@ -141,7 +148,7 @@ describe('QualificationsPage', () => {
     useCompanyQualificationsMock.mockReturnValue({
       isPending: false,
       isError: false,
-      data: makeQualifications(2),
+      data: makePageData(makeQualifications(2)),
       refetch: vi.fn(),
     } as unknown as ReturnType<typeof useCompanyQualifications>)
     useDeleteQualificationMock.mockReturnValue({
@@ -181,7 +188,7 @@ describe('QualificationsPage', () => {
     useCompanyQualificationsMock.mockReturnValue({
       isPending: false,
       isError: false,
-      data: [],
+      data: { items: [], total: 0, page: 1, pageSize: 10 },
       refetch: vi.fn(),
     } as unknown as ReturnType<typeof useCompanyQualifications>)
 
@@ -197,12 +204,12 @@ describe('QualificationsPage', () => {
   it('moves to the next page and shows the next slice of qualifications', () => {
     const qualifications = makeQualifications(22)
 
-    useCompanyQualificationsMock.mockReturnValue({
+    useCompanyQualificationsMock.mockImplementation((_companyId, params) => ({
       isPending: false,
       isError: false,
-      data: qualifications,
+      data: makePageData(qualifications, params?.page ?? 1, params?.pageSize ?? 10),
       refetch: vi.fn(),
-    } as unknown as ReturnType<typeof useCompanyQualifications>)
+    } as unknown as ReturnType<typeof useCompanyQualifications>))
 
     render(
       <MemoryRouter>
@@ -212,7 +219,77 @@ describe('QualificationsPage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'הבא' }))
 
+    expect(useCompanyQualificationsMock).toHaveBeenLastCalledWith(
+      'company-1',
+      expect.objectContaining({ page: 2, pageSize: 10, sortBy: 'name', sortOrder: 'asc' }),
+    )
     expect(screen.getByText('הסמכה 11')).toBeDefined()
     expect(screen.queryByText('הסמכה 1')).toBeNull()
+  })
+
+  it('shows pagination range text and handles empty states correctly', () => {
+    useCompanyQualificationsMock.mockReturnValue({
+      isPending: false,
+      isError: false,
+      data: makePageData(makeQualifications(22), 2, 10),
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useCompanyQualifications>)
+
+    const { rerender } = render(
+      <MemoryRouter>
+        <QualificationsPage />
+      </MemoryRouter>,
+    )
+
+    expect(document.body.textContent).toMatch(/מציג.*1.*10.*22.*רשומות/i)
+
+    useCompanyQualificationsMock.mockReturnValue({
+      isPending: false,
+      isError: false,
+      data: { items: [], total: 0, page: 1, pageSize: 10 },
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useCompanyQualifications>)
+
+    rerender(
+      <MemoryRouter>
+        <QualificationsPage />
+      </MemoryRouter>,
+    )
+
+    expect(screen.getByText('אין רשומות להצגה')).toBeDefined()
+  })
+
+  it('changes page size and resets paging when sorting changes', () => {
+    const qualifications = makeQualifications(50)
+    useCompanyQualificationsMock.mockImplementation((_companyId, params) => ({
+      isPending: false,
+      isError: false,
+      data: makePageData(qualifications, params?.page ?? 1, params?.pageSize ?? 10),
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useCompanyQualifications>))
+
+    render(
+      <MemoryRouter>
+        <QualificationsPage />
+      </MemoryRouter>,
+    )
+
+    fireEvent.change(screen.getByLabelText('מספר רשומות לעמוד'), { target: { value: '25' } })
+    expect(useCompanyQualificationsMock).toHaveBeenLastCalledWith(
+      'company-1',
+      expect.objectContaining({ page: 1, pageSize: 25, sortBy: 'name', sortOrder: 'asc' }),
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'מיון לפי תיאור' }))
+    expect(useCompanyQualificationsMock).toHaveBeenLastCalledWith(
+      'company-1',
+      expect.objectContaining({ page: 1, pageSize: 25, sortBy: 'description', sortOrder: 'asc' }),
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'מיון לפי תיאור' }))
+    expect(useCompanyQualificationsMock).toHaveBeenLastCalledWith(
+      'company-1',
+      expect.objectContaining({ page: 1, pageSize: 25, sortBy: 'description', sortOrder: 'desc' }),
+    )
   })
 })

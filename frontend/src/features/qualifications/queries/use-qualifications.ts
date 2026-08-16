@@ -1,8 +1,19 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { useAuthSession } from '@/app/auth/use-auth-session'
-import { deleteQualification, getCompanyQualifications, getQualificationById, patchQualification, postCompanyQualification } from '@/features/qualifications/api/qualifications'
-import type { CompanyQualification, CreateQualificationInput, UpdateQualificationInput } from '@/features/qualifications/api/qualifications'
+import {
+  deleteQualification,
+  getCompanyQualifications,
+  getQualificationById,
+  patchQualification,
+  postCompanyQualification,
+} from '@/features/qualifications/api/qualifications'
+import type {
+  CompanyQualification,
+  CompanyQualificationsPageResult,
+  CreateQualificationInput,
+  UpdateQualificationInput,
+} from '@/features/qualifications/api/qualifications'
 
 export const companyQualificationsQueryKey = (companyId: string | undefined) =>
   ['companies', companyId, 'qualifications'] as const
@@ -10,13 +21,17 @@ export const companyQualificationsQueryKey = (companyId: string | undefined) =>
 export const qualificationDetailQueryKey = (qualificationId: string | undefined) =>
   ['qualifications', qualificationId] as const
 
-export function useCompanyQualifications(companyId: string | undefined) {
+export function useCompanyQualifications(
+  companyId: string | undefined,
+  params?: { page?: number; pageSize?: number; sortBy?: string; sortOrder?: 'asc' | 'desc' },
+) {
   const { isAuthenticated } = useAuthSession()
 
-  return useQuery<CompanyQualification[]>({
-    queryKey: companyQualificationsQueryKey(companyId),
-    queryFn: () => getCompanyQualifications(companyId as string),
+  return useQuery<CompanyQualificationsPageResult>({
+    queryKey: [...companyQualificationsQueryKey(companyId), params ?? {}],
+    queryFn: () => getCompanyQualifications(companyId as string, params),
     enabled: isAuthenticated && typeof companyId === 'string' && companyId.length > 0,
+    placeholderData: (previousData) => previousData as CompanyQualificationsPageResult | undefined,
   })
 }
 

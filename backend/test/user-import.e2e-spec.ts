@@ -180,8 +180,13 @@ describe('User import e2e', () => {
       .get(`/companies/${companyId}/users`)
       .expect(200);
 
-    expect(usersRes.body).toHaveLength(1);
-    expect(usersRes.body[0]).toMatchObject({
+    expect(usersRes.body).toMatchObject({
+      page: 1,
+      pageSize: 10,
+      total: 1,
+    });
+    expect(usersRes.body.items).toHaveLength(1);
+    expect(usersRes.body.items[0]).toMatchObject({
       firstName: 'John',
       lastName: 'Doe',
       personalNumber: '123456789',

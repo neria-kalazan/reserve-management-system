@@ -14,6 +14,7 @@ import type {
   CompanyQualification,
   CompanyRole,
   CompanyUser,
+  CompanyUsersPageResult,
   CreateUserInput,
   UpdateUserInput,
 } from '@/features/users/api/users'
@@ -30,13 +31,17 @@ export const userRolesQueryKey = (userId: string | undefined) =>
 export const userQualificationsQueryKey = (userId: string | undefined) =>
   ['users', userId, 'qualifications'] as const
 
-export function useCompanyUsers(companyId: string | undefined) {
+export function useCompanyUsers(
+  companyId: string | undefined,
+  params?: { page?: number; pageSize?: number; sortBy?: string; sortOrder?: 'asc' | 'desc' },
+) {
   const { isAuthenticated } = useAuthSession()
 
-  return useQuery<CompanyUser[]>({
-    queryKey: companyUsersQueryKey(companyId),
-    queryFn: () => getCompanyUsers(companyId as string),
+  return useQuery<CompanyUsersPageResult>({
+    queryKey: [...companyUsersQueryKey(companyId), params ?? {}],
+    queryFn: () => getCompanyUsers(companyId as string, params),
     enabled: isAuthenticated && typeof companyId === 'string' && companyId.length > 0,
+    placeholderData: (previousData) => previousData as CompanyUsersPageResult | undefined,
   })
 }
 

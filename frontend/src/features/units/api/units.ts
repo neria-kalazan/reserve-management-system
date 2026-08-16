@@ -8,6 +8,13 @@ export interface CompanyUnit {
   createdAt?: string
 }
 
+export interface CompanyUnitsPageResult {
+  items: CompanyUnit[]
+  total: number
+  page: number
+  pageSize: number
+}
+
 export interface CreateUnitInput {
   name: string
   description?: string | null
@@ -20,8 +27,10 @@ export interface UpdateUnitInput {
   displayOrder?: number
 }
 
-export const getCompanyUnits = (companyId: string) =>
-  api.get<CompanyUnit[]>(`/companies/${encodeURIComponent(companyId)}/units`)
+export const getCompanyUnits = (
+  companyId: string,
+  params?: { page?: number; pageSize?: number; sortBy?: string; sortOrder?: 'asc' | 'desc' },
+) => api.get<CompanyUnitsPageResult>(`/companies/${encodeURIComponent(companyId)}/units`, { params })
 
 export const getUnitById = (unitId: string) =>
   api.get<CompanyUnit>(`/units/${encodeURIComponent(unitId)}`)

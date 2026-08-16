@@ -1,8 +1,19 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { useAuthSession } from '@/app/auth/use-auth-session'
-import { deleteRole, getCompanyRoles, getRoleById, patchRole, postCompanyRole } from '@/features/roles/api/roles'
-import type { CompanyRole, CreateRoleInput, UpdateRoleInput } from '@/features/roles/api/roles'
+import {
+  deleteRole,
+  getCompanyRoles,
+  getRoleById,
+  patchRole,
+  postCompanyRole,
+} from '@/features/roles/api/roles'
+import type {
+  CompanyRole,
+  CompanyRolesPageResult,
+  CreateRoleInput,
+  UpdateRoleInput,
+} from '@/features/roles/api/roles'
 
 export const companyRolesQueryKey = (companyId: string | undefined) =>
   ['companies', companyId, 'roles'] as const
@@ -10,13 +21,17 @@ export const companyRolesQueryKey = (companyId: string | undefined) =>
 export const roleDetailQueryKey = (roleId: string | undefined) =>
   ['roles', roleId] as const
 
-export function useCompanyRoles(companyId: string | undefined) {
+export function useCompanyRoles(
+  companyId: string | undefined,
+  params?: { page?: number; pageSize?: number; sortBy?: string; sortOrder?: 'asc' | 'desc' },
+) {
   const { isAuthenticated } = useAuthSession()
 
-  return useQuery<CompanyRole[]>({
-    queryKey: companyRolesQueryKey(companyId),
-    queryFn: () => getCompanyRoles(companyId as string),
+  return useQuery<CompanyRolesPageResult>({
+    queryKey: [...companyRolesQueryKey(companyId), params ?? {}],
+    queryFn: () => getCompanyRoles(companyId as string, params),
     enabled: isAuthenticated && typeof companyId === 'string' && companyId.length > 0,
+    placeholderData: (previousData) => previousData as CompanyRolesPageResult | undefined,
   })
 }
 

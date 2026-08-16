@@ -1,10 +1,11 @@
-import { Controller, Get, Post, Patch, Param, Body, UseGuards, UsePipes, ValidationPipe } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Param, Body, Query, UseGuards, UsePipes, ValidationPipe } from '@nestjs/common';
 import { AuthGuard } from '../auth/auth.guard';
 import { PermissionGuard } from '../auth/permission.guard';
 import { RequirePermission } from '../auth/permission.decorator';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { FindCompanyUsersQueryDto } from './dto/find-company-users-query.dto';
 
 @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
 @UseGuards(AuthGuard, PermissionGuard)
@@ -19,8 +20,11 @@ export class UsersController {
   }
 
   @Get('companies/:companyId/users')
-  findAllByCompany(@Param('companyId') companyId: string) {
-    return this.usersService.findAllByCompany(companyId);
+  findAllByCompany(
+    @Param('companyId') companyId: string,
+    @Query() query: FindCompanyUsersQueryDto,
+  ) {
+    return this.usersService.findAllByCompany(companyId, query);
   }
 
   @Get('users/:id')

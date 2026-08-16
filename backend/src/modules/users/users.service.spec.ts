@@ -1,6 +1,8 @@
-import { UsersService } from './users.service';
-import { NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
+import { validate } from 'class-validator';
+import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { createPrismaMock, prismaClientKnownRequestError } from '../../test/prisma.mock';
+import { FindCompanyUsersQueryDto } from './dto/find-company-users-query.dto';
+import { UsersService } from './users.service';
 
 describe('UsersService', () => {
   let prisma: any;
@@ -51,6 +53,70 @@ describe('UsersService', () => {
     });
 
     await expect(service.create('c1', { unitId: 'u1', firstName: 'A', lastName: 'B', phone: '050', personalNumber: 'p1' } as any)).rejects.toThrow(ConflictException);
+  });
+
+  it('findAllByCompany: defaults to active records, first page and firstName asc sort', async () => {
+    prisma.company.findUnique.mockResolvedValue({ id: 'c1' });
+    prisma.user.findMany.mockResolvedValue([{ id: 'u1', firstName: 'Ada', lastName: 'Lovelace', personalNumber: 'P-1', phone: '050', email: null, isActive: true, createdAt: '2025-01-01T00:00:00.000Z', unit: null, userRoles: [{ role: { id: 'r1', name: 'מנהל' } }, { role: { id: 'r2', name: 'חובש' } }], userQualifications: [{ qualification: { id: 'q1', name: 'נשק' } }, { qualification: { id: 'q2', name: 'חובש' } }] }]);
+    prisma.user.count.mockResolvedValue(1);
+
+    const res = await service.findAllByCompany('c1');
+
+    expect(prisma.company.findUnique).toHaveBeenCalledWith({ where: { id: 'c1' }, select: { id: true } });
+    expect(prisma.user.findMany).toHaveBeenCalledWith({
+      where: { companyId: 'c1', isActive: true },
+      orderBy: { firstName: 'asc' },
+      skip: 0,
+      take: 10,
+      select: expect.objectContaining({
+        id: true,
+        firstName: true,
+        personalNumber: true,
+        userRoles: expect.any(Object),
+        userQualifications: expect.any(Object),
+      }),
+    });
+    expect(prisma.user.count).toHaveBeenCalledWith({ where: { companyId: 'c1', isActive: true } });
+    expect(res).toEqual({
+      items: [{ id: 'u1', firstName: 'Ada', lastName: 'Lovelace', personalNumber: 'P-1', phone: '050', email: null, isActive: true, createdAt: '2025-01-01T00:00:00.000Z', unit: null, userRoles: [{ role: { id: 'r1', name: 'מנהל' } }, { role: { id: 'r2', name: 'חובש' } }], userQualifications: [{ qualification: { id: 'q1', name: 'נשק' } }, { qualification: { id: 'q2', name: 'חובש' } }], roles: [{ id: 'r1', name: 'מנהל' }, { id: 'r2', name: 'חובש' }], qualifications: [{ id: 'q1', name: 'נשק' }, { id: 'q2', name: 'חובש' }] }],
+      total: 1,
+      page: 1,
+      pageSize: 10,
+    });
+  });
+
+  it('findAllByCompany: applies custom page, pageSize and sort order', async () => {
+    prisma.company.findUnique.mockResolvedValue({ id: 'c1' });
+    prisma.user.findMany.mockResolvedValue([]);
+    prisma.user.count.mockResolvedValue(25);
+
+    await service.findAllByCompany('c1', { page: 2, pageSize: 5, sortBy: 'lastName', sortOrder: 'desc' });
+
+    expect(prisma.user.findMany).toHaveBeenCalledWith({
+      where: { companyId: 'c1', isActive: true },
+      orderBy: { lastName: 'desc' },
+      skip: 5,
+      take: 5,
+      select: expect.objectContaining({ id: true }),
+    });
+    expect(prisma.user.count).toHaveBeenCalledWith({ where: { companyId: 'c1', isActive: true } });
+  });
+
+  it('findAllByCompany: throws when the company does not exist', async () => {
+    prisma.company.findUnique.mockResolvedValue(null);
+
+    await expect(service.findAllByCompany('missing-company')).rejects.toThrow(NotFoundException);
+  });
+
+  it('findAllByCompany: validates supported sort fields and numeric query params', async () => {
+    const dto = new FindCompanyUsersQueryDto();
+    dto.page = 0;
+    dto.pageSize = 0;
+    dto.sortBy = 'email' as any;
+    dto.sortOrder = 'sideways' as any;
+
+    const errors = await validate(dto);
+    expect(errors.length).toBeGreaterThan(0);
   });
 
   it('update: deactivates an existing user without deleting the record', async () => {

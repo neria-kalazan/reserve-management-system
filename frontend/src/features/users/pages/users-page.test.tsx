@@ -20,7 +20,6 @@ import { useAuthSession } from '@/app/auth/use-auth-session'
 import { importCompanyUsers } from '@/features/users/api/users'
 import { useCompanyUsers, useDeactivateUser, useImportCompanyUsers } from '@/features/users/queries/use-users'
 import { UsersPage } from '@/features/users/pages/users-page'
-import { useImportCompanyUsers as useImportCompanyUsersHook } from '@/features/users/queries/use-users'
 
 const useAuthSessionMock = vi.mocked(useAuthSession)
 const useCompanyUsersMock = vi.mocked(useCompanyUsers)
@@ -42,6 +41,15 @@ const makeUser = (index: number) => ({
     description: null,
     displayOrder: index,
   },
+  roles: [{ id: `role-${index}`, name: `תפקיד ${index}` }],
+  qualifications: [{ id: `qual-${index}`, name: `הסמכה ${index}` }],
+})
+
+const makePageData = (users: ReturnType<typeof makeUser>[], page = 1, pageSize = 10) => ({
+  items: users.slice((page - 1) * pageSize, page * pageSize),
+  total: users.length,
+  page,
+  pageSize,
 })
 
 const makeUsers = (count: number) => Array.from({ length: count }, (_, index) => makeUser(index + 1))
@@ -84,11 +92,10 @@ describe('UsersPage', () => {
 
   it('renders the table, import and create actions and pagination controls for the company personnel', () => {
     const users = makeUsers(22)
-
     useCompanyUsersMock.mockReturnValue({
       isPending: false,
       isError: false,
-      data: users,
+      data: makePageData(users),
       refetch: vi.fn(),
     } as unknown as ReturnType<typeof useCompanyUsers>)
 
@@ -104,18 +111,109 @@ describe('UsersPage', () => {
     expect(screen.getByText('שם 1')).toBeDefined()
     expect(screen.getByText('משפחה 1')).toBeDefined()
     expect(screen.getByText('1001')).toBeDefined()
+    expect(screen.getByText('תפקידים')).toBeDefined()
+    expect(screen.getByText('הסמכות')).toBeDefined()
+    expect(screen.getByText('תפקיד 1')).toBeDefined()
+    expect(screen.getByText('הסמכה 1')).toBeDefined()
     expect(screen.getByRole('button', { name: 'הבא' })).toBeDefined()
     expect(screen.getAllByRole('button', { name: 'עריכה' }).length).toBeGreaterThan(0)
     expect(screen.getAllByRole('button', { name: 'הפסק פעילות' }).length).toBeGreaterThan(0)
   })
 
-  it('opens confirmation and does not deactivate on cancel', () => {
-    const deactivateUser = vi.fn()
+  it('renders role names and a compact qualification summary that opens the full list in a popover', async () => {
+    const users = [
+      {
+        ...makeUser(1),
+        roles: [{ id: 'role-1', name: 'מפקד כיתה' }, { id: 'role-2', name: 'חובש' }],
+        qualifications: [{ id: 'qual-1', name: 'חובש' }, { id: 'qual-2', name: 'נהג' }, { id: 'qual-3', name: 'רפואה' }],
+      },
+    ]
 
     useCompanyUsersMock.mockReturnValue({
       isPending: false,
       isError: false,
-      data: makeUsers(2),
+      data: makePageData(users),
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useCompanyUsers>)
+
+    render(
+      <MemoryRouter>
+        <UsersPage />
+      </MemoryRouter>,
+    )
+
+    expect(screen.getByText('מפקד כיתה')).toBeDefined()
+    expect(screen.getByText('חובש')).toBeDefined()
+    expect(screen.getByRole('button', { name: 'חובש • +2' })).toBeDefined()
+
+    fireEvent.click(screen.getByRole('button', { name: 'חובש • +2' }))
+
+    await waitFor(() => {
+      expect(screen.getAllByText('חובש').length).toBeGreaterThan(0)
+      expect(screen.getAllByText('נהג').length).toBeGreaterThan(0)
+      expect(screen.getAllByText('רפואה').length).toBeGreaterThan(0)
+    })
+  })
+
+  it('renders a single role and single qualification without misleading summaries', () => {
+    const users = [
+      {
+        ...makeUser(1),
+        roles: [{ id: 'role-1', name: 'מפקד כיתה' }],
+        qualifications: [{ id: 'qual-1', name: 'חובש' }],
+      },
+    ]
+
+    useCompanyUsersMock.mockReturnValue({
+      isPending: false,
+      isError: false,
+      data: makePageData(users),
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useCompanyUsers>)
+
+    render(
+      <MemoryRouter>
+        <UsersPage />
+      </MemoryRouter>,
+    )
+
+    expect(screen.getByText('מפקד כיתה')).toBeDefined()
+    expect(screen.getByText('חובש')).toBeDefined()
+  })
+
+  it('renders empty placeholders when a user has no roles or qualifications', () => {
+    const users = [
+      {
+        ...makeUser(1),
+        roles: [],
+        qualifications: [],
+      },
+    ]
+
+    useCompanyUsersMock.mockReturnValue({
+      isPending: false,
+      isError: false,
+      data: makePageData(users),
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useCompanyUsers>)
+
+    render(
+      <MemoryRouter>
+        <UsersPage />
+      </MemoryRouter>,
+    )
+
+    expect(screen.getAllByText('—').length).toBeGreaterThan(0)
+  })
+
+  it('opens confirmation and does not deactivate on cancel', () => {
+    const deactivateUser = vi.fn()
+    const users = makeUsers(2)
+
+    useCompanyUsersMock.mockReturnValue({
+      isPending: false,
+      isError: false,
+      data: makePageData(users),
       refetch: vi.fn(),
     } as unknown as ReturnType<typeof useCompanyUsers>)
     useDeactivateUserMock.mockReturnValue({
@@ -138,11 +236,12 @@ describe('UsersPage', () => {
 
   it('calls deactivate mutation when confirmed and refreshes the list', async () => {
     const deactivateUser = vi.fn().mockResolvedValue({ id: 'user-1', isActive: false })
+    const users = makeUsers(2)
 
     useCompanyUsersMock.mockReturnValue({
       isPending: false,
       isError: false,
-      data: makeUsers(2),
+      data: makePageData(users),
       refetch: vi.fn(),
     } as unknown as ReturnType<typeof useCompanyUsers>)
     useDeactivateUserMock.mockReturnValue({
@@ -164,11 +263,12 @@ describe('UsersPage', () => {
 
   it('shows a user-facing deactivation error when the request fails', async () => {
     const deactivateUser = vi.fn().mockRejectedValue(new Error('Deactivation failed'))
+    const users = makeUsers(2)
 
     useCompanyUsersMock.mockReturnValue({
       isPending: false,
       isError: false,
-      data: makeUsers(2),
+      data: makePageData(users),
       refetch: vi.fn(),
     } as unknown as ReturnType<typeof useCompanyUsers>)
     useDeactivateUserMock.mockReturnValue({
@@ -195,7 +295,7 @@ describe('UsersPage', () => {
     useCompanyUsersMock.mockReturnValue({
       isPending: false,
       isError: false,
-      data: users,
+      data: makePageData(users),
       refetch: vi.fn(),
     } as unknown as ReturnType<typeof useCompanyUsers>)
     useImportCompanyUsersMock.mockReturnValue({
@@ -231,7 +331,7 @@ describe('UsersPage', () => {
     useCompanyUsersMock.mockReturnValue({
       isPending: false,
       isError: false,
-      data: users,
+      data: makePageData(users),
       refetch: vi.fn(),
     } as unknown as ReturnType<typeof useCompanyUsers>)
     useImportCompanyUsersMock.mockReturnValue({
@@ -264,7 +364,7 @@ describe('UsersPage', () => {
     useCompanyUsersMock.mockReturnValue({
       isPending: false,
       isError: false,
-      data: users,
+      data: makePageData(users),
       refetch: vi.fn(),
     } as unknown as ReturnType<typeof useCompanyUsers>)
     useImportCompanyUsersMock.mockReturnValue({
@@ -296,7 +396,7 @@ describe('UsersPage', () => {
     useCompanyUsersMock.mockReturnValue({
       isPending: false,
       isError: false,
-      data: users,
+      data: makePageData(users),
       refetch: vi.fn(),
     } as unknown as ReturnType<typeof useCompanyUsers>)
     useImportCompanyUsersMock.mockReturnValue({
@@ -349,15 +449,186 @@ describe('UsersPage', () => {
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['companies', 'company-1', 'users'] })
   })
 
-  it('moves to the next page and keeps the current page in bounds', () => {
+  it('displays the current range and total count', () => {
     const users = makeUsers(22)
-
     useCompanyUsersMock.mockReturnValue({
       isPending: false,
       isError: false,
-      data: users,
+      data: makePageData(users, 1, 10),
+      isFetching: false,
       refetch: vi.fn(),
     } as unknown as ReturnType<typeof useCompanyUsers>)
+
+    render(
+      <MemoryRouter>
+        <UsersPage />
+      </MemoryRouter>,
+    )
+
+    expect(screen.getByText('מציג 1–10 מתוך 22 רשומות')).toBeDefined()
+  })
+
+  it('requests the next page when the next button is clicked', () => {
+    const users = makeUsers(22)
+    useCompanyUsersMock.mockImplementation((_companyId, params) => ({
+      isPending: false,
+      isError: false,
+      data: makePageData(users, params?.page ?? 1, params?.pageSize ?? 10),
+      isFetching: false,
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useCompanyUsers>))
+
+    render(
+      <MemoryRouter>
+        <UsersPage />
+      </MemoryRouter>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'הבא' }))
+
+    expect(useCompanyUsersMock).toHaveBeenLastCalledWith(
+      'company-1',
+      expect.objectContaining({ page: 2, pageSize: 10, sortBy: 'firstName', sortOrder: 'asc' }),
+    )
+  })
+
+  it('requests the previous page when the previous button is clicked', () => {
+    const users = makeUsers(22)
+    useCompanyUsersMock.mockImplementation((_companyId, params) => ({
+      isPending: false,
+      isError: false,
+      data: makePageData(users, params?.page ?? 2, params?.pageSize ?? 10),
+      isFetching: false,
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useCompanyUsers>))
+
+    render(
+      <MemoryRouter>
+        <UsersPage />
+      </MemoryRouter>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'הבא' }))
+    fireEvent.click(screen.getByRole('button', { name: 'הקודם' }))
+
+    expect(useCompanyUsersMock).toHaveBeenLastCalledWith(
+      'company-1',
+      expect.objectContaining({ page: 1, pageSize: 10, sortBy: 'firstName', sortOrder: 'asc' }),
+    )
+  })
+
+  it('disables the previous button on the first page and the next button on the last page', () => {
+    const users = makeUsers(12)
+    useCompanyUsersMock.mockImplementation((_companyId, params) => ({
+      isPending: false,
+      isError: false,
+      data: makePageData(users, params?.page ?? 1, params?.pageSize ?? 10),
+      isFetching: false,
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useCompanyUsers>))
+
+    render(
+      <MemoryRouter>
+        <UsersPage />
+      </MemoryRouter>,
+    )
+
+    expect((screen.getByRole('button', { name: 'הקודם' }) as HTMLButtonElement).disabled).toBe(true)
+    expect((screen.getByRole('button', { name: 'הבא' }) as HTMLButtonElement).disabled).toBe(false)
+
+    fireEvent.click(screen.getByRole('button', { name: 'הבא' }))
+
+    expect((screen.getByRole('button', { name: 'הקודם' }) as HTMLButtonElement).disabled).toBe(false)
+    expect((screen.getByRole('button', { name: 'הבא' }) as HTMLButtonElement).disabled).toBe(true)
+  })
+
+  it('changes page size, resets to page one and requests the selected page size', () => {
+    const users = makeUsers(50)
+    useCompanyUsersMock.mockImplementation((_companyId, params) => ({
+      isPending: false,
+      isError: false,
+      data: makePageData(users, params?.page ?? 1, params?.pageSize ?? 10),
+      isFetching: false,
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useCompanyUsers>))
+
+    render(
+      <MemoryRouter>
+        <UsersPage />
+      </MemoryRouter>,
+    )
+
+    fireEvent.change(screen.getByLabelText('מספר רשומות לעמוד'), { target: { value: '25' } })
+
+    expect(useCompanyUsersMock).toHaveBeenLastCalledWith(
+      'company-1',
+      expect.objectContaining({ page: 1, pageSize: 25, sortBy: 'firstName', sortOrder: 'asc' }),
+    )
+  })
+
+  it('renders sortable headers and toggles the sort order between asc and desc', () => {
+    const users = makeUsers(20)
+    useCompanyUsersMock.mockImplementation((_companyId, params) => ({
+      isPending: false,
+      isError: false,
+      data: makePageData(users, params?.page ?? 1, params?.pageSize ?? 10),
+      isFetching: false,
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useCompanyUsers>))
+
+    render(
+      <MemoryRouter>
+        <UsersPage />
+      </MemoryRouter>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'מיון לפי שם' }))
+    expect(useCompanyUsersMock).toHaveBeenLastCalledWith(
+      'company-1',
+      expect.objectContaining({ page: 1, sortBy: 'firstName', sortOrder: 'desc' }),
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'מיון לפי שם' }))
+    expect(useCompanyUsersMock).toHaveBeenLastCalledWith(
+      'company-1',
+      expect.objectContaining({ page: 1, sortBy: 'firstName', sortOrder: 'asc' }),
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'מיון לפי משפחה' }))
+    expect(useCompanyUsersMock).toHaveBeenLastCalledWith(
+      'company-1',
+      expect.objectContaining({ page: 1, sortBy: 'lastName', sortOrder: 'asc' }),
+    )
+  })
+
+  it('shows the empty state when there are no records', () => {
+    useCompanyUsersMock.mockReturnValue({
+      isPending: false,
+      isError: false,
+      data: { items: [], total: 0, page: 1, pageSize: 10 },
+      isFetching: false,
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useCompanyUsers>)
+
+    render(
+      <MemoryRouter>
+        <UsersPage />
+      </MemoryRouter>,
+    )
+
+    expect(screen.getByText('אין רשומות להצגה')).toBeDefined()
+    expect(screen.getByText('אין אנשי צוות להצגה')).toBeDefined()
+  })
+
+  it('moves to the next page and keeps the current page in bounds', () => {
+    const users = makeUsers(22)
+    useCompanyUsersMock.mockImplementation((_companyId, params) => ({
+      isPending: false,
+      isError: false,
+      data: makePageData(users, params?.page ?? 1, params?.pageSize ?? 10),
+      isFetching: false,
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useCompanyUsers>))
 
     render(
       <MemoryRouter>

@@ -66,8 +66,8 @@ describe('UnitFormPage', () => {
   it('renders create mode', () => {
     renderForm('/units/new')
 
-    expect(screen.getAllByText('יצירת יחידה').length).toBeGreaterThan(0)
-    expect(screen.getByLabelText('שם היחידה')).toBeDefined()
+    expect(screen.getAllByText('יצירת מסגרת').length).toBeGreaterThan(0)
+    expect(screen.getByLabelText('שם המסגרת')).toBeDefined()
     expect(screen.getByLabelText('תיאור')).toBeDefined()
     expect(screen.getByLabelText('סדר תצוגה')).toBeDefined()
   })
@@ -77,9 +77,9 @@ describe('UnitFormPage', () => {
     useCreateUnitMock.mockReturnValue(createMutation as any)
 
     renderForm('/units/new')
-    fireEvent.click(screen.getByRole('button', { name: 'שמירת יחידה' }))
+    fireEvent.click(screen.getByRole('button', { name: 'שמירת מסגרת' }))
 
-    expect(await screen.findByText('יש להזין שם יחידה.')).toBeDefined()
+    expect(await screen.findByText('יש להזין שם מסגרת.')).toBeDefined()
     expect(createMutation.mutateAsync).not.toHaveBeenCalled()
   })
 
@@ -92,7 +92,7 @@ describe('UnitFormPage', () => {
 
     renderForm('/units/unit-1/edit')
 
-    expect(screen.getAllByText('עריכת יחידה').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('עריכת מסגרת').length).toBeGreaterThan(0)
     expect(screen.getByDisplayValue('פלוגה א')).toBeDefined()
     expect(screen.getByDisplayValue('תיאור')).toBeDefined()
     expect(screen.getByDisplayValue('2')).toBeDefined()
@@ -104,10 +104,10 @@ describe('UnitFormPage', () => {
 
     renderForm('/units/new')
 
-    fireEvent.change(screen.getByLabelText('שם היחידה'), { target: { value: 'פלוגה ב' } })
+    fireEvent.change(screen.getByLabelText('שם המסגרת'), { target: { value: 'פלוגה ב' } })
     fireEvent.change(screen.getByLabelText('תיאור'), { target: { value: 'יחידת לוגיסטיקה' } })
     fireEvent.change(screen.getByLabelText('סדר תצוגה'), { target: { value: '5' } })
-    fireEvent.click(screen.getByRole('button', { name: 'שמירת יחידה' }))
+    fireEvent.click(screen.getByRole('button', { name: 'שמירת מסגרת' }))
 
     await waitFor(() => {
       expect(createMutation.mutateAsync).toHaveBeenCalledWith({
@@ -134,8 +134,8 @@ describe('UnitFormPage', () => {
 
     renderForm('/units/unit-1/edit')
 
-    fireEvent.change(screen.getByLabelText('שם היחידה'), { target: { value: 'פלוגה א - חדש' } })
-    fireEvent.click(screen.getByRole('button', { name: 'שמירת יחידה' }))
+    fireEvent.change(screen.getByLabelText('שם המסגרת'), { target: { value: 'פלוגה א - חדש' } })
+    fireEvent.click(screen.getByRole('button', { name: 'שמירת מסגרת' }))
 
     await waitFor(() => {
       expect(updateMutation.mutateAsync).toHaveBeenCalledWith({

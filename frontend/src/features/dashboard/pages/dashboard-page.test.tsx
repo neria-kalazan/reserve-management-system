@@ -1,15 +1,40 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+vi.mock('@/app/auth/use-auth-session', () => ({
+  useAuthSession: vi.fn(),
+}))
 vi.mock('@/features/dashboard/queries/use-company-dashboard', () => ({
   useCompanyDashboard: vi.fn(),
 }))
+vi.mock('@/features/qualifications/queries/use-qualifications', () => ({
+  useCompanyQualifications: vi.fn(),
+}))
+vi.mock('@/features/roles/queries/use-roles', () => ({
+  useCompanyRoles: vi.fn(),
+}))
+vi.mock('@/features/units/queries/use-units', () => ({
+  useCompanyUnits: vi.fn(),
+}))
+vi.mock('@/features/users/queries/use-users', () => ({
+  useCompanyUsers: vi.fn(),
+}))
 
+import { useAuthSession } from '@/app/auth/use-auth-session'
 import { useCompanyDashboard } from '@/features/dashboard/queries/use-company-dashboard'
 import { DashboardPage } from '@/features/dashboard/pages/dashboard-page'
 import type { CompanyDashboardResponse } from '@/features/dashboard/types/dashboard'
+import { useCompanyQualifications } from '@/features/qualifications/queries/use-qualifications'
+import { useCompanyRoles } from '@/features/roles/queries/use-roles'
+import { useCompanyUnits } from '@/features/units/queries/use-units'
+import { useCompanyUsers } from '@/features/users/queries/use-users'
 
+const useAuthSessionMock = vi.mocked(useAuthSession)
 const useCompanyDashboardMock = vi.mocked(useCompanyDashboard)
+const useCompanyQualificationsMock = vi.mocked(useCompanyQualifications)
+const useCompanyRolesMock = vi.mocked(useCompanyRoles)
+const useCompanyUnitsMock = vi.mocked(useCompanyUnits)
+const useCompanyUsersMock = vi.mocked(useCompanyUsers)
 
 const dashboardData: CompanyDashboardResponse = {
   companySummary: {
@@ -45,7 +70,36 @@ const dashboardData: CompanyDashboardResponse = {
 
 describe('DashboardPage', () => {
   beforeEach(() => {
+    useAuthSessionMock.mockReset()
     useCompanyDashboardMock.mockReset()
+    useCompanyQualificationsMock.mockReset()
+    useCompanyRolesMock.mockReset()
+    useCompanyUnitsMock.mockReset()
+    useCompanyUsersMock.mockReset()
+
+    useAuthSessionMock.mockReturnValue({
+      user: { companyId: 'company-1' },
+    } as ReturnType<typeof useAuthSession>)
+    useCompanyQualificationsMock.mockReturnValue({
+      data: { total: 0, items: [] },
+      isPending: false,
+      isError: false,
+    } as ReturnType<typeof useCompanyQualifications>)
+    useCompanyRolesMock.mockReturnValue({
+      data: { total: 0, items: [] },
+      isPending: false,
+      isError: false,
+    } as ReturnType<typeof useCompanyRoles>)
+    useCompanyUnitsMock.mockReturnValue({
+      data: { total: 0, items: [] },
+      isPending: false,
+      isError: false,
+    } as ReturnType<typeof useCompanyUnits>)
+    useCompanyUsersMock.mockReturnValue({
+      data: { total: 0, items: [] },
+      isPending: false,
+      isError: false,
+    } as ReturnType<typeof useCompanyUsers>)
   })
 
   it('renders the query loading state', () => {
@@ -83,10 +137,10 @@ describe('DashboardPage', () => {
 
     render(<DashboardPage />)
 
-    expect(screen.getByText('סך כל חיילים')).toBeDefined()
+    expect(screen.getByText('כוח אדם פעילים')).toBeDefined()
     expect(screen.getByText('42')).toBeDefined()
-    expect(screen.getByText('כישורים')).toBeDefined()
-    expect(screen.getByText('בעלי תפקידים')).toBeDefined()
+    expect(screen.getAllByText('הסמכות').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('תפקידים').length).toBeGreaterThan(0)
     expect(screen.getByText('פעילויות קרובות')).toBeDefined()
     expect(screen.getByText('תרגיל גדודי')).toBeDefined()
     expect(screen.getByText('פעילות אחרונה')).toBeDefined()
@@ -114,6 +168,6 @@ describe('DashboardPage', () => {
 
     expect(screen.getByText('אין פעילויות קרובות')).toBeDefined()
     expect(screen.getByText('אין פעילות אחרונה')).toBeDefined()
-    expect(screen.getByText('0')).toBeDefined()
+    expect(screen.getAllByText('0').length).toBeGreaterThan(0)
   })
 })

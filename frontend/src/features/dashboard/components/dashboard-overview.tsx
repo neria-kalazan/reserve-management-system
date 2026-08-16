@@ -1,9 +1,9 @@
-import { CalendarDays, BriefcaseBusiness, BadgeCheck, ShieldCheck, Users } from 'lucide-react'
+import { CalendarDays, BadgeCheck, Users, BriefcaseBusiness, Shield } from 'lucide-react'
 
 import type { CompanyDashboardResponse } from '@/features/dashboard/types/dashboard'
 import { EmptyState } from '@/shared/components/empty-state'
 import { StatusBadge } from '@/shared/components/status-badge'
-import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/card'
+import { Card, CardContent } from '@/shared/components/ui/card'
 
 const dateFormatter = new Intl.DateTimeFormat('he-IL', {
   day: '2-digit',
@@ -85,6 +85,49 @@ function SummaryList({
   )
 }
 
+function RoleHolderList({
+  title,
+  description,
+  items,
+  emptyText,
+}: {
+  title: string
+  description: string
+  items: Array<{ role: string; holders: string[] }>
+  emptyText: string
+}) {
+  return (
+    <section aria-labelledby={`${title}-title`}>
+      <SectionHeading id={`${title}-title`} title={title} description={description} />
+      <Card className="mt-4 shadow-none">
+        <CardContent className="px-4 py-4 sm:px-5">
+          {items.length > 0 ? (
+            <ul className="space-y-3">
+              {items.map((item) => (
+                <li key={item.role} className="rounded-md border border-border bg-background px-3 py-2">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-sm font-medium text-foreground">{item.role}</span>
+                    <span className="text-xs text-muted">{item.holders.length} איש/ים</span>
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-1">
+                    {item.holders.map((holder) => (
+                      <span key={`${item.role}-${holder}`} className="rounded-full border border-border bg-surface-elevated px-2 py-0.5 text-xs text-foreground">
+                        {holder}
+                      </span>
+                    ))}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-sm text-muted">{emptyText}</p>
+          )}
+        </CardContent>
+      </Card>
+    </section>
+  )
+}
+
 function ActivityList({
   title,
   description,
@@ -123,40 +166,60 @@ function ActivityList({
   )
 }
 
-export function DashboardOverview({ dashboard }: { dashboard: CompanyDashboardResponse }) {
+export function DashboardOverview({
+  dashboard,
+  roleHolders,
+  totals,
+}: {
+  dashboard: CompanyDashboardResponse
+  roleHolders: Array<{ role: string; holders: string[] }>
+  totals: { totalPersonnel: number; totalUnits: number; totalRoles: number; totalQualifications: number }
+}) {
   const { companySummary, upcomingActivities, recentActivities } = dashboard
 
   return (
     <div className="space-y-8 md:space-y-10">
       <section aria-labelledby="company-overview-title">
-        <SectionHeading id="company-overview-title" title="סקירת פלוגה" description="מבט כללי על הכוח, הכישורים והפעילויות של היחידה" />
-        <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          <MetricCard label="סך כל חיילים" value={companySummary.totalSoldiers} icon={Users} />
+        <SectionHeading id="company-overview-title" title="סקירת החברה" description="מבט כללי על כוח האדם, המסגרות והפעילויות של החברה." />
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <MetricCard label="כוח אדם פעילים" value={companySummary.totalSoldiers ?? totals.totalPersonnel} icon={Users} />
+          <MetricCard label="מסגרות" value={totals.totalUnits} icon={Shield} />
+          <MetricCard label="תפקידים" value={totals.totalRoles} icon={BriefcaseBusiness} />
+          <MetricCard label="הסמכות" value={totals.totalQualifications} icon={BadgeCheck} />
         </div>
       </section>
 
       <div className="grid gap-6 xl:grid-cols-2">
         <SummaryList
-          title="כישורים"
-          description="כמות חיילים לפי הכשרה"
+          title="הסמכות"
+          description="כמות כוח אדם לפי הסמכה"
           items={companySummary.qualificationCounts}
-          emptyText="אין נתוני כישורים"
+          emptyText="אין נתוני הסמכות"
         />
         <SummaryList
-          title="בעלי תפקידים"
-          description="כמות חיילים לפי תפקיד"
+          title="תפקידים"
+          description="כמות כוח אדם לפי תפקיד"
           items={companySummary.roleCounts}
-          emptyText="אין נתוני בעלי תפקידים"
+          emptyText="אין נתוני תפקידים"
         />
       </div>
 
       <div className="grid gap-6 xl:grid-cols-2">
+        <RoleHolderList
+          title="מחזיקי תפקידים"
+          description="שמות בעלי התפקידים הרלוונטיים בחברה"
+          items={roleHolders}
+          emptyText="אין מחזיקי תפקידים להצגה"
+        />
         <ActivityList
           title="פעילויות קרובות"
           description="רשימת הפעילויות הקרובות בתכנון"
           items={upcomingActivities}
           emptyText="אין פעילויות קרובות"
         />
+      </div>
+
+      <div className="grid gap-6 xl:grid-cols-1">
         <ActivityList
           title="פעילות אחרונה"
           description="רשימת פעילויות שנערכו לאחרונה"
