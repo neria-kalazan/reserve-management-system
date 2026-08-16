@@ -16,7 +16,9 @@ import { ActivityTaskInstancesPage } from '@/features/activities/pages/activity-
 import { ActivityTaskRequirementsPage } from '@/features/activities/pages/activity-task-requirements-page'
 import { ActivitiesPage } from '@/features/activities/pages/activities-page'
 import { DashboardPage } from '@/features/dashboard/pages/dashboard-page'
+import { QualificationsPage } from '@/features/qualifications/pages/qualifications-page'
 import { RolesPage } from '@/features/roles/pages/roles-page'
+import { UnitsPage } from '@/features/units/pages/units-page'
 import { UsersPage } from '@/features/users/pages/users-page'
 
 const activitiesRoute = appRoutes.find((route) => route.key === 'activities') ?? fallbackRoute
@@ -35,7 +37,11 @@ const placeholderPages = appRoutes.map((route) => ({
             ? <UsersPage />
             : route.key === 'roles'
               ? <RolesPage />
-              : <PlaceholderRoutePage title={route.label} description={route.description} />,
+              : route.key === 'qualifications'
+                ? <QualificationsPage />
+                : route.key === 'units'
+                  ? <UnitsPage />
+                  : <PlaceholderRoutePage title={route.label} description={route.description} />,
     },
   ],
 }))
@@ -180,6 +186,46 @@ const router = createBrowserRouter([
               {
                 index: true,
                 element: <PlaceholderRoutePage title="עריכת תפקיד" description="טופס עריכת תפקיד יתווסף בהמשך." />,
+              },
+            ],
+          },
+          {
+            path: '/qualifications/new',
+            element: <PermissionRoute route={appRoutes.find((route) => route.key === 'qualifications') ?? fallbackRoute} />,
+            children: [
+              {
+                index: true,
+                element: <PlaceholderRoutePage title="יצירת הסמכה" description="טופס יצירת הסמכה יתווסף בהמשך." />,
+              },
+            ],
+          },
+          {
+            path: '/qualifications/:qualificationId/edit',
+            element: <PermissionRoute route={appRoutes.find((route) => route.key === 'qualifications') ?? fallbackRoute} />,
+            children: [
+              {
+                index: true,
+                element: <PlaceholderRoutePage title="עריכת הסמכה" description="טופס עריכת הסמכה יתווסף בהמשך." />,
+              },
+            ],
+          },
+          {
+            path: '/units/new',
+            element: <PermissionRoute route={appRoutes.find((route) => route.key === 'units') ?? fallbackRoute} />,
+            children: [
+              {
+                index: true,
+                element: <PlaceholderRoutePage title="יצירת יחידה" description="טופס יצירת יחידה יתווסף בהמשך." />,
+              },
+            ],
+          },
+          {
+            path: '/units/:unitId/edit',
+            element: <PermissionRoute route={appRoutes.find((route) => route.key === 'units') ?? fallbackRoute} />,
+            children: [
+              {
+                index: true,
+                element: <PlaceholderRoutePage title="עריכת יחידה" description="טופס עריכת יחידה יתווסף בהמשך." />,
               },
             ],
           },

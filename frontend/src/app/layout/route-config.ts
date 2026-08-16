@@ -1,12 +1,14 @@
 import {
   Activity,
+  BadgeCheck,
   Building2,
   CalendarRange,
   LayoutDashboard,
+  Shield,
   Users,
 } from 'lucide-react'
 
-export type AppRouteKey = 'dashboard' | 'companies' | 'users' | 'activities' | 'scheduling'
+export type AppRouteKey = 'dashboard' | 'companies' | 'users' | 'qualifications' | 'units' | 'activities' | 'scheduling'
 
 export interface AppRouteItem {
   key: AppRouteKey
@@ -40,6 +42,22 @@ export const appRoutes: AppRouteItem[] = [
     label: 'משתמשים',
     description: 'ניהול כוח אדם יתווסף בהמשך',
     icon: Users,
+    requiredPermission: 'MANAGE_COMPANIES',
+  },
+  {
+    key: 'qualifications',
+    path: '/qualifications',
+    label: 'הסמכות',
+    description: 'ניהול הסמכות יתווסף בהמשך',
+    icon: BadgeCheck,
+    requiredPermission: 'MANAGE_COMPANIES',
+  },
+  {
+    key: 'units',
+    path: '/units',
+    label: 'יחידות',
+    description: 'ניהול יחידות יתווסף בהמשך',
+    icon: Shield,
     requiredPermission: 'MANAGE_COMPANIES',
   },
   {
