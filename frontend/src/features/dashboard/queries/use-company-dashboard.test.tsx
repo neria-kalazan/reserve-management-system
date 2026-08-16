@@ -29,7 +29,11 @@ describe('useCompanyDashboard', () => {
       isAuthenticated: true,
       user: { id: 'user-1', companyId: 'company-1' },
     } as ReturnType<typeof useAuthSession>)
-    getCompanyDashboardMock.mockResolvedValueOnce({ activeActivity: null } as never)
+    getCompanyDashboardMock.mockResolvedValueOnce({
+      companySummary: { totalSoldiers: 0, qualificationCounts: [], roleCounts: [] },
+      upcomingActivities: [],
+      recentActivities: [],
+    } as never)
 
     const { result } = renderHook(() => useCompanyDashboard(), { wrapper: createWrapper() })
 

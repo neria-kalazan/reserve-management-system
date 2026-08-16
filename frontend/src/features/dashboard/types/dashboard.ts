@@ -1,36 +1,22 @@
-export interface DashboardActiveActivity {
+export interface DashboardActivitySummary {
   id: string
   name: string
   startDate: string
   endDate: string
-  numberOfDays: number
+  status: 'DRAFT' | 'ACTIVE' | 'COMPLETED' | 'CANCELLED'
 }
 
-export interface DashboardValidationIssue {
-  type: string
-  message: string
-}
-
-export interface DashboardValidationSummary {
-  requiredErrorCount: number
-  warningCount: number
+export interface DashboardCountItem {
+  name: string
+  count: number
 }
 
 export interface CompanyDashboardResponse {
-  activeActivity: DashboardActiveActivity | null
-  manpowerSummary: {
-    totalActiveUsers: number
-    usersParticipatingInActivity: number
-    todayAvailabilitySummary: {
-      statusCounts: Record<string, number>
-    }
+  companySummary: {
+    totalSoldiers: number
+    qualificationCounts: DashboardCountItem[]
+    roleCounts: DashboardCountItem[]
   }
-  tasksSummary: {
-    totalTaskInstances: number
-    unassignedTaskInstances: number
-    validationIssuesSummary: DashboardValidationSummary
-  }
-  validationIssues: DashboardValidationSummary & {
-    issues: DashboardValidationIssue[]
-  }
+  upcomingActivities: DashboardActivitySummary[]
+  recentActivities: DashboardActivitySummary[]
 }

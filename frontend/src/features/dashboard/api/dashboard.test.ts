@@ -11,22 +11,13 @@ import { getCompanyDashboard } from '@/features/dashboard/api/dashboard'
 describe('getCompanyDashboard', () => {
   it('requests the dashboard for the authoritative company id', async () => {
     const response = {
-      activeActivity: null,
-      manpowerSummary: {
-        totalActiveUsers: 0,
-        usersParticipatingInActivity: 0,
-        todayAvailabilitySummary: { statusCounts: {} },
+      companySummary: {
+        totalSoldiers: 0,
+        qualificationCounts: [],
+        roleCounts: [],
       },
-      tasksSummary: {
-        totalTaskInstances: 0,
-        unassignedTaskInstances: 0,
-        validationIssuesSummary: { requiredErrorCount: 0, warningCount: 0 },
-      },
-      validationIssues: {
-        requiredErrorCount: 0,
-        warningCount: 0,
-        issues: [],
-      },
+      upcomingActivities: [],
+      recentActivities: [],
     }
     getMock.mockResolvedValueOnce(response)
 

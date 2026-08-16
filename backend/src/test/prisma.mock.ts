@@ -16,11 +16,13 @@ export function createPrismaMock() {
     },
     role: {
       findUnique: jest.fn(),
+      findMany: jest.fn(),
       upsert: jest.fn(),
       create: jest.fn(),
     },
     qualification: {
       findUnique: jest.fn(),
+      findMany: jest.fn(),
       upsert: jest.fn(),
       create: jest.fn(),
     },

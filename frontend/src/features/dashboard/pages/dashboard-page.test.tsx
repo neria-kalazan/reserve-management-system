@@ -12,33 +12,35 @@ import type { CompanyDashboardResponse } from '@/features/dashboard/types/dashbo
 const useCompanyDashboardMock = vi.mocked(useCompanyDashboard)
 
 const dashboardData: CompanyDashboardResponse = {
-  activeActivity: {
-    id: 'activity-1',
-    name: 'תרגיל גדודי',
-    startDate: '2026-08-09T00:00:00.000Z',
-    endDate: '2026-08-11T00:00:00.000Z',
-    numberOfDays: 3,
-  },
-  manpowerSummary: {
-    totalActiveUsers: 42,
-    usersParticipatingInActivity: 31,
-    todayAvailabilitySummary: {
-      statusCounts: { ACTIVE: 24, HOLIDAY: 4, SICK: 2, RELEASED: 1 },
-    },
-  },
-  tasksSummary: {
-    totalTaskInstances: 12,
-    unassignedTaskInstances: 3,
-    validationIssuesSummary: { requiredErrorCount: 2, warningCount: 1 },
-  },
-  validationIssues: {
-    requiredErrorCount: 2,
-    warningCount: 1,
-    issues: [
-      { type: 'MANPOWER', message: 'חסר כוח אדם נדרש' },
-      { type: 'ROLE', message: 'לא שובץ בעל תפקיד' },
+  companySummary: {
+    totalSoldiers: 42,
+    qualificationCounts: [
+      { name: 'רופא', count: 3 },
+      { name: 'נווט', count: 4 },
+    ],
+    roleCounts: [
+      { name: 'מ"פ', count: 5 },
+      { name: 'קצין', count: 2 },
     ],
   },
+  upcomingActivities: [
+    {
+      id: 'activity-1',
+      name: 'תרגיל גדודי',
+      startDate: '2026-08-09T00:00:00.000Z',
+      endDate: '2026-08-11T00:00:00.000Z',
+      status: 'ACTIVE',
+    },
+  ],
+  recentActivities: [
+    {
+      id: 'activity-2',
+      name: 'אימון קרבי',
+      startDate: '2026-07-15T00:00:00.000Z',
+      endDate: '2026-07-17T00:00:00.000Z',
+      status: 'COMPLETED',
+    },
+  ],
 }
 
 describe('DashboardPage', () => {
@@ -72,7 +74,7 @@ describe('DashboardPage', () => {
     expect(refetch).toHaveBeenCalledTimes(1)
   })
 
-  it('renders active activity and its dates', () => {
+  it('renders the company summary and activity sections', () => {
     useCompanyDashboardMock.mockReturnValue({
       isPending: false,
       isError: false,
@@ -81,75 +83,27 @@ describe('DashboardPage', () => {
 
     render(<DashboardPage />)
 
-    expect(screen.getByText('תרגיל גדודי')).toBeDefined()
-    expect(screen.getByText('09.08.2026–11.08.2026')).toBeDefined()
-    expect(screen.getByText('ימים')).toBeDefined()
-  })
-
-  it('renders manpower and task summaries from the response', () => {
-    useCompanyDashboardMock.mockReturnValue({
-      isPending: false,
-      isError: false,
-      data: dashboardData,
-    } as unknown as ReturnType<typeof useCompanyDashboard>)
-
-    render(<DashboardPage />)
-
+    expect(screen.getByText('סך כל חיילים')).toBeDefined()
     expect(screen.getByText('42')).toBeDefined()
-    expect(screen.getByText('31')).toBeDefined()
-    expect(screen.getByText('12')).toBeDefined()
-    expect(screen.getByText('משימות ללא שיבוץ')).toBeDefined()
-    expect(screen.getByText('פעיל')).toBeDefined()
-    expect(screen.getByText('חופשה')).toBeDefined()
+    expect(screen.getByText('כישורים')).toBeDefined()
+    expect(screen.getByText('בעלי תפקידים')).toBeDefined()
+    expect(screen.getByText('פעילויות קרובות')).toBeDefined()
+    expect(screen.getByText('תרגיל גדודי')).toBeDefined()
+    expect(screen.getByText('פעילות אחרונה')).toBeDefined()
+    expect(screen.getByText('אימון קרבי')).toBeDefined()
   })
 
-  it('renders validation counts and issue messages', () => {
-    useCompanyDashboardMock.mockReturnValue({
-      isPending: false,
-      isError: false,
-      data: dashboardData,
-    } as unknown as ReturnType<typeof useCompanyDashboard>)
-
-    render(<DashboardPage />)
-
-    expect(screen.getAllByText('2 שגיאות')).toHaveLength(2)
-    expect(screen.getAllByText('אזהרה אחת')).toHaveLength(2)
-    expect(screen.getByText('חסר כוח אדם נדרש')).toBeDefined()
-    expect(screen.getByText('לא שובץ בעל תפקיד')).toBeDefined()
-  })
-
-  it('handles an absent active activity explicitly', () => {
-    useCompanyDashboardMock.mockReturnValue({
-      isPending: false,
-      isError: false,
-      data: { ...dashboardData, activeActivity: null },
-    } as unknown as ReturnType<typeof useCompanyDashboard>)
-
-    render(<DashboardPage />)
-
-    expect(screen.getByText('אין פעילות פעילה')).toBeDefined()
-    expect(screen.getByText('לא הוגדרה כרגע פעילות פעילה לפלוגה.')).toBeDefined()
-  })
-
-  it('renders legitimate zero and empty dashboard data', () => {
+  it('renders empty states when the dashboard has no activities or personnel details', () => {
     const emptyDashboard: CompanyDashboardResponse = {
-      activeActivity: null,
-      manpowerSummary: {
-        totalActiveUsers: 0,
-        usersParticipatingInActivity: 0,
-        todayAvailabilitySummary: { statusCounts: {} },
+      companySummary: {
+        totalSoldiers: 0,
+        qualificationCounts: [],
+        roleCounts: [],
       },
-      tasksSummary: {
-        totalTaskInstances: 0,
-        unassignedTaskInstances: 0,
-        validationIssuesSummary: { requiredErrorCount: 0, warningCount: 0 },
-      },
-      validationIssues: {
-        requiredErrorCount: 0,
-        warningCount: 0,
-        issues: [],
-      },
+      upcomingActivities: [],
+      recentActivities: [],
     }
+
     useCompanyDashboardMock.mockReturnValue({
       isPending: false,
       isError: false,
@@ -158,10 +112,8 @@ describe('DashboardPage', () => {
 
     render(<DashboardPage />)
 
-    expect(screen.getByText('אין פעילות פעילה')).toBeDefined()
-    expect(screen.getByText('אין דיווחי סטטוס להיום.')).toBeDefined()
-    expect(screen.getAllByText('0').length).toBeGreaterThanOrEqual(4)
-    expect(screen.getByText('תקין')).toBeDefined()
-    expect(screen.getByText('לא נמצאו בעיות אימות.')).toBeDefined()
+    expect(screen.getByText('אין פעילויות קרובות')).toBeDefined()
+    expect(screen.getByText('אין פעילות אחרונה')).toBeDefined()
+    expect(screen.getByText('0')).toBeDefined()
   })
 })

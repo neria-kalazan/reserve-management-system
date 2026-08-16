@@ -16,6 +16,7 @@ import { ActivityTaskInstancesPage } from '@/features/activities/pages/activity-
 import { ActivityTaskRequirementsPage } from '@/features/activities/pages/activity-task-requirements-page'
 import { ActivitiesPage } from '@/features/activities/pages/activities-page'
 import { DashboardPage } from '@/features/dashboard/pages/dashboard-page'
+import { UsersPage } from '@/features/users/pages/users-page'
 
 const activitiesRoute = appRoutes.find((route) => route.key === 'activities') ?? fallbackRoute
 
@@ -29,7 +30,9 @@ const placeholderPages = appRoutes.map((route) => ({
         ? <DashboardPage />
         : route.key === 'activities'
           ? <ActivitiesPage />
-          : <PlaceholderRoutePage title={route.label} description={route.description} />,
+          : route.key === 'users'
+            ? <UsersPage />
+            : <PlaceholderRoutePage title={route.label} description={route.description} />,
     },
   ],
 }))
@@ -134,6 +137,26 @@ const router = createBrowserRouter([
               {
                 index: true,
                 element: <ActivityTaskRequirementsPage />,
+              },
+            ],
+          },
+          {
+            path: '/users/new',
+            element: <PermissionRoute route={appRoutes.find((route) => route.key === 'users') ?? fallbackRoute} />,
+            children: [
+              {
+                index: true,
+                element: <PlaceholderRoutePage title="יצירת חייל" description="טופס יצירת חייל יתווסף בהמשך." />,
+              },
+            ],
+          },
+          {
+            path: '/users/:userId/edit',
+            element: <PermissionRoute route={appRoutes.find((route) => route.key === 'users') ?? fallbackRoute} />,
+            children: [
+              {
+                index: true,
+                element: <PlaceholderRoutePage title="עריכת חייל" description="טופס עריכת חייל יתווסף בהמשך." />,
               },
             ],
           },

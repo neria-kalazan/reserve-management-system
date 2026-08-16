@@ -1,109 +1,73 @@
-import { BadRequestException } from '@nestjs/common';
 import { CompanyDashboardService } from './company-dashboard.service';
 import { createPrismaMock } from '../../test/prisma.mock';
 
 describe('CompanyDashboardService', () => {
   let prisma: any;
-  let validationService: { validate: jest.Mock };
   let service: CompanyDashboardService;
 
   beforeEach(() => {
     prisma = createPrismaMock();
-    validationService = { validate: jest.fn().mockResolvedValue({ requiredErrors: [], warnings: [], summary: { isValid: true } }) };
-    service = new CompanyDashboardService(prisma, validationService as any);
+    service = new CompanyDashboardService(prisma);
   });
 
-  it('returns the active activity when one exists', async () => {
+  it('returns the company soldier summary and activity windows', async () => {
+    const now = new Date('2026-08-16T12:00:00.000Z');
+    jest.useFakeTimers().setSystemTime(now);
+
     prisma.company.findUnique.mockResolvedValue({ id: 'company-1' });
-    prisma.activity.findMany.mockResolvedValue([{ id: 'activity-1', name: 'Ops', startDate: new Date('2026-01-01T00:00:00.000Z'), endDate: new Date('2026-01-03T00:00:00.000Z'), status: 'ACTIVE' }]);
-    prisma.user.count.mockResolvedValue(4);
-    prisma.activityUserStatus.findMany.mockResolvedValue([{ userId: 'u1' }, { userId: 'u2' }, { userId: 'u3' }]);
-    prisma.activityUserStatus.groupBy.mockResolvedValue([]);
-    prisma.taskInstance.findMany.mockResolvedValue([{ id: 'instance-1' }]);
-    prisma.assignment.findMany.mockResolvedValue([]);
-
-    const result = await service.getDashboard('company-1');
-
-    expect(result.activeActivity).not.toBeNull();
-    expect(result.activeActivity?.numberOfDays).toBe(3);
-    expect(result.manpowerSummary.totalActiveUsers).toBe(4);
-  });
-
-  it('returns no active activity when none exists', async () => {
-    prisma.company.findUnique.mockResolvedValue({ id: 'company-1' });
-    prisma.activity.findMany.mockResolvedValue([]);
-    prisma.user.count.mockResolvedValue(0);
-    prisma.activityUserStatus.findMany.mockResolvedValue([]);
-    prisma.activityUserStatus.groupBy.mockResolvedValue([]);
-    prisma.taskInstance.findMany.mockResolvedValue([]);
-    prisma.assignment.findMany.mockResolvedValue([]);
-
-    const result = await service.getDashboard('company-1');
-
-    expect(result.activeActivity).toBeNull();
-    expect(result.manpowerSummary.totalActiveUsers).toBe(0);
-  });
-
-  it('throws when multiple active activities exist', async () => {
-    prisma.company.findUnique.mockResolvedValue({ id: 'company-1' });
+    prisma.user.findMany.mockResolvedValue([
+      { id: 'u1', isActive: true, userRoles: [{ roleId: 'role-1' }], userQualifications: [{ qualificationId: 'qual-1' }] },
+      { id: 'u2', isActive: true, userRoles: [{ roleId: 'role-1' }, { roleId: 'role-2' }], userQualifications: [{ qualificationId: 'qual-1' }, { qualificationId: 'qual-2' }] },
+      { id: 'u3', isActive: false, userRoles: [{ roleId: 'role-2' }], userQualifications: [] },
+    ]);
+    prisma.role.findMany.mockResolvedValue([
+      { id: 'role-1', name: 'מ"פ' },
+      { id: 'role-2', name: 'קצין' },
+    ]);
+    prisma.qualification.findMany.mockResolvedValue([
+      { id: 'qual-1', name: 'רופא' },
+      { id: 'qual-2', name: 'נווט' },
+    ]);
     prisma.activity.findMany.mockResolvedValue([
-      { id: 'activity-1', name: 'A', startDate: new Date('2026-01-01'), endDate: new Date('2026-01-02'), status: 'ACTIVE' },
-      { id: 'activity-2', name: 'B', startDate: new Date('2026-01-03'), endDate: new Date('2026-01-04'), status: 'ACTIVE' },
+      { id: 'a1', name: 'תרגיל קרוב', startDate: new Date('2026-08-18T00:00:00.000Z'), endDate: new Date('2026-08-20T00:00:00.000Z'), status: 'ACTIVE' },
+      { id: 'a2', name: 'תרגיל אחרון', startDate: new Date('2026-08-01T00:00:00.000Z'), endDate: new Date('2026-08-03T00:00:00.000Z'), status: 'COMPLETED' },
+      { id: 'a3', name: 'לא רלוונטי', startDate: new Date('2026-08-30T00:00:00.000Z'), endDate: new Date('2026-08-31T00:00:00.000Z'), status: 'DRAFT' },
     ]);
-
-    await expect(service.getDashboard('company-1')).rejects.toThrow(BadRequestException);
-  });
-
-  it('builds manpower summary from the current activity', async () => {
-    prisma.company.findUnique.mockResolvedValue({ id: 'company-1' });
-    prisma.activity.findMany.mockResolvedValue([{ id: 'activity-1', name: 'Ops', startDate: new Date('2026-01-01'), endDate: new Date('2026-01-02'), status: 'ACTIVE' }]);
-    prisma.user.count.mockResolvedValue(2);
-    prisma.activityUserStatus.findMany.mockResolvedValue([{ userId: 'u1', status: 'ACTIVE', availability: 'ALL_DAY' }, { userId: 'u2', status: 'SICK', availability: 'MORNING' }]);
-    prisma.activityUserStatus.groupBy.mockResolvedValue([
-      { status: 'ACTIVE', _count: { _all: 1 } },
-      { status: 'SICK', _count: { _all: 1 } },
-    ]);
-    prisma.taskInstance.findMany.mockResolvedValue([]);
-    prisma.assignment.findMany.mockResolvedValue([]);
 
     const result = await service.getDashboard('company-1');
 
-    expect(result.manpowerSummary.usersParticipatingInActivity).toBe(2);
-    expect(result.manpowerSummary.todayAvailabilitySummary.statusCounts.ACTIVE).toBe(1);
+    expect(result.companySummary.totalSoldiers).toBe(2);
+    expect(result.companySummary.roleCounts).toEqual([
+      { name: 'מ"פ', count: 2 },
+      { name: 'קצין', count: 1 },
+    ]);
+    expect(result.companySummary.qualificationCounts).toEqual([
+      { name: 'רופא', count: 2 },
+      { name: 'נווט', count: 1 },
+    ]);
+    expect(result.upcomingActivities).toHaveLength(2);
+    expect(result.recentActivities).toHaveLength(1);
+    expect(result.upcomingActivities[0].name).toBe('תרגיל קרוב');
+    expect(result.recentActivities[0].name).toBe('תרגיל אחרון');
+
+    jest.useRealTimers();
   });
 
-  it('builds tasks summary and validation issues', async () => {
+  it('returns empty summaries when the company has no data', async () => {
     prisma.company.findUnique.mockResolvedValue({ id: 'company-1' });
-    prisma.activity.findMany.mockResolvedValue([{ id: 'activity-1', name: 'Ops', startDate: new Date('2026-01-01'), endDate: new Date('2026-01-02'), status: 'ACTIVE' }]);
-    prisma.user.count.mockResolvedValue(1);
-    prisma.activityUserStatus.findMany.mockResolvedValue([]);
-    prisma.activityUserStatus.groupBy.mockResolvedValue([]);
-    prisma.taskInstance.findMany.mockResolvedValue([{ id: 'instance-1' }, { id: 'instance-2' }]);
-    prisma.assignment.findMany.mockResolvedValue([{ taskInstanceId: 'instance-1', userId: 'u1' }]);
-    validationService.validate.mockResolvedValueOnce({ requiredErrors: [{ type: 'MANPOWER', message: 'Missing required manpower' }], warnings: [{ type: 'ROLE', message: 'Optional role requirement is missing' }], summary: { isValid: false } });
-    validationService.validate.mockResolvedValueOnce({ requiredErrors: [], warnings: [], summary: { isValid: true } });
-
-    const result = await service.getDashboard('company-1');
-
-    expect(result.tasksSummary.totalTaskInstances).toBe(2);
-    expect(result.tasksSummary.unassignedTaskInstances).toBe(1);
-    expect(result.validationIssues.requiredErrorCount).toBe(1);
-    expect(result.validationIssues.warningCount).toBe(1);
-  });
-
-  it('returns empty summaries when there is no active activity', async () => {
-    prisma.company.findUnique.mockResolvedValue({ id: 'company-1' });
+    prisma.user.findMany.mockResolvedValue([]);
+    prisma.role.findMany.mockResolvedValue([]);
+    prisma.qualification.findMany.mockResolvedValue([]);
     prisma.activity.findMany.mockResolvedValue([]);
-    prisma.user.count.mockResolvedValue(0);
-    prisma.activityUserStatus.findMany.mockResolvedValue([]);
-    prisma.activityUserStatus.groupBy.mockResolvedValue([]);
-    prisma.taskInstance.findMany.mockResolvedValue([]);
-    prisma.assignment.findMany.mockResolvedValue([]);
 
     const result = await service.getDashboard('company-1');
 
-    expect(result.activeActivity).toBeNull();
-    expect(result.tasksSummary.totalTaskInstances).toBe(0);
-    expect(result.validationIssues.issues).toEqual([]);
+    expect(result.companySummary).toEqual({
+      totalSoldiers: 0,
+      qualificationCounts: [],
+      roleCounts: [],
+    });
+    expect(result.upcomingActivities).toEqual([]);
+    expect(result.recentActivities).toEqual([]);
   });
 });
