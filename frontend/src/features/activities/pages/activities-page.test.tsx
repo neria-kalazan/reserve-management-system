@@ -56,7 +56,7 @@ describe('ActivitiesPage', () => {
 
     render(<ActivitiesPage />)
 
-    expect(screen.getByText('טוען תעסוקות')).toBeDefined()
+    expect(screen.getByText('טוען פעילויות')).toBeDefined()
   })
 
   it('renders error state and retries', () => {
@@ -69,7 +69,7 @@ describe('ActivitiesPage', () => {
 
     render(<ActivitiesPage />)
 
-    expect(screen.getByText('טעינת התעסוקות נכשלה')).toBeDefined()
+    expect(screen.getByText('טעינת הפעילויות נכשלה')).toBeDefined()
     fireEvent.click(screen.getByRole('button', { name: 'ניסיון חוזר' }))
     expect(refetch).toHaveBeenCalledTimes(1)
   })
@@ -83,8 +83,8 @@ describe('ActivitiesPage', () => {
 
     render(<ActivitiesPage />)
 
-    expect(screen.getByText('אין תעסוקות להצגה')).toBeDefined()
-    expect(screen.getByText('לא הוגדרו עדיין תעסוקות לפלוגה.')).toBeDefined()
+    expect(screen.getByText('אין פעילויות להצגה')).toBeDefined()
+    expect(screen.getByText('לא הוגדרו עדיין פעילויות לפלוגה.')).toBeDefined()
 
     const createButtons = screen.getAllByRole('button', { name: 'יצירת פעילות חדשה' })
     fireEvent.click(createButtons[0]!)
@@ -212,7 +212,7 @@ describe('ActivitiesPage', () => {
     const now = Date.now()
     const activity = makeActivity({
       id: 'activity-42',
-      name: 'תעסוקה ייחודית',
+      name: 'פעילות ייחודית',
       type: 'EMPLOYMENT',
       status: 'DRAFT',
       startDate: new Date(now + 86_400_000).toISOString(),
@@ -227,8 +227,8 @@ describe('ActivitiesPage', () => {
 
     render(<ActivitiesPage />)
 
-    expect(screen.getByText('תעסוקה')).toBeDefined()
-    fireEvent.click(screen.getByRole('button', { name: 'פתיחת תעסוקה' }))
+    expect(screen.getByText('פעילות')).toBeDefined()
+    fireEvent.click(screen.getByRole('button', { name: 'פתיחת פעילות' }))
     expect(navigateMock).toHaveBeenCalledWith('/activities/activity-42')
   })
 

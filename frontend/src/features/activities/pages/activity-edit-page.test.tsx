@@ -30,7 +30,7 @@ const useUpdateActivityMock = vi.mocked(useUpdateActivity)
 const activityData = {
   id: 'activity-1',
   companyId: 'company-1',
-  name: 'תעסוקה מבצעית',
+  name: 'פעילות מבצעית',
   type: 'EMPLOYMENT' as const,
   startDate: '2026-08-10T00:00:00.000Z',
   endDate: '2026-08-15T00:00:00.000Z',
@@ -54,7 +54,7 @@ describe('ActivityEditPage', () => {
 
     render(<ActivityEditPage />)
 
-    expect(screen.getByText('טוען נתוני תעסוקה')).toBeDefined()
+    expect(screen.getByText('טוען נתוני פעילות')).toBeDefined()
   })
 
   it('populates form from loaded activity data', async () => {
@@ -67,10 +67,10 @@ describe('ActivityEditPage', () => {
 
     render(<ActivityEditPage />)
 
-    await waitFor(() => expect(screen.getByDisplayValue('תעסוקה מבצעית')).toBeDefined())
+    await waitFor(() => expect(screen.getByDisplayValue('פעילות מבצעית')).toBeDefined())
     expect(screen.getByDisplayValue('2026-08-10')).toBeDefined()
     expect(screen.getByDisplayValue('2026-08-15')).toBeDefined()
-    expect(screen.getByText('תעסוקה')).toBeDefined()
+    expect(screen.getByText('פעילות')).toBeDefined()
   })
 
   it('validates required fields before submission', async () => {
@@ -84,14 +84,14 @@ describe('ActivityEditPage', () => {
 
     render(<ActivityEditPage />)
 
-    await waitFor(() => expect(screen.getByDisplayValue('תעסוקה מבצעית')).toBeDefined())
+    await waitFor(() => expect(screen.getByDisplayValue('פעילות מבצעית')).toBeDefined())
 
-    fireEvent.change(screen.getByLabelText('שם התעסוקה'), { target: { value: '' } })
+    fireEvent.change(screen.getByLabelText('שם הפעילות'), { target: { value: '' } })
     fireEvent.change(screen.getByLabelText('תאריך התחלה'), { target: { value: '' } })
     fireEvent.change(screen.getByLabelText('תאריך סיום'), { target: { value: '' } })
     fireEvent.click(screen.getByRole('button', { name: 'שמירת שינויים' }))
 
-    expect(screen.getByText('יש להזין שם תעסוקה.')).toBeDefined()
+    expect(screen.getByText('יש להזין שם פעילות.')).toBeDefined()
     expect(screen.getByText('יש להזין תאריך התחלה.')).toBeDefined()
     expect(screen.getByText('יש להזין תאריך סיום.')).toBeDefined()
     expect(mutateAsync).not.toHaveBeenCalled()
@@ -108,7 +108,7 @@ describe('ActivityEditPage', () => {
 
     render(<ActivityEditPage />)
 
-    await waitFor(() => expect(screen.getByDisplayValue('תעסוקה מבצעית')).toBeDefined())
+    await waitFor(() => expect(screen.getByDisplayValue('פעילות מבצעית')).toBeDefined())
 
     fireEvent.change(screen.getByLabelText('תאריך התחלה'), { target: { value: '2026-08-20' } })
     fireEvent.change(screen.getByLabelText('תאריך סיום'), { target: { value: '2026-08-10' } })
@@ -129,10 +129,10 @@ describe('ActivityEditPage', () => {
 
     render(<ActivityEditPage />)
 
-    await waitFor(() => expect(screen.getByDisplayValue('תעסוקה מבצעית')).toBeDefined())
+    await waitFor(() => expect(screen.getByDisplayValue('פעילות מבצעית')).toBeDefined())
 
-    fireEvent.change(screen.getByLabelText('שם התעסוקה'), { target: { value: 'תעסוקה מעודכנת' } })
-    fireEvent.click(screen.getByRole('combobox', { name: 'סוג התעסוקה' }))
+    fireEvent.change(screen.getByLabelText('שם הפעילות'), { target: { value: 'פעילות מעודכנת' } })
+    fireEvent.click(screen.getByRole('combobox', { name: 'סוג הפעילות' }))
     fireEvent.click(screen.getByRole('option', { name: 'אימון' }))
     fireEvent.change(screen.getByLabelText('תאריך התחלה'), { target: { value: '2026-08-11' } })
     fireEvent.change(screen.getByLabelText('תאריך סיום'), { target: { value: '2026-08-16' } })
@@ -144,7 +144,7 @@ describe('ActivityEditPage', () => {
     expect(mutateAsync).toHaveBeenCalledWith({
       activityId: 'activity-1',
       body: {
-        name: 'תעסוקה מעודכנת',
+        name: 'פעילות מעודכנת',
         type: 'TRAINING',
         startDate: '2026-08-11',
         endDate: '2026-08-16',
@@ -163,7 +163,7 @@ describe('ActivityEditPage', () => {
 
     render(<ActivityEditPage />)
 
-    await waitFor(() => expect(screen.getByDisplayValue('תעסוקה מבצעית')).toBeDefined())
+    await waitFor(() => expect(screen.getByDisplayValue('פעילות מבצעית')).toBeDefined())
 
     expect(screen.getByRole('button', { name: 'שמירת שינויים' }).hasAttribute('disabled')).toBe(true)
   })
@@ -179,10 +179,10 @@ describe('ActivityEditPage', () => {
 
     render(<ActivityEditPage />)
 
-    await waitFor(() => expect(screen.getByDisplayValue('תעסוקה מבצעית')).toBeDefined())
+    await waitFor(() => expect(screen.getByDisplayValue('פעילות מבצעית')).toBeDefined())
 
-    fireEvent.change(screen.getByLabelText('שם התעסוקה'), { target: { value: 'שם חדש' } })
-    fireEvent.click(screen.getByRole('combobox', { name: 'סוג התעסוקה' }))
+    fireEvent.change(screen.getByLabelText('שם הפעילות'), { target: { value: 'שם חדש' } })
+    fireEvent.click(screen.getByRole('combobox', { name: 'סוג הפעילות' }))
     fireEvent.click(screen.getByRole('option', { name: 'אימון' }))
     fireEvent.change(screen.getByLabelText('תאריך התחלה'), { target: { value: '2026-08-10' } })
     fireEvent.change(screen.getByLabelText('תאריך סיום'), { target: { value: '2026-08-15' } })
@@ -205,7 +205,7 @@ describe('ActivityEditPage', () => {
 
     render(<ActivityEditPage />)
 
-    await waitFor(() => expect(screen.getByDisplayValue('תעסוקה מבצעית')).toBeDefined())
+    await waitFor(() => expect(screen.getByDisplayValue('פעילות מבצעית')).toBeDefined())
 
     fireEvent.click(screen.getByRole('button', { name: 'ביטול' }))
     expect(navigateMock).toHaveBeenCalledWith('/activities/activity-1')
@@ -222,8 +222,8 @@ describe('ActivityEditPage', () => {
 
     render(<ActivityEditPage />)
 
-    expect(screen.getByText('התעסוקה לא נמצאה')).toBeDefined()
-    expect(screen.getByText('לא ניתן לערוך תעסוקה שלא נמצאה. אפשר לחזור לרשימת התעסוקות.')).toBeDefined()
+    expect(screen.getByText('הפעילות לא נמצאה')).toBeDefined()
+    expect(screen.getByText('לא ניתן לערוך פעילות שלא נמצאה. אפשר לחזור לרשימת הפעילויות.')).toBeDefined()
   })
 
   it('handles missing route param safely', () => {
@@ -233,6 +233,6 @@ describe('ActivityEditPage', () => {
 
     render(<ActivityEditPage />)
 
-    expect(screen.getByText('מזהה תעסוקה חסר')).toBeDefined()
+    expect(screen.getByText('מזהה פעילות חסר')).toBeDefined()
   })
 })

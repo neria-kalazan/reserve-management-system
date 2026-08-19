@@ -215,7 +215,7 @@ describe('DashboardPage', () => {
         recentActivities: [
           {
             id: 'employment-1',
-            name: 'תעסוקה מבצעית',
+            name: 'פעילות מבצעית',
             type: 'EMPLOYMENT',
             startDate: '2026-07-15T00:00:00.000Z',
             endDate: '2026-07-17T00:00:00.000Z',
@@ -236,7 +236,7 @@ describe('DashboardPage', () => {
     render(<DashboardPage />)
 
     expect(screen.getByText('אימון ימי')).toBeDefined()
-    expect(screen.getByText('תעסוקה מבצעית')).toBeDefined()
+    expect(screen.getByText('פעילות מבצעית')).toBeDefined()
     expect(screen.getByText('השתלמות תפעולית')).toBeDefined()
     expect(screen.getByRole('button', { name: 'לפרטי האימון' })).toBeDefined()
     expect(screen.getByRole('button', { name: 'לפרטי התעסוקה' })).toBeDefined()
@@ -277,7 +277,7 @@ describe('DashboardPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'לפרטי האימון' }))
     expect(navigateMock).toHaveBeenCalledWith('/activities/upcoming-1')
 
-    fireEvent.click(screen.getByRole('button', { name: 'לפרטי התעסוקה' }))
+    fireEvent.click(screen.getByRole('button', { name: 'לפרטי הפעילות' }))
     expect(navigateMock).toHaveBeenCalledWith('/activities/recent-1')
   })
 

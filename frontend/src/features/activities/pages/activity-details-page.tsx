@@ -21,6 +21,14 @@ const ACTIVITY_TYPE_LABELS: Record<ActivityType, string> = {
   TRAINING_COURSE: 'השתלמות',
 }
 
+const getActivityTypeLabel = (type: ActivityType | null | undefined) => {
+  if (!type) {
+    return 'פעילות'
+  }
+
+  return ACTIVITY_TYPE_LABELS[type] ?? 'פעילות'
+}
+
 const isHistoricalActivity = (activity: { status: string; endDate: string } | undefined, now = new Date()) => {
   if (!activity) {
     return false
@@ -149,14 +157,14 @@ export function ActivityDetailsPage() {
   if (!activityId) {
     return (
       <>
-        <PageHeader title="פרטי תעסוקה" description="לא התקבל מזהה תעסוקה חוקי." />
+        <PageHeader title="פרטי פעילות" description="לא התקבל מזהה פעילות חוקי." />
         <ContentContainer className="pb-10">
           <ErrorState
-            title="מזהה תעסוקה חסר"
-            description="לא ניתן לטעון את פרטי התעסוקה בלי מזהה תקין."
+            title="מזהה פעילות חסר"
+            description="לא ניתן לטעון את פרטי הפעילות בלי מזהה תקין."
             action={
               <Button type="button" variant="secondary" onClick={() => navigate('/activities')}>
-                חזרה לרשימת תעסוקות
+                חזרה לרשימת פעילויות
               </Button>
             }
           />
@@ -168,8 +176,8 @@ export function ActivityDetailsPage() {
   return (
     <>
       <PageHeader
-        title={activityQuery.data?.name ?? 'פרטי תעסוקה'}
-        description="תצוגת פרטי תעסוקה עבור מפקד פלוגה"
+        title={activityQuery.data?.name ?? 'פרטי פעילות'}
+        description="תצוגת פרטי פעילות עבור מפקד פלוגה"
         actions={
           <div className="flex flex-wrap items-center justify-end gap-2">
             {activityQuery.data ? <StatusBadge value={activityQuery.data.status} /> : null}
@@ -197,7 +205,7 @@ export function ActivityDetailsPage() {
                 variant="secondary"
                 onClick={() => navigate(`/activities/${activityQuery.data?.id}/edit`)}
               >
-                עריכת תעסוקה
+                עריכת פעילות
               </Button>
             ) : null}
             <Button
@@ -215,7 +223,7 @@ export function ActivityDetailsPage() {
               טבלת נוכחות
             </Button>
             <Button type="button" variant="secondary" onClick={() => navigate('/activities')}>
-              חזרה לתעסוקות
+              חזרה לפעילויות
             </Button>
           </div>
         }
@@ -223,14 +231,14 @@ export function ActivityDetailsPage() {
 
       <ContentContainer className="space-y-5 pb-10">
         {activityQuery.isPending ? (
-          <LoadingState title="טוען פרטי תעסוקה" description="נתוני התעסוקה נטענים כעת." />
+          <LoadingState title="טוען פרטי פעילות" description="נתוני הפעילות נטענים כעת." />
         ) : activityQuery.isError ? (
           <ErrorState
-            title={isNotFound ? 'התעסוקה לא נמצאה' : 'טעינת פרטי התעסוקה נכשלה'}
+            title={isNotFound ? 'הפעילות לא נמצאה' : 'טעינת פרטי הפעילות נכשלה'}
             description={
               isNotFound
-                ? 'לא נמצאה תעסוקה עם המזהה שנבחר. אפשר לחזור לרשימת התעסוקות.'
-                : 'לא הצלחנו לטעון את פרטי התעסוקה. אפשר לנסות שוב או לחזור לרשימה.'
+                ? 'לא נמצאה פעילות עם המזהה שנבחר. אפשר לחזור לרשימת הפעילויות.'
+                : 'לא הצלחנו לטעון את פרטי הפעילות. אפשר לנסות שוב או לחזור לרשימה.'
             }
             action={
               <Button type="button" variant="secondary" onClick={() => void activityQuery.refetch()}>
@@ -243,13 +251,13 @@ export function ActivityDetailsPage() {
             <Card>
               <CardHeader className="px-4 py-4 sm:px-5">
                 <CardTitle className="text-base">
-                  {isHistorical ? 'פרטי פעילות היסטורית' : 'פרטי תעסוקה'}
+                  {isHistorical ? 'פרטי פעילות היסטורית' : 'פרטי פעילות'}
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3 px-4 pb-4 sm:px-5 sm:pb-5">
                 <dl className="space-y-3">
-                  <FieldRow label={isHistorical ? 'שם הפעילות' : 'שם התעסוקה'} value={activityQuery.data.name} />
-                  <FieldRow label="סוג הפעילות" value={ACTIVITY_TYPE_LABELS[activityQuery.data.type]} />
+                  <FieldRow label={isHistorical ? 'שם הפעילות' : 'שם הפעילות'} value={activityQuery.data.name} />
+                  <FieldRow label="סוג הפעילות" value={getActivityTypeLabel(activityQuery.data.type)} />
                   <FieldRow label="תאריך התחלה" value={formatDate(activityQuery.data.startDate)} />
                   <FieldRow label="תאריך סיום" value={formatDate(activityQuery.data.endDate)} />
                   <FieldRow label="סטטוס" value={<StatusBadge value={activityQuery.data.status} />} />

@@ -37,12 +37,12 @@ describe('ActivityCreatePage', () => {
 
     render(<ActivityCreatePage />)
 
-    expect(screen.getByRole('heading', { name: 'יצירת תעסוקה' })).toBeDefined()
-    expect(screen.getByLabelText('שם התעסוקה')).toBeDefined()
-    expect(screen.getByLabelText('סוג התעסוקה')).toBeDefined()
+    expect(screen.getByRole('heading', { name: 'יצירת פעילות' })).toBeDefined()
+    expect(screen.getByLabelText('שם הפעילות')).toBeDefined()
+    expect(screen.getByLabelText('סוג הפעילות')).toBeDefined()
     expect(screen.getByLabelText('תאריך התחלה')).toBeDefined()
     expect(screen.getByLabelText('תאריך סיום')).toBeDefined()
-    expect(screen.getByRole('button', { name: 'יצירת תעסוקה' })).toBeDefined()
+    expect(screen.getByRole('button', { name: 'יצירת פעילות' })).toBeDefined()
   })
 
   it('validates required fields before submission', () => {
@@ -54,10 +54,10 @@ describe('ActivityCreatePage', () => {
 
     render(<ActivityCreatePage />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'יצירת תעסוקה' }))
+    fireEvent.click(screen.getByRole('button', { name: 'יצירת פעילות' }))
 
-    expect(screen.getByText('יש להזין שם תעסוקה.')).toBeDefined()
-    expect(screen.getByText('יש לבחור סוג תעסוקה.')).toBeDefined()
+    expect(screen.getByText('יש להזין שם פעילות.')).toBeDefined()
+    expect(screen.getByText('יש לבחור סוג פעילות.')).toBeDefined()
     expect(screen.getByText('יש להזין תאריך התחלה.')).toBeDefined()
     expect(screen.getByText('יש להזין תאריך סיום.')).toBeDefined()
     expect(mutateAsync).not.toHaveBeenCalled()
@@ -72,11 +72,11 @@ describe('ActivityCreatePage', () => {
 
     render(<ActivityCreatePage />)
 
-    fireEvent.change(screen.getByLabelText('שם התעסוקה'), { target: { value: 'תעסוקת ניסוי' } })
+    fireEvent.change(screen.getByLabelText('שם הפעילות'), { target: { value: 'תעסוקת ניסוי' } })
     fireEvent.change(screen.getByLabelText('תאריך התחלה'), { target: { value: '2026-08-20' } })
     fireEvent.change(screen.getByLabelText('תאריך סיום'), { target: { value: '2026-08-10' } })
 
-    fireEvent.click(screen.getByRole('button', { name: 'יצירת תעסוקה' }))
+    fireEvent.click(screen.getByRole('button', { name: 'יצירת פעילות' }))
 
     expect(screen.getByText('תאריך הסיום לא יכול להיות לפני תאריך ההתחלה.')).toBeDefined()
     expect(mutateAsync).not.toHaveBeenCalled()
@@ -91,13 +91,13 @@ describe('ActivityCreatePage', () => {
 
     render(<ActivityCreatePage />)
 
-    fireEvent.change(screen.getByLabelText('שם התעסוקה'), { target: { value: '  תעסוקת פלוגה  ' } })
-    fireEvent.click(screen.getByRole('combobox', { name: 'סוג התעסוקה' }))
-    fireEvent.click(screen.getByRole('option', { name: 'תעסוקה' }))
+    fireEvent.change(screen.getByLabelText('שם הפעילות'), { target: { value: '  תעסוקת פלוגה  ' } })
+    fireEvent.click(screen.getByRole('combobox', { name: 'סוג הפעילות' }))
+    fireEvent.click(screen.getByRole('option', { name: 'פעילות' }))
     fireEvent.change(screen.getByLabelText('תאריך התחלה'), { target: { value: '2026-08-10' } })
     fireEvent.change(screen.getByLabelText('תאריך סיום'), { target: { value: '2026-08-15' } })
 
-    fireEvent.click(screen.getByRole('button', { name: 'יצירת תעסוקה' }))
+    fireEvent.click(screen.getByRole('button', { name: 'יצירת פעילות' }))
 
     await waitFor(() => expect(mutateAsync).toHaveBeenCalledTimes(1))
 
@@ -118,7 +118,7 @@ describe('ActivityCreatePage', () => {
 
     render(<ActivityCreatePage />)
 
-    expect(screen.getByRole('button', { name: 'יצירת תעסוקה' }).hasAttribute('disabled')).toBe(true)
+    expect(screen.getByRole('button', { name: 'יצירת פעילות' }).hasAttribute('disabled')).toBe(true)
   })
 
   it('shows backend error message and preserves values after failure', async () => {
@@ -130,19 +130,19 @@ describe('ActivityCreatePage', () => {
 
     render(<ActivityCreatePage />)
 
-    fireEvent.change(screen.getByLabelText('שם התעסוקה'), { target: { value: 'תעסוקה א' } })
-    fireEvent.click(screen.getByRole('combobox', { name: 'סוג התעסוקה' }))
-    fireEvent.click(screen.getByRole('option', { name: 'תעסוקה' }))
+    fireEvent.change(screen.getByLabelText('שם הפעילות'), { target: { value: 'פעילות א' } })
+    fireEvent.click(screen.getByRole('combobox', { name: 'סוג הפעילות' }))
+    fireEvent.click(screen.getByRole('option', { name: 'פעילות' }))
     fireEvent.change(screen.getByLabelText('תאריך התחלה'), { target: { value: '2026-08-10' } })
     fireEvent.change(screen.getByLabelText('תאריך סיום'), { target: { value: '2026-08-15' } })
 
-    fireEvent.click(screen.getByRole('button', { name: 'יצירת תעסוקה' }))
+    fireEvent.click(screen.getByRole('button', { name: 'יצירת פעילות' }))
 
-    await waitFor(() => expect(screen.getByText('יצירת התעסוקה נכשלה')).toBeDefined())
+    await waitFor(() => expect(screen.getByText('יצירת הפעילות נכשלה')).toBeDefined())
 
-    expect(screen.getByText('יצירת התעסוקה נכשלה')).toBeDefined()
+    expect(screen.getByText('יצירת הפעילות נכשלה')).toBeDefined()
     expect(screen.getByText('הנתונים שהוזנו אינם תקינים. בדקו את השדות ונסו שוב.')).toBeDefined()
-    expect(screen.getByDisplayValue('תעסוקה א')).toBeDefined()
+    expect(screen.getByDisplayValue('פעילות א')).toBeDefined()
     expect(screen.getByDisplayValue('2026-08-10')).toBeDefined()
     expect(screen.getByDisplayValue('2026-08-15')).toBeDefined()
     expect(navigateMock).not.toHaveBeenCalled()

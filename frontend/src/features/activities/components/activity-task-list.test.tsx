@@ -29,7 +29,7 @@ describe('ActivityTaskList', () => {
       />,
     )
 
-    expect(screen.getByText('אין משימות להצגה לתעסוקה זו.')).toBeDefined()
+    expect(screen.getByText('אין משימות להצגה לפעילות זו.')).toBeDefined()
   })
 
   it('renders loading state', () => {

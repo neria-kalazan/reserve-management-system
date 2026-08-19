@@ -57,11 +57,11 @@ const toUserFacingError = (error: unknown) => {
     }
 
     if (error.status === 401 || error.status === 403) {
-      return 'אין הרשאה ליצור תעסוקה במצב ההתחברות הנוכחי.'
+      return 'אין הרשאה ליצור פעילות במצב ההתחברות הנוכחי.'
     }
   }
 
-  return 'לא הצלחנו ליצור את התעסוקה כעת. אפשר לנסות שוב.'
+  return 'לא הצלחנו ליצור את הפעילות כעת. אפשר לנסות שוב.'
 }
 
 const validate = (values: FormValues): FormErrors => {
@@ -74,11 +74,11 @@ const validate = (values: FormValues): FormErrors => {
   }
 
   if (values.name.trim().length === 0) {
-    errors.name = 'יש להזין שם תעסוקה.'
+    errors.name = 'יש להזין שם פעילות.'
   }
 
   if (!values.type) {
-    errors.type = 'יש לבחור סוג תעסוקה.'
+    errors.type = 'יש לבחור סוג פעילות.'
   }
 
   if (values.startDate.length === 0) {
@@ -145,8 +145,8 @@ export function ActivityCreatePage() {
   return (
     <>
       <PageHeader
-        title="יצירת תעסוקה"
-        description="פתיחת תעסוקה חדשה לפלוגה לפי טווח תאריכים."
+        title="יצירת פעילות"
+        description="פתיחת פעילות חדשה לפלוגה לפי טווח תאריכים."
         actions={
           <Button type="button" variant="secondary" onClick={() => navigate('/activities')}>
             ביטול וחזרה
@@ -157,23 +157,23 @@ export function ActivityCreatePage() {
       <ContentContainer className="pb-10">
         <Card>
           <CardHeader className="px-4 py-4 sm:px-5">
-            <CardTitle className="text-base">פרטי תעסוקה חדשה</CardTitle>
+            <CardTitle className="text-base">פרטי פעילות חדשה</CardTitle>
           </CardHeader>
           <CardContent className="space-y-5 px-4 pb-5 sm:px-5">
             {errors.form ? (
               <ErrorState
-                title="יצירת התעסוקה נכשלה"
+                title="יצירת הפעילות נכשלה"
                 description={errors.form}
               />
             ) : null}
 
             <form className="space-y-4" onSubmit={onSubmit} noValidate>
               <div className="space-y-2">
-                <Label htmlFor="activity-name">שם התעסוקה</Label>
+                <Label htmlFor="activity-name">שם הפעילות</Label>
                 <Input
                   id="activity-name"
                   name="name"
-                  placeholder="לדוגמה: תעסוקה מבצעית"
+                  placeholder="לדוגמה: פעילות מבצעית"
                   value={values.name}
                   onChange={(event) => updateField('name', event.target.value)}
                   aria-invalid={errors.name ? 'true' : 'false'}
@@ -182,13 +182,13 @@ export function ActivityCreatePage() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="activity-type">סוג התעסוקה</Label>
+                <Label htmlFor="activity-type">סוג הפעילות</Label>
                 <Select
                   value={values.type || undefined}
                   onValueChange={(value) => updateField('type', value as ActivityType)}
                 >
                   <SelectTrigger id="activity-type" aria-invalid={errors.type ? 'true' : 'false'}>
-                    <SelectValue placeholder="בחר סוג תעסוקה" />
+                    <SelectValue placeholder="בחר סוג פעילות" />
                   </SelectTrigger>
                   <SelectContent>
                     {ACTIVITY_TYPE_OPTIONS.map((option) => (
@@ -240,7 +240,7 @@ export function ActivityCreatePage() {
                   loading={createActivityMutation.isPending}
                   disabled={createActivityMutation.isPending}
                 >
-                  יצירת תעסוקה
+                  יצירת פעילות
                 </Button>
               </div>
             </form>

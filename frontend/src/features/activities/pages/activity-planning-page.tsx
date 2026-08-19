@@ -402,14 +402,14 @@ export function ActivityPlanningPage() {
   if (!activityId) {
     return (
       <>
-        <PageHeader title="תכנון תפעולי" description="לא התקבל מזהה תעסוקה תקין." />
+        <PageHeader title="תכנון תפעולי" description="לא התקבל מזהה פעילות תקין." />
         <ContentContainer className="pb-10">
           <ErrorState
-            title="מזהה תעסוקה חסר"
-            description="לא ניתן לטעון תכנון תפעולי בלי מזהה תעסוקה חוקי."
+            title="מזהה פעילות חסר"
+            description="לא ניתן לטעון תכנון תפעולי בלי מזהה פעילות חוקי."
             action={
               <Button type="button" variant="secondary" onClick={() => navigate('/activities')}>
-                חזרה לרשימת התעסוקות
+                חזרה לרשימת הפעילויות
               </Button>
             }
           />
@@ -482,7 +482,7 @@ export function ActivityPlanningPage() {
         actions={
           <div className="flex flex-wrap items-center justify-end gap-2">
             <Button type="button" variant="secondary" onClick={() => navigate(`/activities/${activityId}`)}>
-              חזרה לפרטי התעסוקה
+              חזרה לפרטי הפעילות
             </Button>
           </div>
         }

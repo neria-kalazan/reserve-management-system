@@ -60,7 +60,7 @@ describe('ActivityDetailsPage', () => {
 
     render(<ActivityDetailsPage />)
 
-    expect(screen.getByText('טוען פרטי תעסוקה')).toBeDefined()
+    expect(screen.getByText('טוען פרטי פעילות')).toBeDefined()
   })
 
   it('renders error state and supports retry + back navigation', () => {
@@ -74,12 +74,12 @@ describe('ActivityDetailsPage', () => {
 
     render(<ActivityDetailsPage />)
 
-    expect(screen.getByText('טעינת פרטי התעסוקה נכשלה')).toBeDefined()
+    expect(screen.getByText('טעינת פרטי הפעילות נכשלה')).toBeDefined()
 
     fireEvent.click(screen.getByRole('button', { name: 'ניסיון חוזר' }))
     expect(refetch).toHaveBeenCalledTimes(1)
 
-    fireEvent.click(screen.getByRole('button', { name: 'חזרה לתעסוקות' }))
+    fireEvent.click(screen.getByRole('button', { name: 'חזרה לפעילויות' }))
     expect(navigateMock).toHaveBeenCalledWith('/activities')
   })
 
@@ -93,8 +93,8 @@ describe('ActivityDetailsPage', () => {
 
     render(<ActivityDetailsPage />)
 
-    expect(screen.getByText('התעסוקה לא נמצאה')).toBeDefined()
-    expect(screen.getByText('לא נמצאה תעסוקה עם המזהה שנבחר. אפשר לחזור לרשימת התעסוקות.')).toBeDefined()
+    expect(screen.getByText('הפעילות לא נמצאה')).toBeDefined()
+    expect(screen.getByText('לא נמצאה פעילות עם המזהה שנבחר. אפשר לחזור לרשימת הפעילויות.')).toBeDefined()
   })
 
   it('renders overview loading state without hiding the activity details', () => {
@@ -104,7 +104,7 @@ describe('ActivityDetailsPage', () => {
       data: {
         id: 'activity-1',
         companyId: 'company-1',
-        name: 'תעסוקה מבצעית',
+        name: 'פעילות מבצעית',
         startDate: '2099-08-10T00:00:00.000Z',
         endDate: '2099-08-15T00:00:00.000Z',
         status: 'ACTIVE',
@@ -121,7 +121,7 @@ describe('ActivityDetailsPage', () => {
 
     render(<ActivityDetailsPage />)
 
-    expect(screen.getAllByText('תעסוקה מבצעית').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('פעילות מבצעית').length).toBeGreaterThanOrEqual(1)
     expect(screen.getByText('סקירה')).toBeDefined()
     expect(screen.getByText('טוען סקירה')).toBeDefined()
   })
@@ -133,7 +133,7 @@ describe('ActivityDetailsPage', () => {
       data: {
         id: 'activity-1',
         companyId: 'company-1',
-        name: 'תעסוקה מבצעית',
+        name: 'פעילות מבצעית',
         startDate: '2099-08-10T00:00:00.000Z',
         endDate: '2099-08-15T00:00:00.000Z',
         status: 'ACTIVE',
@@ -145,7 +145,7 @@ describe('ActivityDetailsPage', () => {
       isPending: false,
       isError: false,
       data: {
-        activity: { id: 'activity-1', name: 'תעסוקה מבצעית', status: 'ACTIVE' },
+        activity: { id: 'activity-1', name: 'פעילות מבצעית', status: 'ACTIVE' },
         manpowerSummary: { participantCount: 6, dailyStatusSummary: { ACTIVE: 5, HOLIDAY: 1 } },
         tasksOverview: [
           {
@@ -162,7 +162,7 @@ describe('ActivityDetailsPage', () => {
 
     render(<ActivityDetailsPage />)
 
-    expect(screen.getAllByText('תעסוקה מבצעית').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('פעילות מבצעית').length).toBeGreaterThanOrEqual(1)
     expect(screen.getByText('כוח אדם')).toBeDefined()
     expect(screen.getByText('6')).toBeDefined()
     expect(screen.getByText('הכנה')).toBeDefined()
@@ -180,7 +180,7 @@ describe('ActivityDetailsPage', () => {
       data: {
         id: 'activity-1',
         companyId: 'company-1',
-        name: 'תעסוקה מבצעית',
+        name: 'פעילות מבצעית',
         type,
         startDate: '2099-08-10T00:00:00.000Z',
         endDate: '2099-08-15T00:00:00.000Z',
@@ -196,6 +196,28 @@ describe('ActivityDetailsPage', () => {
     expect(screen.getByText(label)).toBeDefined()
   })
 
+  it('falls back to a generic label when the API type is missing', () => {
+    useActivityByIdMock.mockReturnValue({
+      isPending: false,
+      isError: false,
+      data: {
+        id: 'activity-1',
+        companyId: 'company-1',
+        name: 'פעילות מבצעית',
+        type: undefined,
+        startDate: '2099-08-10T00:00:00.000Z',
+        endDate: '2099-08-15T00:00:00.000Z',
+        status: 'ACTIVE',
+        createdAt: '2026-08-10T00:00:00.000Z',
+        updatedAt: '2026-08-10T00:00:00.000Z',
+      },
+    } as unknown as ReturnType<typeof useActivityById>)
+
+    render(<ActivityDetailsPage />)
+
+    expect(screen.getByText('פעילות')).toBeDefined()
+  })
+
   it('keeps operational UI for active activity', () => {
     useActivityByIdMock.mockReturnValue({
       isPending: false,
@@ -203,7 +225,7 @@ describe('ActivityDetailsPage', () => {
       data: {
         id: 'activity-1',
         companyId: 'company-1',
-        name: 'תעסוקה מבצעית',
+        name: 'פעילות מבצעית',
         type: 'EMPLOYMENT',
         startDate: '2099-08-10T00:00:00.000Z',
         endDate: '2099-08-15T00:00:00.000Z',
@@ -217,7 +239,7 @@ describe('ActivityDetailsPage', () => {
 
     expect(screen.getByRole('button', { name: 'תכנון תפעולי' })).toBeDefined()
     expect(screen.getByRole('button', { name: 'זמינות' })).toBeDefined()
-    expect(screen.getByRole('button', { name: 'עריכת תעסוקה' })).toBeDefined()
+    expect(screen.getByRole('button', { name: 'עריכת פעילות' })).toBeDefined()
     expect(screen.queryByRole('button', { name: 'טבלת שיבוץ' })).toBeNull()
   })
 
@@ -228,7 +250,7 @@ describe('ActivityDetailsPage', () => {
       data: {
         id: 'activity-1',
         companyId: 'company-1',
-        name: 'תעסוקה עתידית',
+        name: 'פעילות עתידית',
         type: 'TRAINING',
         startDate: '2099-08-10T00:00:00.000Z',
         endDate: '2099-08-15T00:00:00.000Z',
@@ -242,7 +264,7 @@ describe('ActivityDetailsPage', () => {
 
     expect(screen.getByRole('button', { name: 'תכנון תפעולי' })).toBeDefined()
     expect(screen.getByRole('button', { name: 'זמינות' })).toBeDefined()
-    expect(screen.getByRole('button', { name: 'עריכת תעסוקה' })).toBeDefined()
+    expect(screen.getByRole('button', { name: 'עריכת פעילות' })).toBeDefined()
     expect(screen.queryByRole('button', { name: 'טבלת שיבוץ' })).toBeNull()
   })
 
@@ -253,7 +275,7 @@ describe('ActivityDetailsPage', () => {
       data: {
         id: 'activity-1',
         companyId: 'company-1',
-        name: 'תעסוקה היסטורית',
+        name: 'פעילות היסטורית',
         type: 'EMPLOYMENT',
         startDate: '2026-07-01T00:00:00.000Z',
         endDate: '2026-07-05T00:00:00.000Z',
@@ -268,7 +290,7 @@ describe('ActivityDetailsPage', () => {
     expect(screen.getByText('פרטי פעילות היסטורית')).toBeDefined()
     expect(screen.getByRole('button', { name: 'טבלת שיבוץ' })).toBeDefined()
     expect(screen.getByRole('button', { name: 'טבלת נוכחות' })).toBeDefined()
-    expect(screen.getByRole('button', { name: 'עריכת תעסוקה' })).toBeDefined()
+    expect(screen.getByRole('button', { name: 'עריכת פעילות' })).toBeDefined()
     expect(screen.getByText('שכר יומיים')).toBeDefined()
     expect(screen.getByText('אין נתונים להצגה')).toBeDefined()
     expect(screen.queryByRole('button', { name: 'תכנון תפעולי' })).toBeNull()
@@ -282,7 +304,7 @@ describe('ActivityDetailsPage', () => {
       data: {
         id: 'activity-1',
         companyId: 'company-1',
-        name: 'תעסוקה שהסתיימה',
+        name: 'פעילות שהסתיימה',
         type: 'TRAINING_COURSE',
         startDate: '2025-01-01T00:00:00.000Z',
         endDate: '2025-01-02T00:00:00.000Z',
@@ -297,7 +319,7 @@ describe('ActivityDetailsPage', () => {
     expect(screen.getByText('פרטי פעילות היסטורית')).toBeDefined()
     expect(screen.getByRole('button', { name: 'טבלת שיבוץ' })).toBeDefined()
     expect(screen.getByRole('button', { name: 'טבלת נוכחות' })).toBeDefined()
-    expect(screen.getByRole('button', { name: 'עריכת תעסוקה' })).toBeDefined()
+    expect(screen.getByRole('button', { name: 'עריכת פעילות' })).toBeDefined()
     expect(screen.getByText('שכר יומיים')).toBeDefined()
     expect(screen.getByText('אין נתונים להצגה')).toBeDefined()
   })
@@ -310,7 +332,7 @@ describe('ActivityDetailsPage', () => {
       data: {
         id: 'activity-1',
         companyId: 'company-1',
-        name: 'תעסוקה היסטורית',
+        name: 'פעילות היסטורית',
         type: 'EMPLOYMENT',
         startDate: '2026-07-01T00:00:00.000Z',
         endDate: '2026-07-05T00:00:00.000Z',
@@ -337,7 +359,7 @@ describe('ActivityDetailsPage', () => {
       data: {
         id: 'activity-1',
         companyId: 'company-1',
-        name: 'תעסוקה היסטורית',
+        name: 'פעילות היסטורית',
         type: 'EMPLOYMENT',
         startDate: '2026-07-01T00:00:00.000Z',
         endDate: '2026-07-05T00:00:00.000Z',
@@ -362,7 +384,7 @@ describe('ActivityDetailsPage', () => {
       data: {
         id: 'activity-1',
         companyId: 'company-1',
-        name: 'תעסוקה מבצעית',
+        name: 'פעילות מבצעית',
         type: 'EMPLOYMENT',
         startDate: '2099-08-10T00:00:00.000Z',
         endDate: '2099-08-15T00:00:00.000Z',
@@ -395,7 +417,7 @@ describe('ActivityDetailsPage', () => {
       data: {
         id: 'activity-1',
         companyId: 'company-1',
-        name: 'תעסוקה היסטורית',
+        name: 'פעילות היסטורית',
         type: 'EMPLOYMENT',
         startDate: '2026-07-01T00:00:00.000Z',
         endDate: '2026-07-05T00:00:00.000Z',
@@ -408,7 +430,7 @@ describe('ActivityDetailsPage', () => {
       isPending: false,
       isError: false,
       data: {
-        activity: { id: 'activity-1', name: 'תעסוקה היסטורית', status: 'COMPLETED' },
+        activity: { id: 'activity-1', name: 'פעילות היסטורית', status: 'COMPLETED' },
         manpowerSummary: { participantCount: 3, dailyStatusSummary: { ACTIVE: 2, HOLIDAY: 6 } },
         tasksOverview: [],
         availabilitySummary: { byAvailability: { ALL_DAY: 3 } },
@@ -433,7 +455,7 @@ describe('ActivityDetailsPage', () => {
       data: {
         id: 'activity-1',
         companyId: 'company-1',
-        name: 'תעסוקה מבצעית',
+        name: 'פעילות מבצעית',
         type: 'EMPLOYMENT',
         startDate: '2099-08-10T00:00:00.000Z',
         endDate: '2099-08-15T00:00:00.000Z',
@@ -446,7 +468,7 @@ describe('ActivityDetailsPage', () => {
       isPending: false,
       isError: false,
       data: {
-        activity: { id: 'activity-1', name: 'תעסוקה מבצעית', status: 'ACTIVE' },
+        activity: { id: 'activity-1', name: 'פעילות מבצעית', status: 'ACTIVE' },
         manpowerSummary: { participantCount: 3, dailyStatusSummary: { ACTIVE: 2, HOLIDAY: 6 } },
         tasksOverview: [],
         availabilitySummary: { byAvailability: { ALL_DAY: 3 } },
@@ -469,7 +491,7 @@ describe('ActivityDetailsPage', () => {
       data: {
         id: 'activity-1',
         companyId: 'company-1',
-        name: 'תעסוקה מבצעית',
+        name: 'פעילות מבצעית',
         type: 'EMPLOYMENT',
         startDate: '2099-08-10T00:00:00.000Z',
         endDate: '2099-08-15T00:00:00.000Z',
@@ -501,7 +523,7 @@ describe('ActivityDetailsPage', () => {
       data: {
         id: 'activity-1',
         companyId: 'company-1',
-        name: 'תעסוקה מבצעית',
+        name: 'פעילות מבצעית',
         type: 'EMPLOYMENT',
         startDate: '2099-08-10T00:00:00.000Z',
         endDate: '2099-08-15T00:00:00.000Z',
@@ -513,7 +535,7 @@ describe('ActivityDetailsPage', () => {
 
     render(<ActivityDetailsPage />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'חזרה לתעסוקות' }))
+    fireEvent.click(screen.getByRole('button', { name: 'חזרה לפעילויות' }))
     expect(navigateMock).toHaveBeenCalledWith('/activities')
   })
 
@@ -523,9 +545,9 @@ describe('ActivityDetailsPage', () => {
 
     render(<ActivityDetailsPage />)
 
-    expect(screen.getByText('מזהה תעסוקה חסר')).toBeDefined()
+    expect(screen.getByText('מזהה פעילות חסר')).toBeDefined()
 
-    fireEvent.click(screen.getByRole('button', { name: 'חזרה לרשימת תעסוקות' }))
+    fireEvent.click(screen.getByRole('button', { name: 'חזרה לרשימת פעילויות' }))
     expect(navigateMock).toHaveBeenCalledWith('/activities')
   })
 })

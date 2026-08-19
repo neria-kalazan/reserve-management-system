@@ -49,9 +49,17 @@ export async function seedDemo(prisma: PrismaClient) {
       data: {
         companyId: company.id,
         name: 'תעסוקת איתמר',
+        type: 'EMPLOYMENT',
         status: 'ACTIVE',
         startDate: activityStartDate,
         endDate: activityEndDate,
+      },
+    });
+  } else if (!activity.type) {
+    activity = await prisma.activity.update({
+      where: { id: activity.id },
+      data: {
+        type: 'EMPLOYMENT',
       },
     });
   }

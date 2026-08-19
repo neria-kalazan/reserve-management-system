@@ -200,7 +200,7 @@ export function ActivityTaskRequirementsPage() {
             description="לא ניתן לטעון דרישות בלי מזהה משימה תקין."
             action={
               <Button type="button" variant="secondary" onClick={() => navigate('/activities')}>
-                חזרה לרשימת תעסוקות
+                חזרה לרשימת פעילויות
               </Button>
             }
           />
@@ -219,7 +219,7 @@ export function ActivityTaskRequirementsPage() {
         description="ניהול דרישות כוח אדם, תפקידים והכשרות עבור משימה נבחרת."
         actions={
           <Button type="button" variant="secondary" onClick={() => navigate(`/activities/${activityId}`)}>
-            חזרה לפרטי תעסוקה
+            חזרה לפרטי פעילות
           </Button>
         }
       />

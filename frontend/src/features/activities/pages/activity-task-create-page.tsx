@@ -111,14 +111,14 @@ export function ActivityTaskCreatePage() {
   if (!activityId) {
     return (
       <>
-        <PageHeader title="יצירת משימה" description="לא התקבל מזהה תעסוקה חוקי." />
+        <PageHeader title="יצירת משימה" description="לא התקבל מזהה פעילות חוקי." />
         <ContentContainer className="pb-10">
           <ErrorState
-            title="מזהה תעסוקה חסר"
-            description="לא ניתן ליצור משימה בלי מזהה תעסוקה תקין."
+            title="מזהה פעילות חסר"
+            description="לא ניתן ליצור משימה בלי מזהה פעילות תקין."
             action={
               <Button type="button" variant="secondary" onClick={() => navigate('/activities')}>
-                חזרה לרשימת תעסוקות
+                חזרה לרשימת פעילויות
               </Button>
             }
           />
@@ -131,7 +131,7 @@ export function ActivityTaskCreatePage() {
     <>
       <PageHeader
         title="יצירת משימה"
-        description="הוספת משימה חדשה לתעסוקה נבחרת."
+        description="הוספת משימה חדשה לפעילות נבחרת."
         actions={
           <Button type="button" variant="secondary" onClick={() => navigate(`/activities/${activityId}`)}>
             ביטול

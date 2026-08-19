@@ -83,7 +83,7 @@ describe('ActivityTaskInstancesPage', () => {
     useActivityByIdMock.mockReturnValue({
       isPending: false,
       isError: false,
-      data: { id: 'activity-1', name: 'תעסוקה מבצעית', companyId: 'company-1' },
+      data: { id: 'activity-1', name: 'פעילות מבצעית', companyId: 'company-1' },
     } as unknown as ReturnType<typeof useActivityById>)
 
     useActivityTaskInstancesMock.mockReturnValue({
@@ -917,7 +917,7 @@ describe('ActivityTaskInstancesPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'חזרה למשימה' }))
     expect(navigateMock).toHaveBeenCalledWith('/activities/activity-1')
 
-    fireEvent.click(screen.getByRole('button', { name: 'חזרה לפרטי תעסוקה' }))
+    fireEvent.click(screen.getByRole('button', { name: 'חזרה לפרטי פעילות' }))
     expect(navigateMock).toHaveBeenCalledWith('/activities/activity-1')
   })
 })

@@ -39,7 +39,7 @@ const useBulkUpdateActivityAvailabilityMock = vi.mocked(useBulkUpdateActivityAva
 const activityData = {
   id: 'activity-1',
   companyId: 'company-1',
-  name: 'תעסוקה מבצעית',
+  name: 'פעילות מבצעית',
   startDate: '2026-08-10T00:00:00.000Z',
   endDate: '2026-08-15T00:00:00.000Z',
   status: 'ACTIVE',
@@ -87,7 +87,7 @@ describe('ActivityAvailabilityPage', () => {
 
     render(<ActivityAvailabilityPage />)
 
-    expect(screen.getByText('טוען תעסוקה')).toBeDefined()
+    expect(screen.getByText('טוען פעילות')).toBeDefined()
   })
 
   it('renders error state and supports retry', () => {
@@ -104,7 +104,7 @@ describe('ActivityAvailabilityPage', () => {
 
     render(<ActivityAvailabilityPage />)
 
-    expect(screen.getByText('טעינת התעסוקה נכשלה')).toBeDefined()
+    expect(screen.getByText('טעינת הפעילות נכשלה')).toBeDefined()
     fireEvent.click(screen.getByRole('button', { name: 'ניסיון חוזר' }))
     expect(refetch).toHaveBeenCalledTimes(1)
   })
@@ -125,7 +125,7 @@ describe('ActivityAvailabilityPage', () => {
 
     render(<ActivityAvailabilityPage />)
 
-    expect(screen.getByText('תעסוקה מבצעית')).toBeDefined()
+    expect(screen.getByText('פעילות מבצעית')).toBeDefined()
     expect(screen.getAllByText('אבי כהן').length).toBeGreaterThan(0)
     expect(screen.getAllByText('נועה לוי').length).toBeGreaterThan(0)
     expect(screen.getByText('זמינות')).toBeDefined()
@@ -267,7 +267,7 @@ describe('ActivityAvailabilityPage', () => {
 
     render(<ActivityAvailabilityPage />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'חזרה לפרטי תעסוקה' }))
+    fireEvent.click(screen.getByRole('button', { name: 'חזרה לפרטי פעילות' }))
     expect(navigateMock).toHaveBeenCalledWith('/activities/activity-1')
   })
 })

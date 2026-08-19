@@ -55,7 +55,7 @@ describe('ActivityTaskRequirementsPage', () => {
     useActivityByIdMock.mockReturnValue({
       isPending: false,
       isError: false,
-      data: { id: 'activity-1', companyId: 'company-1', name: 'תעסוקה מבצעית' },
+      data: { id: 'activity-1', companyId: 'company-1', name: 'פעילות מבצעית' },
     } as unknown as ReturnType<typeof useActivityById>)
 
     useCompanyRolesMock.mockReturnValue({
@@ -222,7 +222,7 @@ describe('ActivityTaskRequirementsPage', () => {
   it('supports cancel and back navigation without saving', () => {
     render(<ActivityTaskRequirementsPage />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'חזרה לפרטי תעסוקה' }))
+    fireEvent.click(screen.getByRole('button', { name: 'חזרה לפרטי פעילות' }))
     expect(navigateMock).toHaveBeenCalledWith('/activities/activity-1')
 
     const cancelButtons = screen.getAllByRole('button', { name: 'ביטול' })

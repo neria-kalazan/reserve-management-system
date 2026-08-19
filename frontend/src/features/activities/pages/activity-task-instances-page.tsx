@@ -638,7 +638,7 @@ export function ActivityTaskInstancesPage() {
             description="לא ניתן לטעון מופעים בלי מזהה משימה תקין."
             action={
               <Button type="button" variant="secondary" onClick={() => navigate('/activities')}>
-                חזרה לרשימת תעסוקות
+                חזרה לרשימת פעילויות
               </Button>
             }
           />
@@ -661,7 +661,7 @@ export function ActivityTaskInstancesPage() {
               חזרה למשימה
             </Button>
             <Button type="button" variant="secondary" onClick={() => navigate(`/activities/${activityId}`)}>
-              חזרה לפרטי תעסוקה
+              חזרה לפרטי פעילות
             </Button>
           </div>
         }

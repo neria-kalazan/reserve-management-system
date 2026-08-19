@@ -61,11 +61,11 @@ const toUserFacingError = (error: unknown) => {
     }
 
     if (error.status === 401 || error.status === 403) {
-      return 'אין הרשאה לערוך את התעסוקה במצב ההתחברות הנוכחי.'
+      return 'אין הרשאה לערוך את הפעילות במצב ההתחברות הנוכחי.'
     }
 
     if (error.status === 404) {
-      return 'התעסוקה שבחרתם לא נמצאה.'
+      return 'הפעילות שבחרתם לא נמצאה.'
     }
   }
 
@@ -76,11 +76,11 @@ const validate = (values: FormValues): FormErrors => {
   const errors: FormErrors = { ...emptyErrors }
 
   if (values.name.trim().length === 0) {
-    errors.name = 'יש להזין שם תעסוקה.'
+    errors.name = 'יש להזין שם פעילות.'
   }
 
   if (!values.type) {
-    errors.type = 'יש לבחור סוג תעסוקה.'
+    errors.type = 'יש לבחור סוג פעילות.'
   }
 
   if (values.startDate.length === 0) {
@@ -176,14 +176,14 @@ export function ActivityEditPage() {
   if (!activityId) {
     return (
       <>
-        <PageHeader title="עריכת תעסוקה" description="לא התקבל מזהה תעסוקה חוקי." />
+        <PageHeader title="עריכת פעילות" description="לא התקבל מזהה פעילות חוקי." />
         <ContentContainer className="pb-10">
           <ErrorState
-            title="מזהה תעסוקה חסר"
-            description="לא ניתן לערוך תעסוקה בלי מזהה תקין."
+            title="מזהה פעילות חסר"
+            description="לא ניתן לערוך פעילות בלי מזהה תקין."
             action={
               <Button type="button" variant="secondary" onClick={() => navigate('/activities')}>
-                חזרה לתעסוקות
+                חזרה לפעילויות
               </Button>
             }
           />
@@ -195,8 +195,8 @@ export function ActivityEditPage() {
   return (
     <>
       <PageHeader
-        title="עריכת תעסוקה"
-        description="עדכון שם ותאריכי תעסוקה קיימת."
+        title="עריכת פעילות"
+        description="עדכון שם ותאריכי פעילות קיימת."
         actions={
           <Button type="button" variant="secondary" onClick={() => navigate(`/activities/${activityId}`)}>
             ביטול וחזרה
@@ -206,14 +206,14 @@ export function ActivityEditPage() {
 
       <ContentContainer className="pb-10">
         {activityQuery.isPending ? (
-          <LoadingState title="טוען נתוני תעסוקה" description="פרטי התעסוקה נטענים כעת לעריכה." />
+          <LoadingState title="טוען נתוני פעילות" description="פרטי הפעילות נטענים כעת לעריכה." />
         ) : activityQuery.isError ? (
           <ErrorState
-            title={isNotFound ? 'התעסוקה לא נמצאה' : 'טעינת התעסוקה נכשלה'}
+            title={isNotFound ? 'הפעילות לא נמצאה' : 'טעינת הפעילות נכשלה'}
             description={
               isNotFound
-                ? 'לא ניתן לערוך תעסוקה שלא נמצאה. אפשר לחזור לרשימת התעסוקות.'
-                : 'לא הצלחנו לטעון את פרטי התעסוקה לעריכה. אפשר לנסות שוב.'
+                ? 'לא ניתן לערוך פעילות שלא נמצאה. אפשר לחזור לרשימת הפעילויות.'
+                : 'לא הצלחנו לטעון את פרטי הפעילות לעריכה. אפשר לנסות שוב.'
             }
             action={
               <div className="flex flex-wrap gap-2">
@@ -221,7 +221,7 @@ export function ActivityEditPage() {
                   ניסיון חוזר
                 </Button>
                 <Button type="button" variant="ghost" onClick={() => navigate('/activities')}>
-                  חזרה לתעסוקות
+                  חזרה לפעילויות
                 </Button>
               </div>
             }
@@ -229,7 +229,7 @@ export function ActivityEditPage() {
         ) : (
           <Card>
             <CardHeader className="px-4 py-4 sm:px-5">
-              <CardTitle className="text-base">פרטי תעסוקה לעריכה</CardTitle>
+              <CardTitle className="text-base">פרטי פעילות לעריכה</CardTitle>
             </CardHeader>
             <CardContent className="space-y-5 px-4 pb-5 sm:px-5">
               {errors.form ? (
@@ -241,7 +241,7 @@ export function ActivityEditPage() {
 
               <form className="space-y-4" onSubmit={onSubmit} noValidate>
                 <div className="space-y-2">
-                  <Label htmlFor="edit-activity-name">שם התעסוקה</Label>
+                  <Label htmlFor="edit-activity-name">שם הפעילות</Label>
                   <Input
                     id="edit-activity-name"
                     name="name"
@@ -253,13 +253,13 @@ export function ActivityEditPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="edit-activity-type">סוג התעסוקה</Label>
+                  <Label htmlFor="edit-activity-type">סוג הפעילות</Label>
                   <Select
                     value={values.type || undefined}
                     onValueChange={(value) => updateField('type', value as ActivityType)}
                   >
                     <SelectTrigger id="edit-activity-type" aria-invalid={errors.type ? 'true' : 'false'}>
-                      <SelectValue placeholder="בחר סוג תעסוקה" />
+                      <SelectValue placeholder="בחר סוג פעילות" />
                     </SelectTrigger>
                     <SelectContent>
                       {ACTIVITY_TYPE_OPTIONS.map((option) => (

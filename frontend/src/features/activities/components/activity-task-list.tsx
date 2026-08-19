@@ -108,7 +108,7 @@ export function ActivityTaskList({
           ))
         ) : (
           <div className="rounded-md border border-dashed border-border bg-surface px-3 py-8 text-center text-sm text-muted">
-            אין משימות להצגה לתעסוקה זו.
+            אין משימות להצגה לפעילות זו.
           </div>
         )}
       </CardContent>

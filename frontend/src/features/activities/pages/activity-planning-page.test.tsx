@@ -99,7 +99,7 @@ describe('ActivityPlanningPage', () => {
       data: {
         id: 'activity-1',
         companyId: 'company-1',
-        name: 'תעסוקה מבצעית',
+        name: 'פעילות מבצעית',
         startDate: '2026-08-10T00:00:00.000Z',
         endDate: '2026-08-15T00:00:00.000Z',
         status: 'ACTIVE',
@@ -180,7 +180,7 @@ describe('ActivityPlanningPage', () => {
       data: {
         id: 'activity-1',
         companyId: 'company-1',
-        name: 'תעסוקה מבצעית',
+        name: 'פעילות מבצעית',
         startDate: '2026-08-10T00:00:00.000Z',
         endDate: '2026-08-15T00:00:00.000Z',
         status: 'ACTIVE',
@@ -258,7 +258,7 @@ describe('ActivityPlanningPage', () => {
       data: {
         id: 'activity-1',
         companyId: 'company-1',
-        name: 'תעסוקה מבצעית',
+        name: 'פעילות מבצעית',
         startDate: '2026-08-10T00:00:00.000Z',
         endDate: '2026-08-15T00:00:00.000Z',
         status: 'ACTIVE',
@@ -319,7 +319,7 @@ describe('ActivityPlanningPage', () => {
     render(<ActivityPlanningPage />)
 
     expect(screen.getByText('תכנון תפעולי')).toBeDefined()
-    expect(screen.getAllByText('תעסוקה מבצעית').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('פעילות מבצעית').length).toBeGreaterThanOrEqual(1)
     expect(screen.getAllByText('הכנה').length).toBeGreaterThanOrEqual(1)
     expect(screen.getByText('משמרת בוקר')).toBeDefined()
     expect(screen.getByText('משמרת ערב')).toBeDefined()
@@ -339,7 +339,7 @@ describe('ActivityPlanningPage', () => {
       data: {
         id: 'activity-1',
         companyId: 'company-1',
-        name: 'תעסוקה מבצעית',
+        name: 'פעילות מבצעית',
         startDate: '2026-08-10T00:00:00.000Z',
         endDate: '2026-08-15T00:00:00.000Z',
         status: 'ACTIVE',
@@ -394,7 +394,7 @@ describe('ActivityPlanningPage', () => {
       data: {
         id: 'activity-1',
         companyId: 'company-1',
-        name: 'תעסוקה מבצעית',
+        name: 'פעילות מבצעית',
         startDate: '2026-08-10T00:00:00.000Z',
         endDate: '2026-08-15T00:00:00.000Z',
         status: 'ACTIVE',
@@ -451,7 +451,7 @@ describe('ActivityPlanningPage', () => {
       data: {
         id: 'activity-1',
         companyId: 'company-1',
-        name: 'תעסוקה מבצעית',
+        name: 'פעילות מבצעית',
         startDate: '2026-08-10T00:00:00.000Z',
         endDate: '2026-08-15T00:00:00.000Z',
         status: 'ACTIVE',
@@ -503,7 +503,7 @@ describe('ActivityPlanningPage', () => {
       data: {
         id: 'activity-1',
         companyId: 'company-1',
-        name: 'תעסוקה מבצעית',
+        name: 'פעילות מבצעית',
         startDate: '2026-08-10T00:00:00.000Z',
         endDate: '2026-08-15T00:00:00.000Z',
         status: 'ACTIVE',
@@ -574,7 +574,7 @@ describe('ActivityPlanningPage', () => {
       data: {
         id: 'activity-1',
         companyId: 'company-1',
-        name: 'תעסוקה מבצעית',
+        name: 'פעילות מבצעית',
         startDate: '2026-08-10T00:00:00.000Z',
         endDate: '2026-08-15T00:00:00.000Z',
         status: 'ACTIVE',
@@ -659,7 +659,7 @@ describe('ActivityPlanningPage', () => {
       data: {
         id: 'activity-1',
         companyId: 'company-1',
-        name: 'תעסוקה מבצעית',
+        name: 'פעילות מבצעית',
         startDate: '2026-08-10T00:00:00.000Z',
         endDate: '2026-08-15T00:00:00.000Z',
         status: 'ACTIVE',
@@ -694,7 +694,7 @@ describe('ActivityPlanningPage', () => {
       data: {
         id: 'activity-1',
         companyId: 'company-1',
-        name: 'תעסוקה מבצעית',
+        name: 'פעילות מבצעית',
         startDate: '2026-08-10T00:00:00.000Z',
         endDate: '2026-08-15T00:00:00.000Z',
         status: 'ACTIVE',
@@ -719,7 +719,7 @@ describe('ActivityPlanningPage', () => {
 
     render(<ActivityPlanningPage />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'חזרה לפרטי התעסוקה' }))
+    fireEvent.click(screen.getByRole('button', { name: 'חזרה לפרטי הפעילות' }))
     expect(navigateMock).toHaveBeenCalledWith('/activities/activity-1')
   })
 })

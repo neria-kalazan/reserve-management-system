@@ -160,14 +160,14 @@ export function ActivityAvailabilityPage() {
   if (!activityId) {
     return (
       <>
-        <PageHeader title="זמינות תעסוקה" description="לא התקבל מזהה תעסוקה חוקי." />
+        <PageHeader title="זמינות פעילות" description="לא התקבל מזהה פעילות חוקי." />
         <ContentContainer className="pb-10">
           <ErrorState
-            title="מזהה תעסוקה חסר"
+            title="מזהה פעילות חסר"
             description="לא ניתן לטעון זמינות בלי מזהה תקין."
             action={
               <Button type="button" variant="secondary" onClick={() => navigate('/activities')}>
-                חזרה לרשימת תעסוקות
+                חזרה לרשימת פעילויות
               </Button>
             }
           />
@@ -179,25 +179,25 @@ export function ActivityAvailabilityPage() {
   return (
     <>
       <PageHeader
-        title={activityQuery.data?.name ?? 'זמינות תעסוקה'}
-        description="מעקב אחר זמינות המשתתפים בתעסוקה לפי תאריכים."
+        title={activityQuery.data?.name ?? 'זמינות פעילות'}
+        description="מעקב אחר זמינות המשתתפים בפעילות לפי תאריכים."
         actions={
           <Button type="button" variant="secondary" onClick={() => navigate(`/activities/${activityId}`)}>
-            חזרה לפרטי תעסוקה
+            חזרה לפרטי פעילות
           </Button>
         }
       />
 
       <ContentContainer className="space-y-5 pb-10">
         {activityQuery.isPending ? (
-          <LoadingState title="טוען תעסוקה" description="פרטי התעסוקה נטענים כעת." />
+          <LoadingState title="טוען פעילות" description="פרטי הפעילות נטענים כעת." />
         ) : activityQuery.isError ? (
           <ErrorState
-            title={isNotFound ? 'התעסוקה לא נמצאה' : 'טעינת התעסוקה נכשלה'}
+            title={isNotFound ? 'הפעילות לא נמצאה' : 'טעינת הפעילות נכשלה'}
             description={
               isNotFound
-                ? 'לא נמצאה תעסוקה עם המזהה שנבחר. אפשר לחזור לרשימת התעסוקות.'
-                : 'לא הצלחנו לטעון את פרטי התעסוקה. אפשר לנסות שוב.'
+                ? 'לא נמצאה פעילות עם המזהה שנבחר. אפשר לחזור לרשימת הפעילויות.'
+                : 'לא הצלחנו לטעון את פרטי הפעילות. אפשר לנסות שוב.'
             }
             action={
               <Button type="button" variant="secondary" onClick={() => void activityQuery.refetch()}>
@@ -215,7 +215,7 @@ export function ActivityAvailabilityPage() {
                 <div className="rounded-md border border-border bg-surface-elevated p-3 text-sm text-foreground">
                   <p className="font-medium">יצירת רשומות זמינות</p>
                   <p className="mt-1 text-muted">
-                    הפעלת פעולה זו יוצרת זמינות אוטומטית עבור כל המשתמשים הפעילים של הפלוגה לאורך תאריכי התעסוקה.
+                    הפעלת פעולה זו יוצרת זמינות אוטומטית עבור כל המשתמשים הפעילים של הפלוגה לאורך תאריכי הפעילות.
                     היא לא מוחקת נתונים קיימים.
                   </p>
                 </div>
@@ -310,7 +310,7 @@ export function ActivityAvailabilityPage() {
                         </label>
                       ))
                     ) : (
-                      <p className="text-sm text-muted">לא קיימים משתמשים עם נתוני זמינות לתעסוקה זו.</p>
+                      <p className="text-sm text-muted">לא קיימים משתמשים עם נתוני זמינות לפעילות זו.</p>
                     )}
                   </div>
                 </div>
@@ -368,7 +368,7 @@ export function ActivityAvailabilityPage() {
                 ) : !availabilityQuery.data || availabilityQuery.data.length === 0 ? (
                   <ErrorState
                     title="אין נתוני זמינות"
-                    description="עדיין לא נוצרו פריטי זמינות לתעסוקה זו."
+                    description="עדיין לא נוצרו פריטי זמינות לפעילות זו."
                   />
                 ) : (
                   <div className="space-y-2">

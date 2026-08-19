@@ -1,0 +1,6 @@
+-- CreateEnum
+CREATE TYPE "ActivityType" AS ENUM ('TRAINING', 'EMPLOYMENT', 'TRAINING_COURSE');
+
+-- AlterTable
+ALTER TABLE "Activity"
+ADD COLUMN "type" "ActivityType" NOT NULL DEFAULT 'EMPLOYMENT';

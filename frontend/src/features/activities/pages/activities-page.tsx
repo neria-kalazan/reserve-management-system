@@ -101,7 +101,7 @@ function ActiveActivityNotice({ activity, onOpen }: { activity: Activity; onOpen
             פעילה
           </Badge>
           <Button type="button" size="sm" variant="secondary" onClick={() => onOpen(activity.id)}>
-            פתיחת תעסוקה
+            פתיחת פעילות
           </Button>
         </div>
       </CardContent>
@@ -119,7 +119,7 @@ function ActivityItem({
   dataTestId?: string
 }) {
   const isActive = activity.status === 'ACTIVE'
-  const typeLabel = ACTIVITY_TYPE_LABELS[activity.type]
+  const typeLabel = ACTIVITY_TYPE_LABELS[activity.type] ?? 'פעילות'
 
   return (
     <Card className={cn('min-w-0 shadow-none', isActive && 'border-primary/35')} data-testid={dataTestId}>
@@ -143,7 +143,7 @@ function ActivityItem({
 
         <div className="flex justify-end">
           <Button type="button" size="sm" variant="secondary" onClick={() => onOpen(activity.id)}>
-            פתיחת תעסוקה
+            פרטי {typeLabel ? typeLabel : 'הפעילות'}
           </Button>
         </div>
       </CardContent>
@@ -173,8 +173,7 @@ export function ActivitiesPage() {
   return (
     <>
       <PageHeader
-        title="תעסוקות"
-        description="ניהול תעסוקות הפלוגה ומעקב אחר מצב התעסוקה הפעילה."
+        title="פעילויות"
         actions={
           <Button type="button" onClick={() => navigate('/activities/new')}>
             יצירת פעילות חדשה
@@ -183,11 +182,11 @@ export function ActivitiesPage() {
       />
       <ContentContainer className="space-y-5 pb-10">
         {activitiesQuery.isPending ? (
-          <LoadingState title="טוען תעסוקות" description="רשימת התעסוקות נטענת כעת." />
+          <LoadingState title="טוען פעילויות" description="רשימת הפעילויות נטענת כעת." />
         ) : activitiesQuery.isError ? (
           <ErrorState
-            title="טעינת התעסוקות נכשלה"
-            description="לא הצלחנו לטעון את רשימת התעסוקות. אפשר לנסות שוב."
+            title="טעינת הפעילויות נכשלה"
+            description="לא הצלחנו לטעון את רשימת הפעילויות. אפשר לנסות שוב."
             action={
               <Button type="button" variant="secondary" onClick={() => void activitiesQuery.refetch()}>
                 ניסיון חוזר
@@ -196,8 +195,8 @@ export function ActivitiesPage() {
           />
         ) : activities.length === 0 ? (
           <EmptyState
-            title="אין תעסוקות להצגה"
-            description="לא הוגדרו עדיין תעסוקות לפלוגה."
+            title="אין פעילויות להצגה"
+            description="לא הוגדרו עדיין פעילויות לפלוגה."
             icon={<FolderOpen className="h-5 w-5" aria-hidden="true" />}
             action={
               <Button type="button" variant="secondary" onClick={() => navigate('/activities/new')}>
