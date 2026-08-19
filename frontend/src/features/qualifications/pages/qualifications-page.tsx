@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { Pencil, Trash2 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 
 import { useAuthSession } from '@/app/auth/use-auth-session'
@@ -8,8 +9,10 @@ import { useCompanyQualifications, useDeleteQualification } from '@/features/qua
 import { ErrorState } from '@/shared/components/error-state'
 import { LoadingState } from '@/shared/components/loading-state'
 import { Button } from '@/shared/components/ui/button'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/shared/components/ui/dialog'
 import { Pagination } from '@/shared/components/ui/pagination'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/shared/components/ui/table'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/shared/components/ui/tooltip'
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50] as const
 const SORTABLE_COLUMNS = ['name', 'description'] as const
@@ -30,7 +33,7 @@ export function QualificationsPage() {
   const deleteQualificationMutation = useDeleteQualification()
   const deleteInFlight = deleteQualificationMutation?.isPending ?? false
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
-  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
 
   const qualifications = qualificationsQuery.data?.items ?? []
@@ -67,13 +70,15 @@ export function QualificationsPage() {
     try {
       await deleteQualificationMutation.mutateAsync(qualificationId)
       setPendingDeleteId(null)
-      setConfirmDeleteId(null)
+      setDeleteTargetId(null)
     } catch (error) {
       const message = error instanceof Error ? error.message : 'לא הצלחנו למחוק את ההסמכה.'
       setDeleteError(message)
       setPendingDeleteId(null)
     }
   }
+
+  const deleteTarget = deleteTargetId ? qualifications.find((qualification) => qualification.id === deleteTargetId) ?? null : null
 
   const getSortIndicator = (field: SortField) => {
     if (sortBy !== field) {
@@ -108,13 +113,40 @@ export function QualificationsPage() {
     <>
       <PageHeader
         title="הסמכות"
-        description="רשימת ההסמכות של החברה עם פרטים בסיסיים על כל הסמכה."
+        description="רשימת ההסמכות של הפלוגה עם פרטים בסיסיים על כל הסמכה."
         actions={
           <Button type="button" onClick={() => navigate('/qualifications/new')}>
             יצירת הסמכה
           </Button>
         }
       />
+
+      <Dialog open={Boolean(deleteTargetId)} onOpenChange={(open) => !open && setDeleteTargetId(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>אישור מחיקה</DialogTitle>
+            <DialogDescription>{deleteTarget ? `האם למחוק את ההסמכה ${deleteTarget.name}?` : 'האם למחוק את ההסמכה?'}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="sm:justify-end">
+            <Button type="button" variant="secondary" onClick={() => setDeleteTargetId(null)}>
+              ביטול
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={() => {
+                if (deleteTargetId) {
+                  void onDelete(deleteTargetId)
+                }
+              }}
+              disabled={pendingDeleteId !== null && pendingDeleteId !== deleteTargetId}
+              loading={pendingDeleteId === deleteTargetId}
+            >
+              אישור / מחיקה
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <ContentContainer className="space-y-5 pb-10">
         {deleteError ? (
@@ -152,37 +184,40 @@ export function QualificationsPage() {
                       <TableRow key={qualification.id}>
                         <TableCell>{qualification.name}</TableCell>
                         <TableCell>{qualification.description ?? '—'}</TableCell>
-                        <TableCell className="space-x-2">
-                          <Button type="button" variant="secondary" size="sm" onClick={() => navigate(`/qualifications/${qualification.id}/edit`)}>
-                            עריכה
-                          </Button>
-                          {confirmDeleteId === qualification.id ? (
-                            <div className="inline-flex items-center gap-2 align-middle">
-                              <span className="text-xs text-muted">האם למחוק את ההסמכה?</span>
-                              <Button
-                                type="button"
-                                variant="destructive"
-                                size="sm"
-                                onClick={() => void onDelete(qualification.id)}
-                                disabled={pendingDeleteId === qualification.id || deleteInFlight}
-                              >
-                                {pendingDeleteId === qualification.id ? 'מוחק...' : 'אישור מחיקה'}
-                              </Button>
-                              <Button type="button" variant="secondary" size="sm" onClick={() => setConfirmDeleteId(null)}>
-                                ביטול
-                              </Button>
-                            </div>
-                          ) : (
-                            <Button
-                              type="button"
-                              variant="destructive"
-                              size="sm"
-                              onClick={() => setConfirmDeleteId(qualification.id)}
-                              disabled={deleteInFlight}
-                            >
-                              מחק
-                            </Button>
-                          )}
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <TooltipProvider delayDuration={100}>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    type="button"
+                                    variant="secondary"
+                                    size="icon"
+                                    aria-label={`עריכת ${qualification.name}`}
+                                    onClick={() => navigate(`/qualifications/${qualification.id}/edit`)}
+                                  >
+                                    <Pencil className="h-4 w-4" aria-hidden="true" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent side="bottom">עריכה</TooltipContent>
+                              </Tooltip>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    type="button"
+                                    variant="destructive"
+                                    size="icon"
+                                    aria-label={`מחיקת ${qualification.name}`}
+                                    onClick={() => setDeleteTargetId(qualification.id)}
+                                    disabled={deleteInFlight}
+                                  >
+                                    <Trash2 className="h-4 w-4" aria-hidden="true" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent side="bottom">מחיקה</TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))

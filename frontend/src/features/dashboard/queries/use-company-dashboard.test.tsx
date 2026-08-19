@@ -31,6 +31,7 @@ describe('useCompanyDashboard', () => {
     } as ReturnType<typeof useAuthSession>)
     getCompanyDashboardMock.mockResolvedValueOnce({
       companySummary: { totalSoldiers: 0, qualificationCounts: [], roleCounts: [] },
+      roleHolders: [],
       upcomingActivities: [],
       recentActivities: [],
     } as never)

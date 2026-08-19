@@ -150,7 +150,7 @@ describe('UserFormPage', () => {
   it('renders create mode with the required fields and loads company options', () => {
     renderForm('/users/new')
 
-    expect(screen.getAllByText('יצירת כוח אדם').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('חייל חדש').length).toBeGreaterThan(0)
     expect(screen.getByLabelText('שם פרטי')).toBeDefined()
     expect(screen.getByLabelText('שם משפחה')).toBeDefined()
     expect(screen.getByLabelText('מספר אישי')).toBeDefined()

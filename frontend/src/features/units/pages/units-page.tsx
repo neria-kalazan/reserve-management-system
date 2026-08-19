@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { Pencil, Trash2 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 
 import { useAuthSession } from '@/app/auth/use-auth-session'
@@ -8,8 +9,10 @@ import { useCompanyUnits, useDeleteUnit } from '@/features/units/queries/use-uni
 import { ErrorState } from '@/shared/components/error-state'
 import { LoadingState } from '@/shared/components/loading-state'
 import { Button } from '@/shared/components/ui/button'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/shared/components/ui/dialog'
 import { Pagination } from '@/shared/components/ui/pagination'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/shared/components/ui/table'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/shared/components/ui/tooltip'
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50] as const
 const SORTABLE_COLUMNS = ['name', 'description', 'displayOrder'] as const
@@ -30,7 +33,7 @@ export function UnitsPage() {
   const deleteUnitMutation = useDeleteUnit()
   const deleteInFlight = deleteUnitMutation?.isPending ?? false
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
-  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
 
   const units = unitsQuery.data?.items ?? []
@@ -73,13 +76,15 @@ export function UnitsPage() {
     try {
       await deleteUnitMutation.mutateAsync(unitId)
       setPendingDeleteId(null)
-      setConfirmDeleteId(null)
+      setDeleteTargetId(null)
     } catch (error) {
       const message = error instanceof Error ? error.message : 'לא הצלחנו למחוק את המסגרת.'
       setDeleteError(message)
       setPendingDeleteId(null)
     }
   }
+
+  const deleteTarget = deleteTargetId ? units.find((unit) => unit.id === deleteTargetId) ?? null : null
 
   const getSortIndicator = (field: SortField) => {
     if (sortBy !== field) {
@@ -115,13 +120,40 @@ export function UnitsPage() {
     <>
       <PageHeader
         title="מסגרות"
-        description="רשימת המסגרות של החברה עם מידע בסיסי על כל מסגרת."
+        description="רשימת המסגרות של הפלוגה עם מידע בסיסי על כל מסגרת."
         actions={
           <Button type="button" onClick={() => navigate('/units/new')}>
             יצירת מסגרת
           </Button>
         }
       />
+
+      <Dialog open={Boolean(deleteTargetId)} onOpenChange={(open) => !open && setDeleteTargetId(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>אישור מחיקה</DialogTitle>
+            <DialogDescription>{deleteTarget ? `האם למחוק את המסגרת ${deleteTarget.name}?` : 'האם למחוק את המסגרת?'}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="sm:justify-end">
+            <Button type="button" variant="secondary" onClick={() => setDeleteTargetId(null)}>
+              ביטול
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={() => {
+                if (deleteTargetId) {
+                  void onDelete(deleteTargetId)
+                }
+              }}
+              disabled={pendingDeleteId !== null && pendingDeleteId !== deleteTargetId}
+              loading={pendingDeleteId === deleteTargetId}
+            >
+              אישור / מחיקה
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <ContentContainer className="space-y-5 pb-10">
         {deleteError ? (
@@ -161,37 +193,40 @@ export function UnitsPage() {
                         <TableCell>{unit.name}</TableCell>
                         <TableCell>{unit.description ?? '—'}</TableCell>
                         <TableCell>{unit.displayOrder}</TableCell>
-                        <TableCell className="space-x-2">
-                          <Button type="button" variant="secondary" size="sm" onClick={() => navigate(`/units/${unit.id}/edit`)}>
-                            עריכה
-                          </Button>
-                          {confirmDeleteId === unit.id ? (
-                            <div className="inline-flex items-center gap-2 align-middle">
-                              <span className="text-xs text-muted">האם למחוק את המסגרת?</span>
-                              <Button
-                                type="button"
-                                variant="destructive"
-                                size="sm"
-                                onClick={() => void onDelete(unit.id)}
-                                disabled={pendingDeleteId === unit.id || deleteInFlight}
-                              >
-                                {pendingDeleteId === unit.id ? 'מוחק...' : 'אישור מחיקה'}
-                              </Button>
-                              <Button type="button" variant="secondary" size="sm" onClick={() => setConfirmDeleteId(null)}>
-                                ביטול
-                              </Button>
-                            </div>
-                          ) : (
-                            <Button
-                              type="button"
-                              variant="destructive"
-                              size="sm"
-                              onClick={() => setConfirmDeleteId(unit.id)}
-                              disabled={deleteInFlight}
-                            >
-                              מחק
-                            </Button>
-                          )}
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <TooltipProvider delayDuration={100}>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    type="button"
+                                    variant="secondary"
+                                    size="icon"
+                                    aria-label={`עריכת ${unit.name}`}
+                                    onClick={() => navigate(`/units/${unit.id}/edit`)}
+                                  >
+                                    <Pencil className="h-4 w-4" aria-hidden="true" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent side="bottom">עריכה</TooltipContent>
+                              </Tooltip>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    type="button"
+                                    variant="destructive"
+                                    size="icon"
+                                    aria-label={`מחיקת ${unit.name}`}
+                                    onClick={() => setDeleteTargetId(unit.id)}
+                                    disabled={deleteInFlight}
+                                  >
+                                    <Trash2 className="h-4 w-4" aria-hidden="true" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent side="bottom">מחיקה</TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))

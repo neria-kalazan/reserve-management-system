@@ -102,6 +102,22 @@ describe('UsersService', () => {
     expect(prisma.user.count).toHaveBeenCalledWith({ where: { companyId: 'c1', isActive: true } });
   });
 
+  it('findAllByCompany: supports ordering by unit display order with deterministic secondary sorting', async () => {
+    prisma.company.findUnique.mockResolvedValue({ id: 'c1' });
+    prisma.user.findMany.mockResolvedValue([]);
+    prisma.user.count.mockResolvedValue(0);
+
+    await service.findAllByCompany('c1', { sortBy: 'unitDisplayOrder', sortOrder: 'asc' });
+
+    expect(prisma.user.findMany).toHaveBeenCalledWith({
+      where: { companyId: 'c1', isActive: true },
+      orderBy: [{ unit: { displayOrder: 'asc' } }, { firstName: 'asc' }, { lastName: 'asc' }, { id: 'asc' }],
+      skip: 0,
+      take: 10,
+      select: expect.objectContaining({ id: true }),
+    });
+  });
+
   it('findAllByCompany: throws when the company does not exist', async () => {
     prisma.company.findUnique.mockResolvedValue(null);
 

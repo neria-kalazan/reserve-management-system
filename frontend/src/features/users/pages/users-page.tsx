@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from 'react'
+import { Pencil, Trash2 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 
 import { useAuthSession } from '@/app/auth/use-auth-session'
@@ -10,12 +11,13 @@ import { ErrorState } from '@/shared/components/error-state'
 import { LoadingState } from '@/shared/components/loading-state'
 import { Badge } from '@/shared/components/ui/badge'
 import { Button } from '@/shared/components/ui/button'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/shared/components/ui/dialog'
 import { Pagination } from '@/shared/components/ui/pagination'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/shared/components/ui/table'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/shared/components/ui/tooltip'
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50] as const
-const SORTABLE_COLUMNS = ['firstName', 'lastName', 'personalNumber', 'phone'] as const
+const SORTABLE_COLUMNS = ['unitDisplayOrder', 'firstName', 'lastName', 'personalNumber', 'phone'] as const
 
 type SortField = (typeof SORTABLE_COLUMNS)[number]
 type SortOrder = 'asc' | 'desc'
@@ -27,7 +29,7 @@ export function UsersPage() {
 
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState<number>(10)
-  const [sortBy, setSortBy] = useState<SortField>('firstName')
+  const [sortBy, setSortBy] = useState<SortField>('unitDisplayOrder')
   const [sortOrder, setSortOrder] = useState<SortOrder>('asc')
 
   const usersQuery = useCompanyUsers(companyId, { page, pageSize, sortBy, sortOrder })
@@ -38,7 +40,7 @@ export function UsersPage() {
   const [importError, setImportError] = useState<string | null>(null)
   const [importResult, setImportResult] = useState<UserImportResult | null>(null)
   const [pendingDeactivateId, setPendingDeactivateId] = useState<string | null>(null)
-  const [confirmDeactivateId, setConfirmDeactivateId] = useState<string | null>(null)
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null)
   const [deactivateError, setDeactivateError] = useState<string | null>(null)
 
   const users = usersQuery.data?.items ?? []
@@ -189,13 +191,15 @@ export function UsersPage() {
     try {
       await deactivateUserMutation.mutateAsync(userId)
       setPendingDeactivateId(null)
-      setConfirmDeactivateId(null)
+      setDeleteTargetId(null)
     } catch (error) {
       const message = error instanceof Error ? error.message : 'לא הצלחנו להפסיק את פעילות האדם.'
       setDeactivateError(message)
       setPendingDeactivateId(null)
     }
   }
+
+  const deleteTarget = deleteTargetId ? users.find((user) => user.id === deleteTargetId) ?? null : null
 
   const getSortIndicator = (field: SortField) => {
     if (sortBy !== field) {
@@ -207,6 +211,7 @@ export function UsersPage() {
 
   const getColumnLabel = (field: SortField) => {
     const labels: Record<SortField, string> = {
+      unitDisplayOrder: 'מסגרת',
       firstName: 'שם',
       lastName: 'משפחה',
       personalNumber: 'מספר אישי',
@@ -232,18 +237,47 @@ export function UsersPage() {
     <TooltipProvider>
       <PageHeader
         title="כוח אדם"
-        description="רשימת אנשי החברה עם פרטים בסיסיים ומיקום במסגרות."
+        description="רשימת אנשי הפלוגה עם פרטים בסיסיים ומיקום במסגרות."
         actions={
           <div className="flex items-center gap-2">
             <Button type="button" variant="secondary" onClick={handleImportClick} disabled={importUsersMutation.isPending}>
               {importUsersMutation.isPending ? 'מייבא...' : 'ייבוא כוח אדם'}
             </Button>
             <Button type="button" onClick={() => navigate('/users/new')}>
-              יצירת כוח אדם
+              חייל חדש
             </Button>
           </div>
         }
       />
+
+      <Dialog open={Boolean(deleteTargetId)} onOpenChange={(open) => !open && setDeleteTargetId(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>אישור מחיקה</DialogTitle>
+            <DialogDescription>
+              {deleteTarget ? `האם להפסיק את פעילותו של ${deleteTarget.firstName} ${deleteTarget.lastName}?` : 'האם להפסיק את פעילותו?'}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="sm:justify-end">
+            <Button type="button" variant="secondary" onClick={() => setDeleteTargetId(null)}>
+              ביטול
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={() => {
+                if (deleteTargetId) {
+                  void onDeactivate(deleteTargetId)
+                }
+              }}
+              disabled={pendingDeactivateId !== null && pendingDeactivateId !== deleteTargetId}
+              loading={pendingDeactivateId === deleteTargetId}
+            >
+              אישור / מחיקה
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <input
         ref={fileInputRef}
@@ -284,11 +318,11 @@ export function UsersPage() {
         ) : null}
 
         {usersQuery.isPending && !usersQuery.data ? (
-          <LoadingState title="טוען כוח אדם" description="רשימת אנשי החברה נטענת כעת." />
+          <LoadingState title="טוען כוח אדם" description="רשימת אנשי הפלוגה נטענת כעת." />
         ) : usersQuery.isError ? (
           <ErrorState
             title="טעינת כוח אדם נכשלה"
-            description="לא הצלחנו לטעון את רשימת אנשי החברה. אפשר לנסות שוב."
+            description="לא הצלחנו לטעון את רשימת אנשי הפלוגה. אפשר לנסות שוב."
             action={
               <Button type="button" variant="secondary" onClick={() => void usersQuery.refetch()}>
                 ניסיון חוזר
@@ -304,7 +338,7 @@ export function UsersPage() {
                     <TableHead>{renderSortButton('firstName')}</TableHead>
                     <TableHead>{renderSortButton('lastName')}</TableHead>
                     <TableHead>{renderSortButton('personalNumber')}</TableHead>
-                    <TableHead>מסגרת</TableHead>
+                    <TableHead>{renderSortButton('unitDisplayOrder')}</TableHead>
                     <TableHead>תפקידים</TableHead>
                     <TableHead>הסמכות</TableHead>
                     <TableHead>{renderSortButton('phone')}</TableHead>
@@ -328,37 +362,40 @@ export function UsersPage() {
                         </TableCell>
                         <TableCell>{user.phone ?? '—'}</TableCell>
                         <TableCell>{user.email ?? '—'}</TableCell>
-                        <TableCell className="space-x-2">
-                          <Button type="button" variant="secondary" size="sm" onClick={() => navigate(`/users/${user.id}/edit`)}>
-                            עריכה
-                          </Button>
-                          {confirmDeactivateId === user.id ? (
-                            <div className="inline-flex items-center gap-2 align-middle">
-                              <span className="text-xs text-muted">האם להפסיק את פעילותו?</span>
-                              <Button
-                                type="button"
-                                variant="destructive"
-                                size="sm"
-                                onClick={() => void onDeactivate(user.id)}
-                                disabled={pendingDeactivateId === user.id || deactivateInFlight}
-                              >
-                                {pendingDeactivateId === user.id ? 'מפסיק...' : 'אישור הפסקה'}
-                              </Button>
-                              <Button type="button" variant="secondary" size="sm" onClick={() => setConfirmDeactivateId(null)}>
-                                ביטול
-                              </Button>
-                            </div>
-                          ) : (
-                            <Button
-                              type="button"
-                              variant="destructive"
-                              size="sm"
-                              onClick={() => setConfirmDeactivateId(user.id)}
-                              disabled={deactivateInFlight}
-                            >
-                              הפסק פעילות
-                            </Button>
-                          )}
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <TooltipProvider delayDuration={100}>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    type="button"
+                                    variant="secondary"
+                                    size="icon"
+                                    aria-label={`עריכת ${user.firstName} ${user.lastName}`}
+                                    onClick={() => navigate(`/users/${user.id}/edit`)}
+                                  >
+                                    <Pencil className="h-4 w-4" aria-hidden="true" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent side="bottom">עריכה</TooltipContent>
+                              </Tooltip>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    type="button"
+                                    variant="destructive"
+                                    size="icon"
+                                    aria-label={`הפסקת פעילות של ${user.firstName} ${user.lastName}`}
+                                    onClick={() => setDeleteTargetId(user.id)}
+                                    disabled={deactivateInFlight}
+                                  >
+                                    <Trash2 className="h-4 w-4" aria-hidden="true" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent side="bottom">הפסק פעילות</TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))

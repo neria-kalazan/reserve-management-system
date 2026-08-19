@@ -16,10 +16,6 @@ vi.mock('@/features/roles/queries/use-roles', () => ({
 vi.mock('@/features/units/queries/use-units', () => ({
   useCompanyUnits: vi.fn(),
 }))
-vi.mock('@/features/users/queries/use-users', () => ({
-  useCompanyUsers: vi.fn(),
-}))
-
 import { useAuthSession } from '@/app/auth/use-auth-session'
 import { useCompanyDashboard } from '@/features/dashboard/queries/use-company-dashboard'
 import { DashboardPage } from '@/features/dashboard/pages/dashboard-page'
@@ -27,14 +23,12 @@ import type { CompanyDashboardResponse } from '@/features/dashboard/types/dashbo
 import { useCompanyQualifications } from '@/features/qualifications/queries/use-qualifications'
 import { useCompanyRoles } from '@/features/roles/queries/use-roles'
 import { useCompanyUnits } from '@/features/units/queries/use-units'
-import { useCompanyUsers } from '@/features/users/queries/use-users'
 
 const useAuthSessionMock = vi.mocked(useAuthSession)
 const useCompanyDashboardMock = vi.mocked(useCompanyDashboard)
 const useCompanyQualificationsMock = vi.mocked(useCompanyQualifications)
 const useCompanyRolesMock = vi.mocked(useCompanyRoles)
 const useCompanyUnitsMock = vi.mocked(useCompanyUnits)
-const useCompanyUsersMock = vi.mocked(useCompanyUsers)
 
 const dashboardData: CompanyDashboardResponse = {
   companySummary: {
@@ -48,6 +42,7 @@ const dashboardData: CompanyDashboardResponse = {
       { name: 'קצין', count: 2 },
     ],
   },
+  roleHolders: [],
   upcomingActivities: [
     {
       id: 'activity-1',
@@ -75,10 +70,9 @@ describe('DashboardPage', () => {
     useCompanyQualificationsMock.mockReset()
     useCompanyRolesMock.mockReset()
     useCompanyUnitsMock.mockReset()
-    useCompanyUsersMock.mockReset()
 
     useAuthSessionMock.mockReturnValue({
-      user: { companyId: 'company-1' },
+      user: { companyId: 'company-1', companyName: 'פלוגת דפנה' },
     } as ReturnType<typeof useAuthSession>)
     useCompanyQualificationsMock.mockReturnValue({
       data: { total: 0, items: [] },
@@ -95,11 +89,19 @@ describe('DashboardPage', () => {
       isPending: false,
       isError: false,
     } as ReturnType<typeof useCompanyUnits>)
-    useCompanyUsersMock.mockReturnValue({
-      data: { total: 0, items: [] },
+  })
+
+  it('renders the authenticated company name as the page title and omits the subtitle', () => {
+    useCompanyDashboardMock.mockReturnValue({
       isPending: false,
       isError: false,
-    } as ReturnType<typeof useCompanyUsers>)
+      data: dashboardData,
+    } as unknown as ReturnType<typeof useCompanyDashboard>)
+
+    render(<DashboardPage />)
+
+    expect(screen.getByRole('heading', { name: 'פלוגת דפנה' })).toBeDefined()
+    expect(screen.queryByText('תמונת מצב עדכנית של הפלוגה')).toBeNull()
   })
 
   it('renders the query loading state', () => {
@@ -128,6 +130,37 @@ describe('DashboardPage', () => {
     expect(refetch).toHaveBeenCalledTimes(1)
   })
 
+  it('renders role holders from the dashboard response without loading all personnel', () => {
+    useCompanyDashboardMock.mockReturnValue({
+      isPending: false,
+      isError: false,
+      data: {
+        ...dashboardData,
+        roleHolders: [
+          { roleId: 'r-2', roleName: 'מ"פ', holderId: 'u-2', holderFirstName: 'יונתן', holderLastName: 'ישראלי', unitId: 'unit-1', unitName: 'מחלקה א', unitDisplayOrder: 1 },
+          { roleId: 'r-1', roleName: 'סמ"פ', holderId: 'u-1', holderFirstName: 'שמשון', holderLastName: '', unitId: 'unit-1', unitName: 'מחלקה א', unitDisplayOrder: 1 },
+          { roleId: 'r-3', roleName: 'נאמן כ"א', holderId: 'u-3', holderFirstName: 'יוסי', holderLastName: 'כהן', unitId: 'unit-2', unitName: 'מחלקה ב', unitDisplayOrder: 2 },
+          { roleId: 'r-4', roleName: 'קצין', holderId: 'u-3', holderFirstName: 'יוסי', holderLastName: 'כהן', unitId: 'unit-2', unitName: 'מחלקה ב', unitDisplayOrder: 2 },
+        ],
+      },
+    } as unknown as ReturnType<typeof useCompanyDashboard>)
+
+    render(<DashboardPage />)
+
+    expect(screen.getByText('סמ"פ — שמשון')).toBeDefined()
+    expect(screen.getByText('מ"פ — יונתן ישראלי')).toBeDefined()
+    expect(screen.getByText('נאמן כ"א — יוסי כהן')).toBeDefined()
+    expect(screen.getByText('קצין — יוסי כהן')).toBeDefined()
+    expect(screen.queryByText('אין מחזיקי תפקידים להצגה')).toBeNull()
+
+    const heading = screen.getByRole('heading', { name: 'מחזיקי תפקידים' })
+    const section = heading.closest('section')
+    expect(section).not.toBeNull()
+
+    const items = Array.from(section!.querySelectorAll('li')).map((item) => item.textContent)
+    expect(items).toEqual(['מ"פ — יונתן ישראלי', 'סמ"פ — שמשון', 'נאמן כ"א — יוסי כהן', 'קצין — יוסי כהן'])
+  })
+
   it('renders the company summary and activity sections', () => {
     useCompanyDashboardMock.mockReturnValue({
       isPending: false,
@@ -154,6 +187,7 @@ describe('DashboardPage', () => {
         qualificationCounts: [],
         roleCounts: [],
       },
+      roleHolders: [],
       upcomingActivities: [],
       recentActivities: [],
     }

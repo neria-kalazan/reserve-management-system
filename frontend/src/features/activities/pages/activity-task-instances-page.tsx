@@ -373,11 +373,11 @@ function TaskInstanceCandidateSearch({
   return (
     <div className="mt-3 space-y-3 rounded-md border border-border bg-surface px-3 py-3">
       {companyUsersQuery.isPending ? (
-        <LoadingState title="טוען משתמשי חברה" description="רשימת המשתמשים של החברה נטענת כעת." />
+        <LoadingState title="טוען משתמשי חברה" description="רשימת המשתמשים של הפלוגה נטענת כעת." />
       ) : companyUsersQuery.isError ? (
         <ErrorState
           title="טעינת משתמשי חברה נכשלה"
-          description="לא הצלחנו לטעון את רשימת המשתמשים של החברה. אפשר לנסות שוב."
+          description="לא הצלחנו לטעון את רשימת המשתמשים של הפלוגה. אפשר לנסות שוב."
           action={
             <Button type="button" variant="secondary" onClick={() => void companyUsersQuery.refetch()}>
               ניסיון חוזר

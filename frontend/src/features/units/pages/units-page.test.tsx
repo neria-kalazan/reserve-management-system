@@ -79,8 +79,8 @@ describe('UnitsPage', () => {
     expect(screen.getByText('מסגרת 1')).toBeDefined()
     expect(screen.getByText('תיאור 1')).toBeDefined()
     expect(screen.getByRole('button', { name: 'הבא' })).toBeDefined()
-    expect(screen.getAllByRole('button', { name: 'עריכה' }).length).toBeGreaterThan(0)
-    expect(screen.getAllByRole('button', { name: 'מחק' }).length).toBeGreaterThan(0)
+    expect(screen.getAllByRole('button', { name: /עריכת /i }).length).toBeGreaterThan(0)
+    expect(screen.getAllByRole('button', { name: /מחיקת /i }).length).toBeGreaterThan(0)
   })
 
   it('opens confirmation and does not delete on cancel', () => {
@@ -103,7 +103,7 @@ describe('UnitsPage', () => {
       </MemoryRouter>,
     )
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'מחק' })[0])
+    fireEvent.click(screen.getAllByRole('button', { name: /מחיקת /i })[0])
 
     expect(screen.getByText(/האם למחוק את המסגרת/i)).toBeDefined()
     fireEvent.click(screen.getByRole('button', { name: 'ביטול' }))
@@ -130,8 +130,8 @@ describe('UnitsPage', () => {
       </MemoryRouter>,
     )
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'מחק' })[0])
-    fireEvent.click(screen.getByRole('button', { name: 'אישור מחיקה' }))
+    fireEvent.click(screen.getAllByRole('button', { name: /מחיקת /i })[0])
+    fireEvent.click(screen.getByRole('button', { name: 'אישור / מחיקה' }))
 
     await waitFor(() => expect(deleteUnit).toHaveBeenCalledWith('unit-1'))
   })
@@ -156,8 +156,8 @@ describe('UnitsPage', () => {
       </MemoryRouter>,
     )
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'מחק' })[0])
-    fireEvent.click(screen.getByRole('button', { name: 'אישור מחיקה' }))
+    fireEvent.click(screen.getAllByRole('button', { name: /מחיקת /i })[0])
+    fireEvent.click(screen.getByRole('button', { name: 'אישור / מחיקה' }))
 
     await waitFor(() => expect(screen.getByText('Delete failed')).toBeDefined())
   })

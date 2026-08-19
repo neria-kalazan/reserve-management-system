@@ -141,7 +141,7 @@ export function QualificationFormPage() {
     <>
       <PageHeader
         title={title}
-        description={isEditMode ? 'עדכון פרטי ההסמכה בתוך החברה.' : 'יצירת הסמכה חדשה בתוך החברה הנוכחית.'}
+        description={isEditMode ? 'עדכון פרטי ההסמכה בתוך הפלוגה.' : 'יצירת הסמכה חדשה בתוך הפלוגה הנוכחית.'}
       />
 
       <ContentContainer className="pb-10">

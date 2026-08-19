@@ -76,13 +76,23 @@ export class UsersService {
     const page = query.page ?? 1;
     const pageSize = query.pageSize ?? 10;
     const sortBy = (query.sortBy ?? 'firstName') as CompanyUserSortField;
-    const sortOrder = query.sortOrder ?? 'asc';
+    const sortOrder: Prisma.SortOrder = query.sortOrder ?? 'asc';
+
+    const orderBy: Prisma.UserOrderByWithRelationInput | Prisma.UserOrderByWithRelationInput[] =
+      sortBy === 'unitDisplayOrder'
+        ? [
+            { unit: { displayOrder: sortOrder } },
+            { firstName: sortOrder },
+            { lastName: sortOrder },
+            { id: sortOrder },
+          ]
+        : ({ [sortBy]: sortOrder } as Prisma.UserOrderByWithRelationInput);
 
     const where = { companyId, isActive: true };
     const [rawItems, total] = await Promise.all([
       this.prisma.user.findMany({
         where,
-        orderBy: { [sortBy]: sortOrder },
+        orderBy,
         skip: (page - 1) * pageSize,
         take: pageSize,
         select: {

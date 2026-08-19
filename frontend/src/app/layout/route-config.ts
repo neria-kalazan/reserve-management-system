@@ -11,7 +11,6 @@ export interface AppRouteItem {
   key: AppRouteKey
   path: string
   label: string
-  description: string
   icon: typeof LayoutDashboard
   requiredPermission?: string
 }
@@ -21,7 +20,6 @@ export const appRoutes: AppRouteItem[] = [
     key: 'dashboard',
     path: '/dashboard',
     label: 'דשבורד',
-    description: 'סקירה כללית של החברה',
     icon: LayoutDashboard,
     requiredPermission: 'MANAGE_COMPANIES',
   },
@@ -29,7 +27,6 @@ export const appRoutes: AppRouteItem[] = [
     key: 'users',
     path: '/users',
     label: 'כוח אדם',
-    description: 'ניהול אנשי החברה',
     icon: Users,
     requiredPermission: 'MANAGE_COMPANIES',
   },
@@ -37,7 +34,6 @@ export const appRoutes: AppRouteItem[] = [
     key: 'roles',
     path: '/roles',
     label: 'תפקידים',
-    description: 'ניהול תפקידי החברה',
     icon: Shield,
     requiredPermission: 'MANAGE_COMPANIES',
   },
@@ -45,7 +41,6 @@ export const appRoutes: AppRouteItem[] = [
     key: 'qualifications',
     path: '/qualifications',
     label: 'הסמכות',
-    description: 'ניהול הסמכות של החברה',
     icon: BadgeCheck,
     requiredPermission: 'MANAGE_COMPANIES',
   },
@@ -53,7 +48,6 @@ export const appRoutes: AppRouteItem[] = [
     key: 'units',
     path: '/units',
     label: 'מסגרות',
-    description: 'ניהול מסגרות החברה',
     icon: Shield,
     requiredPermission: 'MANAGE_COMPANIES',
   },
@@ -63,7 +57,6 @@ export const fallbackRoute: AppRouteItem = appRoutes[0] ?? {
   key: 'dashboard',
   path: '/dashboard',
   label: 'דשבורד',
-  description: 'סקירה תפעולית תתווסף בהמשך',
   icon: LayoutDashboard,
 }
 

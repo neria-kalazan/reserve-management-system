@@ -51,10 +51,16 @@ export class AuthController {
   @Get('me')
   @UseGuards(AuthGuard)
   async me(@CurrentUser() user: AuthenticatedBusinessUser) {
-    const permissions = await this.prisma.userPermission.findMany({
-      where: { userId: user.id },
-      select: { permission: { select: { key: true, description: true } } },
-    });
+    const [permissions, company] = await Promise.all([
+      this.prisma.userPermission.findMany({
+        where: { userId: user.id },
+        select: { permission: { select: { key: true, description: true } } },
+      }),
+      this.prisma.company.findUnique({
+        where: { id: user.companyId },
+        select: { name: true },
+      }),
+    ]);
 
     return {
       authenticated: true,
@@ -64,6 +70,7 @@ export class AuthController {
         firstName: user.firstName,
         lastName: user.lastName,
         companyId: user.companyId,
+        companyName: company?.name ?? null,
       },
       permissions: permissions.map((item: any) => item.permission),
     };

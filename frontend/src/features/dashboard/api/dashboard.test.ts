@@ -16,6 +16,7 @@ describe('getCompanyDashboard', () => {
         qualificationCounts: [],
         roleCounts: [],
       },
+      roleHolders: [],
       upcomingActivities: [],
       recentActivities: [],
     }

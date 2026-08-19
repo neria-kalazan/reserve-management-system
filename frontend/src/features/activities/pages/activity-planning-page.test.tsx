@@ -305,7 +305,7 @@ describe('ActivityPlanningPage', () => {
       isError: false,
       data: taskInstanceId === 'instance-1'
         ? {
-            requiredErrors: [{ type: 'MANPOWER', message: 'לא מספק כוח אדם' }],
+            requiredErrors: [{ type: 'MANPOWER', message: 'לא מספק חיילים' }],
             warnings: [],
             summary: { isValid: false },
           }

@@ -1,7 +1,7 @@
 import { Type } from 'class-transformer';
 import { IsIn, IsInt, IsOptional, Max, Min } from 'class-validator';
 
-export const COMPANY_USER_SORT_FIELDS = ['firstName', 'lastName', 'personalNumber', 'phone', 'createdAt'] as const;
+export const COMPANY_USER_SORT_FIELDS = ['firstName', 'lastName', 'personalNumber', 'phone', 'createdAt', 'unitDisplayOrder'] as const;
 export type CompanyUserSortField = (typeof COMPANY_USER_SORT_FIELDS)[number];
 export type CompanyUserSortOrder = 'asc' | 'desc';
 

@@ -81,7 +81,8 @@ describe('RolesPage', () => {
     expect(screen.getByText('תפקיד 1')).toBeDefined()
     expect(screen.getByText('תיאור 1')).toBeDefined()
     expect(screen.getByRole('button', { name: 'הבא' })).toBeDefined()
-    expect(screen.getAllByRole('button', { name: 'עריכה' }).length).toBeGreaterThan(0)
+    expect(screen.getAllByRole('button', { name: /עריכת /i }).length).toBeGreaterThan(0)
+    expect(screen.getAllByRole('button', { name: /מחיקת /i }).length).toBeGreaterThan(0)
   })
 
   it('renders the delete action and confirmation flow', () => {
@@ -105,7 +106,7 @@ describe('RolesPage', () => {
       </MemoryRouter>,
     )
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'מחק' })[0])
+    fireEvent.click(screen.getAllByRole('button', { name: /מחיקת /i })[0])
 
     expect(screen.getByText(/האם למחוק את התפקיד/i)).toBeDefined()
     fireEvent.click(screen.getByRole('button', { name: 'ביטול' }))
@@ -132,8 +133,8 @@ describe('RolesPage', () => {
       </MemoryRouter>,
     )
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'מחק' })[0])
-    fireEvent.click(screen.getByRole('button', { name: 'אישור מחיקה' }))
+    fireEvent.click(screen.getAllByRole('button', { name: /מחיקת /i })[0])
+    fireEvent.click(screen.getByRole('button', { name: 'אישור / מחיקה' }))
 
     await waitFor(() => expect(deleteRole).toHaveBeenCalledWith('role-1'))
   })
@@ -158,8 +159,8 @@ describe('RolesPage', () => {
       </MemoryRouter>,
     )
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'מחק' })[0])
-    fireEvent.click(screen.getByRole('button', { name: 'אישור מחיקה' }))
+    fireEvent.click(screen.getAllByRole('button', { name: /מחיקת /i })[0])
+    fireEvent.click(screen.getByRole('button', { name: 'אישור / מחיקה' }))
 
     await waitFor(() => expect(screen.getByText('Delete failed')).toBeDefined())
   })

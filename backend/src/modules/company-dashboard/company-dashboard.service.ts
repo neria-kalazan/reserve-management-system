@@ -14,7 +14,7 @@ export class CompanyDashboardService {
 
     const now = new Date();
 
-    const [companyUsers, activities] = await Promise.all([
+    const [companyUsers, roleHolders, activities] = await Promise.all([
       this.prisma.user.findMany({
         where: { companyId },
         select: {
@@ -23,6 +23,45 @@ export class CompanyDashboardService {
           userRoles: { select: { roleId: true } },
           userQualifications: { select: { qualificationId: true } },
         },
+      }),
+      this.prisma.userRole.findMany({
+        where: {
+          user: {
+            companyId,
+            isActive: true,
+          },
+        },
+        select: {
+          roleId: true,
+          userId: true,
+          role: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+          user: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              unit: {
+                select: {
+                  id: true,
+                  name: true,
+                  displayOrder: true,
+                },
+              },
+            },
+          },
+        },
+        orderBy: [
+          { user: { unit: { displayOrder: 'asc' } } },
+          { user: { firstName: 'asc' } },
+          { user: { lastName: 'asc' } },
+          { role: { name: 'asc' } },
+          { userId: 'asc' },
+        ],
       }),
       this.prisma.activity.findMany({
         where: { companyId },
@@ -78,6 +117,17 @@ export class CompanyDashboardService {
       .sort((a, b) => new Date(b.endDate).getTime() - new Date(a.endDate).getTime())
       .slice(0, 5);
 
+    const roleHoldersData = (roleHolders ?? []).map((relation) => ({
+      roleId: relation.role.id,
+      roleName: relation.role.name,
+      holderId: relation.user.id,
+      holderFirstName: relation.user.firstName,
+      holderLastName: relation.user.lastName,
+      unitId: relation.user.unit.id,
+      unitName: relation.user.unit.name,
+      unitDisplayOrder: relation.user.unit.displayOrder,
+    }));
+
     return {
       companySummary: {
         totalSoldiers,
@@ -94,6 +144,7 @@ export class CompanyDashboardService {
           }))
           .filter((item) => item.count > 0),
       },
+      roleHolders: roleHoldersData,
       upcomingActivities,
       recentActivities,
     };

@@ -93,7 +93,7 @@ function RoleHolderList({
 }: {
   title: string
   description: string
-  items: Array<{ role: string; holders: string[] }>
+  items: Array<{ role: string; holder: string }>
   emptyText: string
 }) {
   return (
@@ -102,23 +102,13 @@ function RoleHolderList({
       <Card className="mt-4 shadow-none">
         <CardContent className="px-4 py-4 sm:px-5">
           {items.length > 0 ? (
-            <ul className="space-y-3">
+            <ol className="space-y-3">
               {items.map((item) => (
-                <li key={item.role} className="rounded-md border border-border bg-background px-3 py-2">
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="text-sm font-medium text-foreground">{item.role}</span>
-                    <span className="text-xs text-muted">{item.holders.length} איש/ים</span>
-                  </div>
-                  <div className="mt-2 flex flex-wrap gap-1">
-                    {item.holders.map((holder) => (
-                      <span key={`${item.role}-${holder}`} className="rounded-full border border-border bg-surface-elevated px-2 py-0.5 text-xs text-foreground">
-                        {holder}
-                      </span>
-                    ))}
-                  </div>
+                <li key={`${item.role}-${item.holder}`} className="rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground">
+                  {item.role} — {item.holder}
                 </li>
               ))}
-            </ul>
+            </ol>
           ) : (
             <p className="text-sm text-muted">{emptyText}</p>
           )}
@@ -172,7 +162,7 @@ export function DashboardOverview({
   totals,
 }: {
   dashboard: CompanyDashboardResponse
-  roleHolders: Array<{ role: string; holders: string[] }>
+  roleHolders: Array<{ role: string; holder: string }>
   totals: { totalPersonnel: number; totalUnits: number; totalRoles: number; totalQualifications: number }
 }) {
   const { companySummary, upcomingActivities, recentActivities } = dashboard
@@ -180,7 +170,7 @@ export function DashboardOverview({
   return (
     <div className="space-y-8 md:space-y-10">
       <section aria-labelledby="company-overview-title">
-        <SectionHeading id="company-overview-title" title="סקירת החברה" description="מבט כללי על כוח האדם, המסגרות והפעילויות של החברה." />
+        <SectionHeading id="company-overview-title" title="סקירת הפלוגה" description="מבט כללי על כוח האדם, המסגרות והפעילויות של הפלוגה." />
         <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <MetricCard label="כוח אדם פעילים" value={companySummary.totalSoldiers ?? totals.totalPersonnel} icon={Users} />
           <MetricCard label="מסגרות" value={totals.totalUnits} icon={Shield} />
@@ -190,36 +180,12 @@ export function DashboardOverview({
       </section>
 
       <div className="grid gap-6 xl:grid-cols-2">
-        <SummaryList
-          title="הסמכות"
-          description="כמות כוח אדם לפי הסמכה"
-          items={companySummary.qualificationCounts}
-          emptyText="אין נתוני הסמכות"
-        />
-        <SummaryList
-          title="תפקידים"
-          description="כמות כוח אדם לפי תפקיד"
-          items={companySummary.roleCounts}
-          emptyText="אין נתוני תפקידים"
-        />
-      </div>
-
-      <div className="grid gap-6 xl:grid-cols-2">
-        <RoleHolderList
-          title="מחזיקי תפקידים"
-          description="שמות בעלי התפקידים הרלוונטיים בחברה"
-          items={roleHolders}
-          emptyText="אין מחזיקי תפקידים להצגה"
-        />
         <ActivityList
           title="פעילויות קרובות"
           description="רשימת הפעילויות הקרובות בתכנון"
           items={upcomingActivities}
           emptyText="אין פעילויות קרובות"
         />
-      </div>
-
-      <div className="grid gap-6 xl:grid-cols-1">
         <ActivityList
           title="פעילות אחרונה"
           description="רשימת פעילויות שנערכו לאחרונה"
@@ -227,6 +193,22 @@ export function DashboardOverview({
           emptyText="אין פעילות אחרונה"
         />
       </div>
+      
+      <div className="grid gap-6 xl:grid-cols-2">
+        <SummaryList
+          title="הסמכות"
+          description="כמות כוח אדם לפי הסמכה"
+          items={companySummary.qualificationCounts}
+          emptyText="אין נתוני הסמכות"
+        />
+        <RoleHolderList
+          title="מחזיקי תפקידים"
+          description="שמות בעלי התפקידים הרלוונטיים בפלוגה"
+          items={roleHolders}
+          emptyText="אין מחזיקי תפקידים להצגה"
+        />
+      </div>
+
     </div>
   )
 }

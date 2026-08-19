@@ -31,7 +31,7 @@ export function Sidebar({ onNavigate }: SidebarProps) {
                 onClick={onNavigate}
                 className={({ isActive }) =>
                   cn(
-                    'group flex items-start gap-3 rounded-md border border-transparent px-3 py-3 text-right transition-colors',
+                    'group flex items-center gap-3 rounded-md border border-transparent px-3 py-3 text-right transition-colors',
                     'hover:border-border-strong hover:bg-surface-elevated',
                     isActive && 'border-primary/40 bg-primary-soft text-foreground',
                   )
@@ -41,16 +41,13 @@ export function Sidebar({ onNavigate }: SidebarProps) {
                   <>
                     <span
                       className={cn(
-                        'mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-border bg-background text-muted transition-colors',
+                        'flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-border bg-background text-muted transition-colors',
                         isActive && 'border-primary/50 bg-primary text-primary-foreground',
                       )}
                     >
                       <Icon className="h-4 w-4" />
                     </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block text-sm font-medium">{route.label}</span>
-                      <span className="mt-1 block text-xs leading-5 text-muted">{route.description}</span>
-                    </span>
+                    <span className="flex-1 self-center text-sm font-medium">{route.label}</span>
                   </>
                 )}
               </NavLink>

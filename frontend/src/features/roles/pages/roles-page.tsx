@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { Pencil, Trash2 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 
 import { useAuthSession } from '@/app/auth/use-auth-session'
@@ -8,8 +9,10 @@ import { useCompanyRoles, useDeleteRole } from '@/features/roles/queries/use-rol
 import { ErrorState } from '@/shared/components/error-state'
 import { LoadingState } from '@/shared/components/loading-state'
 import { Button } from '@/shared/components/ui/button'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/shared/components/ui/dialog'
 import { Pagination } from '@/shared/components/ui/pagination'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/shared/components/ui/table'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/shared/components/ui/tooltip'
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50] as const
 const SORTABLE_COLUMNS = ['name', 'description'] as const
@@ -30,7 +33,7 @@ export function RolesPage() {
   const deleteRoleMutation = useDeleteRole()
   const deleteInFlight = deleteRoleMutation?.isPending ?? false
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
-  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
 
   const roles = rolesQuery.data?.items ?? []
@@ -67,13 +70,15 @@ export function RolesPage() {
     try {
       await deleteRoleMutation.mutateAsync(roleId)
       setPendingDeleteId(null)
-      setConfirmDeleteId(null)
+      setDeleteTargetId(null)
     } catch (error) {
       const message = error instanceof Error ? error.message : 'לא הצלחנו למחוק את התפקיד.'
       setDeleteError(message)
       setPendingDeleteId(null)
     }
   }
+
+  const deleteTarget = deleteTargetId ? roles.find((role) => role.id === deleteTargetId) ?? null : null
 
   const getSortIndicator = (field: SortField) => {
     if (sortBy !== field) {
@@ -108,13 +113,40 @@ export function RolesPage() {
     <>
       <PageHeader
         title="תפקידים"
-        description="רשימת התפקידים של החברה עם מידע בסיסי על כל תפקיד."
+        description="רשימת התפקידים של הפלוגה עם מידע בסיסי על כל תפקיד."
         actions={
           <Button type="button" onClick={() => navigate('/roles/new')}>
             יצירת תפקיד
           </Button>
         }
       />
+
+      <Dialog open={Boolean(deleteTargetId)} onOpenChange={(open) => !open && setDeleteTargetId(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>אישור מחיקה</DialogTitle>
+            <DialogDescription>{deleteTarget ? `האם למחוק את התפקיד ${deleteTarget.name}?` : 'האם למחוק את התפקיד?'}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="sm:justify-end">
+            <Button type="button" variant="secondary" onClick={() => setDeleteTargetId(null)}>
+              ביטול
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={() => {
+                if (deleteTargetId) {
+                  void onDelete(deleteTargetId)
+                }
+              }}
+              disabled={pendingDeleteId !== null && pendingDeleteId !== deleteTargetId}
+              loading={pendingDeleteId === deleteTargetId}
+            >
+              אישור / מחיקה
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <ContentContainer className="space-y-5 pb-10">
         {deleteError ? (
@@ -152,42 +184,40 @@ export function RolesPage() {
                       <TableRow key={role.id}>
                         <TableCell>{role.name}</TableCell>
                         <TableCell>{role.description ?? '—'}</TableCell>
-                        <TableCell className="space-x-2">
-                          <Button type="button" variant="secondary" size="sm" onClick={() => navigate(`/roles/${role.id}/edit`)}>
-                            עריכה
-                          </Button>
-                          {confirmDeleteId === role.id ? (
-                            <div className="inline-flex items-center gap-2 align-middle">
-                              <span className="text-xs text-muted">האם למחוק את התפקיד?</span>
-                              <Button
-                                type="button"
-                                variant="destructive"
-                                size="sm"
-                                onClick={() => void onDelete(role.id)}
-                                disabled={pendingDeleteId === role.id || deleteInFlight}
-                              >
-                                {pendingDeleteId === role.id ? 'מוחק...' : 'אישור מחיקה'}
-                              </Button>
-                              <Button
-                                type="button"
-                                variant="secondary"
-                                size="sm"
-                                onClick={() => setConfirmDeleteId(null)}
-                              >
-                                ביטול
-                              </Button>
-                            </div>
-                          ) : (
-                            <Button
-                              type="button"
-                              variant="destructive"
-                              size="sm"
-                              onClick={() => setConfirmDeleteId(role.id)}
-                              disabled={deleteInFlight}
-                            >
-                              מחק
-                            </Button>
-                          )}
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <TooltipProvider delayDuration={100}>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    type="button"
+                                    variant="secondary"
+                                    size="icon"
+                                    aria-label={`עריכת ${role.name}`}
+                                    onClick={() => navigate(`/roles/${role.id}/edit`)}
+                                  >
+                                    <Pencil className="h-4 w-4" aria-hidden="true" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent side="bottom">עריכה</TooltipContent>
+                              </Tooltip>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    type="button"
+                                    variant="destructive"
+                                    size="icon"
+                                    aria-label={`מחיקת ${role.name}`}
+                                    onClick={() => setDeleteTargetId(role.id)}
+                                    disabled={deleteInFlight}
+                                  >
+                                    <Trash2 className="h-4 w-4" aria-hidden="true" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent side="bottom">מחיקה</TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))

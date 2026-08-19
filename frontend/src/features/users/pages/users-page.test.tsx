@@ -107,7 +107,7 @@ describe('UsersPage', () => {
 
     expect(screen.getByText('כוח אדם')).toBeDefined()
     expect(screen.getByRole('button', { name: 'ייבוא כוח אדם' })).toBeDefined()
-    expect(screen.getByRole('button', { name: 'יצירת כוח אדם' })).toBeDefined()
+    expect(screen.getByRole('button', { name: 'חייל חדש' })).toBeDefined()
     expect(screen.getByText('שם 1')).toBeDefined()
     expect(screen.getByText('משפחה 1')).toBeDefined()
     expect(screen.getByText('1001')).toBeDefined()
@@ -116,8 +116,8 @@ describe('UsersPage', () => {
     expect(screen.getByText('תפקיד 1')).toBeDefined()
     expect(screen.getByText('הסמכה 1')).toBeDefined()
     expect(screen.getByRole('button', { name: 'הבא' })).toBeDefined()
-    expect(screen.getAllByRole('button', { name: 'עריכה' }).length).toBeGreaterThan(0)
-    expect(screen.getAllByRole('button', { name: 'הפסק פעילות' }).length).toBeGreaterThan(0)
+    expect(screen.getAllByRole('button', { name: /עריכת /i }).length).toBeGreaterThan(0)
+    expect(screen.getAllByRole('button', { name: /הפסקת פעילות של /i }).length).toBeGreaterThan(0)
   })
 
   it('renders role names and a compact qualification summary that opens the full list in a popover', async () => {
@@ -227,7 +227,7 @@ describe('UsersPage', () => {
       </MemoryRouter>,
     )
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'הפסק פעילות' })[0])
+    fireEvent.click(screen.getAllByRole('button', { name: /הפסקת פעילות של /i })[0])
 
     expect(screen.getByText(/האם להפסיק את פעילותו/i)).toBeDefined()
     fireEvent.click(screen.getByRole('button', { name: 'ביטול' }))
@@ -255,8 +255,8 @@ describe('UsersPage', () => {
       </MemoryRouter>,
     )
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'הפסק פעילות' })[0])
-    fireEvent.click(screen.getByRole('button', { name: 'אישור הפסקה' }))
+    fireEvent.click(screen.getAllByRole('button', { name: /הפסקת פעילות של /i })[0])
+    fireEvent.click(screen.getByRole('button', { name: 'אישור / מחיקה' }))
 
     await waitFor(() => expect(deactivateUser).toHaveBeenCalledWith('user-1'))
   })
@@ -282,8 +282,8 @@ describe('UsersPage', () => {
       </MemoryRouter>,
     )
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'הפסק פעילות' })[0])
-    fireEvent.click(screen.getByRole('button', { name: 'אישור הפסקה' }))
+    fireEvent.click(screen.getAllByRole('button', { name: /הפסקת פעילות של /i })[0])
+    fireEvent.click(screen.getByRole('button', { name: 'אישור / מחיקה' }))
 
     await waitFor(() => expect(screen.getByText('Deactivation failed')).toBeDefined())
   })
@@ -488,7 +488,7 @@ describe('UsersPage', () => {
 
     expect(useCompanyUsersMock).toHaveBeenLastCalledWith(
       'company-1',
-      expect.objectContaining({ page: 2, pageSize: 10, sortBy: 'firstName', sortOrder: 'asc' }),
+      expect.objectContaining({ page: 2, pageSize: 10, sortBy: 'unitDisplayOrder', sortOrder: 'asc' }),
     )
   })
 
@@ -513,7 +513,7 @@ describe('UsersPage', () => {
 
     expect(useCompanyUsersMock).toHaveBeenLastCalledWith(
       'company-1',
-      expect.objectContaining({ page: 1, pageSize: 10, sortBy: 'firstName', sortOrder: 'asc' }),
+      expect.objectContaining({ page: 1, pageSize: 10, sortBy: 'unitDisplayOrder', sortOrder: 'asc' }),
     )
   })
 
@@ -562,7 +562,7 @@ describe('UsersPage', () => {
 
     expect(useCompanyUsersMock).toHaveBeenLastCalledWith(
       'company-1',
-      expect.objectContaining({ page: 1, pageSize: 25, sortBy: 'firstName', sortOrder: 'asc' }),
+      expect.objectContaining({ page: 1, pageSize: 25, sortBy: 'unitDisplayOrder', sortOrder: 'asc' }),
     )
   })
 
@@ -582,16 +582,16 @@ describe('UsersPage', () => {
       </MemoryRouter>,
     )
 
-    fireEvent.click(screen.getByRole('button', { name: 'מיון לפי שם' }))
+    fireEvent.click(screen.getByRole('button', { name: 'מיון לפי מסגרת' }))
     expect(useCompanyUsersMock).toHaveBeenLastCalledWith(
       'company-1',
-      expect.objectContaining({ page: 1, sortBy: 'firstName', sortOrder: 'desc' }),
+      expect.objectContaining({ page: 1, sortBy: 'unitDisplayOrder', sortOrder: 'desc' }),
     )
 
-    fireEvent.click(screen.getByRole('button', { name: 'מיון לפי שם' }))
+    fireEvent.click(screen.getByRole('button', { name: 'מיון לפי מסגרת' }))
     expect(useCompanyUsersMock).toHaveBeenLastCalledWith(
       'company-1',
-      expect.objectContaining({ page: 1, sortBy: 'firstName', sortOrder: 'asc' }),
+      expect.objectContaining({ page: 1, sortBy: 'unitDisplayOrder', sortOrder: 'asc' }),
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'מיון לפי משפחה' }))

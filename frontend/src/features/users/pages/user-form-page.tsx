@@ -225,7 +225,7 @@ export function UserFormPage() {
     }
   }
 
-  const title = isEditMode ? 'עריכת כוח אדם' : 'יצירת כוח אדם'
+  const title = isEditMode ? 'עריכת כוח אדם' : 'חייל חדש'
 
   if (isLoading) {
     return (
@@ -261,7 +261,7 @@ export function UserFormPage() {
     <>
       <PageHeader
         title={title}
-        description={isEditMode ? 'עדכון פרטי כוח האדם והקצאת תפקידים והסמכות.' : 'יצירת כוח אדם חדש בתוך החברה הנוכחית.'}
+        description={isEditMode ? 'עדכון פרטי כוח האדם והקצאת תפקידים והסמכות.' : 'חייל חדש חדש בתוך הפלוגה הנוכחית.'}
       />
 
       <ContentContainer className="pb-10">

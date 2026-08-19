@@ -141,7 +141,7 @@ export function RoleFormPage() {
     <>
       <PageHeader
         title={title}
-        description={isEditMode ? 'עדכון פרטי התפקיד בתוך החברה.' : 'יצירת תפקיד חדש בתוך החברה הנוכחית.'}
+        description={isEditMode ? 'עדכון פרטי התפקיד בתוך הפלוגה.' : 'יצירת תפקיד חדש בתוך הפלוגה הנוכחית.'}
       />
 
       <ContentContainer className="pb-10">

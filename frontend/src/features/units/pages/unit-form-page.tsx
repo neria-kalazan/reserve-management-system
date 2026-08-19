@@ -158,7 +158,7 @@ export function UnitFormPage() {
     <>
       <PageHeader
         title={title}
-        description={isEditMode ? 'עדכון פרטי המסגרת בתוך החברה.' : 'יצירת מסגרת חדשה בתוך החברה הנוכחית.'}
+        description={isEditMode ? 'עדכון פרטי המסגרת בתוך הפלוגה.' : 'יצירת מסגרת חדשה בתוך הפלוגה הנוכחית.'}
       />
 
       <ContentContainer className="pb-10">
