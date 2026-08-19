@@ -1,6 +1,9 @@
+import type { ActivityType } from '@/features/activities/types/activity'
+
 export interface DashboardActivitySummary {
   id: string
   name: string
+  type: ActivityType
   startDate: string
   endDate: string
   status: 'DRAFT' | 'ACTIVE' | 'COMPLETED' | 'CANCELLED'

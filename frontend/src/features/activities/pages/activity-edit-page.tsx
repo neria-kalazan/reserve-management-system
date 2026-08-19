@@ -5,21 +5,31 @@ import type { ApiError } from '@/api/client'
 import { ContentContainer } from '@/app/layout/content-container'
 import { PageHeader } from '@/app/layout/page-header'
 import { useActivityById, useUpdateActivity } from '@/features/activities/queries/use-activities'
+import type { ActivityType } from '@/features/activities/types/activity'
 import { ErrorState } from '@/shared/components/error-state'
 import { LoadingState } from '@/shared/components/loading-state'
 import { Button } from '@/shared/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/card'
 import { Input } from '@/shared/components/ui/input'
 import { Label } from '@/shared/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/components/ui/select'
+
+const ACTIVITY_TYPE_OPTIONS: Array<{ value: ActivityType; label: string }> = [
+  { value: 'TRAINING', label: 'אימון' },
+  { value: 'EMPLOYMENT', label: 'תעסוקה' },
+  { value: 'TRAINING_COURSE', label: 'השתלמות' },
+]
 
 interface FormValues {
   name: string
+  type: ActivityType | ''
   startDate: string
   endDate: string
 }
 
 interface FormErrors {
   name: string | undefined
+  type: string | undefined
   startDate: string | undefined
   endDate: string | undefined
   form: string | undefined
@@ -27,6 +37,7 @@ interface FormErrors {
 
 const emptyErrors: FormErrors = {
   name: undefined,
+  type: undefined,
   startDate: undefined,
   endDate: undefined,
   form: undefined,
@@ -68,6 +79,10 @@ const validate = (values: FormValues): FormErrors => {
     errors.name = 'יש להזין שם תעסוקה.'
   }
 
+  if (!values.type) {
+    errors.type = 'יש לבחור סוג תעסוקה.'
+  }
+
   if (values.startDate.length === 0) {
     errors.startDate = 'יש להזין תאריך התחלה.'
   }
@@ -90,7 +105,7 @@ export function ActivityEditPage() {
   const activityQuery = useActivityById(activityId)
   const updateActivityMutation = useUpdateActivity()
 
-  const [values, setValues] = useState<FormValues>({ name: '', startDate: '', endDate: '' })
+  const [values, setValues] = useState<FormValues>({ name: '', type: '', startDate: '', endDate: '' })
   const [errors, setErrors] = useState<FormErrors>(emptyErrors)
   const [initializedForId, setInitializedForId] = useState<string | undefined>(undefined)
 
@@ -113,6 +128,7 @@ export function ActivityEditPage() {
 
     setValues({
       name: activityQuery.data.name,
+      type: activityQuery.data.type ?? '',
       startDate: toDateInputValue(activityQuery.data.startDate),
       endDate: toDateInputValue(activityQuery.data.endDate),
     })
@@ -133,7 +149,7 @@ export function ActivityEditPage() {
     }
 
     const nextErrors = validate(values)
-    const hasValidationErrors = Boolean(nextErrors.name || nextErrors.startDate || nextErrors.endDate)
+    const hasValidationErrors = Boolean(nextErrors.name || nextErrors.type || nextErrors.startDate || nextErrors.endDate)
 
     if (hasValidationErrors) {
       setErrors(nextErrors)
@@ -145,6 +161,7 @@ export function ActivityEditPage() {
         activityId,
         body: {
           name: values.name.trim(),
+          type: values.type as ActivityType,
           startDate: values.startDate,
           endDate: values.endDate,
         },
@@ -233,6 +250,26 @@ export function ActivityEditPage() {
                     aria-invalid={errors.name ? 'true' : 'false'}
                   />
                   {errors.name ? <p className="text-sm text-danger">{errors.name}</p> : null}
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="edit-activity-type">סוג התעסוקה</Label>
+                  <Select
+                    value={values.type || undefined}
+                    onValueChange={(value) => updateField('type', value as ActivityType)}
+                  >
+                    <SelectTrigger id="edit-activity-type" aria-invalid={errors.type ? 'true' : 'false'}>
+                      <SelectValue placeholder="בחר סוג תעסוקה" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {ACTIVITY_TYPE_OPTIONS.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {errors.type ? <p className="text-sm text-danger">{errors.type}</p> : null}
                 </div>
 
                 <div className="space-y-2">

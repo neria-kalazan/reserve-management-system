@@ -7,10 +7,19 @@ export enum ActivityStatusValue {
   CANCELLED = 'CANCELLED',
 }
 
+export enum ActivityTypeValue {
+  TRAINING = 'TRAINING',
+  EMPLOYMENT = 'EMPLOYMENT',
+  TRAINING_COURSE = 'TRAINING_COURSE',
+}
+
 export class CreateActivityDto {
   @IsString()
   @IsNotEmpty()
   name: string;
+
+  @IsEnum(ActivityTypeValue)
+  type: ActivityTypeValue;
 
   @IsDateString()
   startDate: string;

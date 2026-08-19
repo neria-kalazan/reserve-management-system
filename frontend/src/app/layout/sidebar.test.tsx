@@ -21,12 +21,12 @@ describe('Sidebar', () => {
     )
 
     expect(screen.getByRole('link', { name: /דשבורד/i }).getAttribute('href')).toBe('/dashboard')
+    expect(screen.getByRole('link', { name: /פעילויות/i }).getAttribute('href')).toBe('/activities')
     expect(screen.getByRole('link', { name: /כוח אדם/i }).getAttribute('href')).toBe('/users')
     expect(screen.getByRole('link', { name: /תפקידים/i }).getAttribute('href')).toBe('/roles')
     expect(screen.getByRole('link', { name: /הסמכות/i }).getAttribute('href')).toBe('/qualifications')
     expect(screen.getByRole('link', { name: /מסגרות/i }).getAttribute('href')).toBe('/units')
 
-    expect(screen.queryByRole('link', { name: /פעילויות/i })).toBeNull()
     expect(screen.queryByRole('link', { name: /שיבוץ/i })).toBeNull()
     expect(screen.queryByRole('link', { name: /פלוגות/i })).toBeNull()
   })

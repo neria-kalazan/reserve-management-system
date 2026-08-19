@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { ActivityStatus, ActivityType } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
-import { ActivityStatus } from '@prisma/client';
 import { CreateActivityDto } from './dto/create-activity.dto';
 import { UpdateActivityDto } from './dto/update-activity.dto';
 
@@ -29,6 +29,7 @@ export class ActivitiesService {
       data: {
         companyId,
         name: dto.name,
+        type: dto.type,
         startDate,
         endDate,
         status: dto.status ?? 'DRAFT',
@@ -69,10 +70,14 @@ export class ActivitiesService {
       throw new NotFoundException('Activity not found');
     }
 
-    const data: { name?: string; startDate?: Date; endDate?: Date; status?: ActivityStatus } = {};
+    const data: { name?: string; type?: ActivityType; startDate?: Date; endDate?: Date; status?: ActivityStatus } = {};
 
     if (dto.name !== undefined) {
       data.name = dto.name;
+    }
+
+    if (dto.type !== undefined) {
+      data.type = dto.type;
     }
 
     if (dto.startDate !== undefined) {

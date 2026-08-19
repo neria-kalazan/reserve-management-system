@@ -113,6 +113,19 @@ export class ActivityOverviewService {
       {} as Record<string, number>,
     );
 
+    const participatingUserIds = [...new Set(activityUserStatuses.map((item) => item.userId))];
+    const holidayDaysByUser = new Map<string, number>();
+
+    for (const item of activityUserStatuses) {
+      if (item.status === 'HOLIDAY') {
+        holidayDaysByUser.set(item.userId, (holidayDaysByUser.get(item.userId) ?? 0) + 1);
+      }
+    }
+
+    const totalHolidayDays = [...holidayDaysByUser.values()].reduce((sum, count) => sum + count, 0);
+    const averageHolidayDaysPerSoldier = participatingUserIds.length > 0 ? totalHolidayDays / participatingUserIds.length : 0;
+    const administrativeActiveDays = activityUserStatuses.filter((item) => item.status === 'ACTIVE').length;
+
     return {
       activity: {
         id: activity.id,
@@ -130,6 +143,8 @@ export class ActivityOverviewService {
       availabilitySummary: {
         byAvailability: availabilitySummary,
       },
+      averageHolidayDaysPerSoldier,
+      administrativeActiveDays,
     };
   }
 }

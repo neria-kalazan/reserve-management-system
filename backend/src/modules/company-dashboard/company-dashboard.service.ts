@@ -68,6 +68,7 @@ export class CompanyDashboardService {
         select: {
           id: true,
           name: true,
+          type: true,
           startDate: true,
           endDate: true,
           status: true,

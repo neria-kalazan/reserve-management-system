@@ -8,12 +8,26 @@ import { PageHeader } from '@/app/layout/page-header'
 import { ActivityTaskList } from '@/features/activities/components/activity-task-list'
 import { useActivityById, useActivityOverview } from '@/features/activities/queries/use-activities'
 import { useActivityTasks } from '@/features/activities/queries/use-activity-tasks'
-import type { ActivityOverview } from '@/features/activities/types/activity'
+import type { ActivityOverview, ActivityType } from '@/features/activities/types/activity'
 import { ErrorState } from '@/shared/components/error-state'
 import { LoadingState } from '@/shared/components/loading-state'
 import { StatusBadge } from '@/shared/components/status-badge'
 import { Button } from '@/shared/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/card'
+
+const ACTIVITY_TYPE_LABELS: Record<ActivityType, string> = {
+  TRAINING: 'אימון',
+  EMPLOYMENT: 'תעסוקה',
+  TRAINING_COURSE: 'השתלמות',
+}
+
+const isHistoricalActivity = (activity: { status: string; endDate: string } | undefined, now = new Date()) => {
+  if (!activity) {
+    return false
+  }
+
+  return activity.status === 'COMPLETED' || activity.status === 'CANCELLED' || new Date(activity.endDate) <= now
+}
 
 const dateFormatter = new Intl.DateTimeFormat('he-IL', {
   day: '2-digit',
@@ -68,6 +82,7 @@ export function ActivityDetailsPage() {
   }, [activityQuery.error, activityQuery.isError])
 
   const overview = overviewQuery.data as ActivityOverview | undefined
+  const isHistorical = isHistoricalActivity(activityQuery.data)
 
   const overviewCards = useMemo(() => {
     if (!overview) {
@@ -158,7 +173,7 @@ export function ActivityDetailsPage() {
         actions={
           <div className="flex flex-wrap items-center justify-end gap-2">
             {activityQuery.data ? <StatusBadge value={activityQuery.data.status} /> : null}
-            {activityQuery.data ? (
+            {!isHistorical && activityQuery.data ? (
               <Button
                 type="button"
                 variant="secondary"
@@ -167,7 +182,7 @@ export function ActivityDetailsPage() {
                 תכנון תפעולי
               </Button>
             ) : null}
-            {activityQuery.data ? (
+            {!isHistorical && activityQuery.data ? (
               <Button
                 type="button"
                 variant="secondary"
@@ -185,6 +200,20 @@ export function ActivityDetailsPage() {
                 עריכת תעסוקה
               </Button>
             ) : null}
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => console.info('טבלת שיבוץ — טרם מומש')}
+            >
+              טבלת שיבוץ
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => console.info('טבלת נוכחות — טרם מומש')}
+            >
+              טבלת נוכחות
+            </Button>
             <Button type="button" variant="secondary" onClick={() => navigate('/activities')}>
               חזרה לתעסוקות
             </Button>
@@ -213,90 +242,118 @@ export function ActivityDetailsPage() {
           <>
             <Card>
               <CardHeader className="px-4 py-4 sm:px-5">
-                <CardTitle className="text-base">פרטי תעסוקה</CardTitle>
+                <CardTitle className="text-base">
+                  {isHistorical ? 'פרטי פעילות היסטורית' : 'פרטי תעסוקה'}
+                </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3 px-4 pb-4 sm:px-5 sm:pb-5">
                 <dl className="space-y-3">
-                  <FieldRow label="שם התעסוקה" value={activityQuery.data.name} />
+                  <FieldRow label={isHistorical ? 'שם הפעילות' : 'שם התעסוקה'} value={activityQuery.data.name} />
+                  <FieldRow label="סוג הפעילות" value={ACTIVITY_TYPE_LABELS[activityQuery.data.type]} />
                   <FieldRow label="תאריך התחלה" value={formatDate(activityQuery.data.startDate)} />
                   <FieldRow label="תאריך סיום" value={formatDate(activityQuery.data.endDate)} />
                   <FieldRow label="סטטוס" value={<StatusBadge value={activityQuery.data.status} />} />
-                  <FieldRow label="מזהה פלוגה" value={activityQuery.data.companyId} />
+                  {!isHistorical ? <FieldRow label="מזהה פלוגה" value={activityQuery.data.companyId} /> : null}
                 </dl>
-              </CardContent>
-            </Card>
 
-            <Card>
-              <CardHeader className="px-4 py-4 sm:px-5">
-                <CardTitle className="text-base">סקירה</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4 px-4 pb-4 sm:px-5 sm:pb-5">
-                {overviewQuery.isPending ? (
-                  <LoadingState title="טוען סקירה" description="נתוני הסקירה נטענים כעת." />
-                ) : overviewQuery.isError ? (
-                  <ErrorState
-                    title="טעינת סקירה נכשלה"
-                    description="לא הצלחנו לטעון את סקירת הפעילות. אפשר לנסות שוב."
-                    action={
-                      <Button type="button" variant="secondary" onClick={() => void overviewQuery.refetch()}>
-                        ניסיון חוזר
-                      </Button>
-                    }
-                  />
-                ) : overview ? (
-                  <>
-                    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-                      {overviewCards.map((item) => (
-                        <OverviewStatCard
-                          key={item.label}
-                          label={item.label}
-                          value={item.value}
-                          detail={item.detail}
-                        />
-                      ))}
+                {isHistorical && overview ? (
+                  <div className="grid gap-3 pt-3 sm:grid-cols-3">
+                    <div className="rounded-lg border border-border bg-surface-elevated p-4">
+                      <p className="text-xs uppercase tracking-wide text-muted">ממוצע ימי חופשה ליחיד</p>
+                      <p className="mt-2 text-2xl font-semibold text-foreground">
+                        {Number(overview.averageHolidayDaysPerSoldier ?? 0).toString()}
+                      </p>
                     </div>
-
-                    {overview.tasksOverview && overview.tasksOverview.length > 0 ? (
-                      <div className="space-y-2">
-                        <h3 className="text-sm font-medium text-foreground">משימות</h3>
-                        <div className="space-y-2">
-                          {overview.tasksOverview.slice(0, 4).map((task) => (
-                            <div key={task.taskId} className="flex items-center justify-between gap-3 rounded-md border border-border bg-surface px-3 py-2 text-sm">
-                              <span className="font-medium text-foreground">{task.taskName}</span>
-                              <span className="text-muted">
-                                {task.assignmentSummary?.totalAssignments ?? task.assignedUsersCount ?? 0} שיבוצים
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    ) : null}
-                  </>
+                    <div className="rounded-lg border border-border bg-surface-elevated p-4">
+                      <p className="text-xs uppercase tracking-wide text-muted">ימי פעילות שלישותיים</p>
+                      <p className="mt-2 text-2xl font-semibold text-foreground">
+                        {Number(overview.administrativeActiveDays ?? 0).toString()}
+                      </p>
+                    </div>
+                    <div className="rounded-lg border border-border bg-surface-elevated p-4">
+                      <p className="text-xs uppercase tracking-wide text-muted">שכר יומיים</p>
+                      <p className="mt-2 text-lg font-medium text-foreground">אין נתונים להצגה</p>
+                    </div>
+                  </div>
                 ) : null}
               </CardContent>
             </Card>
 
-            {tasksQuery.isError ? (
-              <ActivityTaskList
-                tasks={tasksQuery.data}
-                isPending={tasksQuery.isPending}
-                isError={tasksQuery.isError}
-                error={tasksQuery.error as { status?: number; message?: string }}
-                refetch={() => void tasksQuery.refetch()}
-                onCreate={() => navigate(`/activities/${activityId}/tasks/new`)}
-                onOpenTaskInstances={(task) => navigate(`/activities/${activityId}/tasks/${task.id}/task-instances`)}
-                onOpenRequirements={(task) => navigate(`/activities/${activityId}/tasks/${task.id}/requirements`)}
-              />
-            ) : (
-              <ActivityTaskList
-                tasks={tasksQuery.data}
-                isPending={tasksQuery.isPending}
-                isError={tasksQuery.isError}
-                onCreate={() => navigate(`/activities/${activityId}/tasks/new`)}
-                onOpenTaskInstances={(task) => navigate(`/activities/${activityId}/tasks/${task.id}/task-instances`)}
-                onOpenRequirements={(task) => navigate(`/activities/${activityId}/tasks/${task.id}/requirements`)}
-              />
-            )}
+            {!isHistorical ? (
+              <>
+                <Card>
+                  <CardHeader className="px-4 py-4 sm:px-5">
+                    <CardTitle className="text-base">סקירה</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4 px-4 pb-4 sm:px-5 sm:pb-5">
+                    {overviewQuery.isPending ? (
+                      <LoadingState title="טוען סקירה" description="נתוני הסקירה נטענים כעת." />
+                    ) : overviewQuery.isError ? (
+                      <ErrorState
+                        title="טעינת סקירה נכשלה"
+                        description="לא הצלחנו לטעון את סקירת הפעילות. אפשר לנסות שוב."
+                        action={
+                          <Button type="button" variant="secondary" onClick={() => void overviewQuery.refetch()}>
+                            ניסיון חוזר
+                          </Button>
+                        }
+                      />
+                    ) : overview ? (
+                      <>
+                        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+                          {overviewCards.map((item) => (
+                            <OverviewStatCard
+                              key={item.label}
+                              label={item.label}
+                              value={item.value}
+                              detail={item.detail}
+                            />
+                          ))}
+                        </div>
+
+                        {overview.tasksOverview && overview.tasksOverview.length > 0 ? (
+                          <div className="space-y-2">
+                            <h3 className="text-sm font-medium text-foreground">משימות</h3>
+                            <div className="space-y-2">
+                              {overview.tasksOverview.slice(0, 4).map((task) => (
+                                <div key={task.taskId} className="flex items-center justify-between gap-3 rounded-md border border-border bg-surface px-3 py-2 text-sm">
+                                  <span className="font-medium text-foreground">{task.taskName}</span>
+                                  <span className="text-muted">
+                                    {task.assignmentSummary?.totalAssignments ?? task.assignedUsersCount ?? 0} שיבוצים
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ) : null}
+                      </>
+                    ) : null}
+                  </CardContent>
+                </Card>
+
+                {tasksQuery.isError ? (
+                  <ActivityTaskList
+                    tasks={tasksQuery.data}
+                    isPending={tasksQuery.isPending}
+                    isError={tasksQuery.isError}
+                    error={tasksQuery.error as { status?: number; message?: string }}
+                    refetch={() => void tasksQuery.refetch()}
+                    onCreate={() => navigate(`/activities/${activityId}/tasks/new`)}
+                    onOpenTaskInstances={(task) => navigate(`/activities/${activityId}/tasks/${task.id}/task-instances`)}
+                    onOpenRequirements={(task) => navigate(`/activities/${activityId}/tasks/${task.id}/requirements`)}
+                  />
+                ) : (
+                  <ActivityTaskList
+                    tasks={tasksQuery.data}
+                    isPending={tasksQuery.isPending}
+                    isError={tasksQuery.isError}
+                    onCreate={() => navigate(`/activities/${activityId}/tasks/new`)}
+                    onOpenTaskInstances={(task) => navigate(`/activities/${activityId}/tasks/${task.id}/task-instances`)}
+                    onOpenRequirements={(task) => navigate(`/activities/${activityId}/tasks/${task.id}/requirements`)}
+                  />
+                )}
+              </>
+            ) : null}
           </>
         )}
       </ContentContainer>

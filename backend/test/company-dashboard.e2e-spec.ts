@@ -229,7 +229,7 @@ describe('Company dashboard e2e', () => {
     const companyRes = await request(app.getHttpServer()).post('/companies').send({ name: 'Dashboard Co' }).expect(201);
     const companyId = companyRes.body.id;
 
-    const activityRes = await request(app.getHttpServer()).post(`/companies/${companyId}/activities`).send({ name: 'Ops', startDate: '2026-01-01', endDate: '2026-01-03', status: 'ACTIVE' }).expect(201);
+    const activityRes = await request(app.getHttpServer()).post(`/companies/${companyId}/activities`).send({ name: 'Ops', type: 'EMPLOYMENT', startDate: '2026-01-01', endDate: '2026-01-03', status: 'ACTIVE' }).expect(201);
     const activityId = activityRes.body.id;
 
     const activityTaskRes = await request(app.getHttpServer()).post(`/activities/${activityId}/tasks`).send({ name: 'Setup' }).expect(201);
@@ -248,7 +248,7 @@ describe('Company dashboard e2e', () => {
 
     const userId = (await prismaMock.user.create({ data: { companyId, unitId: '11111111-1111-1111-1111-111111111111', firstName: 'Ada', lastName: 'Lovelace', phone: '0500000000', personalNumber: '100010', isActive: true } })).id;
 
-    const activityRes = await request(app.getHttpServer()).post(`/companies/${companyId}/activities`).send({ name: 'Ops', startDate: '2026-01-01', endDate: '2026-01-02', status: 'ACTIVE' }).expect(201);
+    const activityRes = await request(app.getHttpServer()).post(`/companies/${companyId}/activities`).send({ name: 'Ops', type: 'EMPLOYMENT', startDate: '2026-01-01', endDate: '2026-01-02', status: 'ACTIVE' }).expect(201);
     const activityId = activityRes.body.id;
 
     const activityTaskRes = await request(app.getHttpServer()).post(`/activities/${activityId}/tasks`).send({ name: 'Setup' }).expect(201);

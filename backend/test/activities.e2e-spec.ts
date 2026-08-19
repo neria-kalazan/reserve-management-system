@@ -229,6 +229,7 @@ describe('Activities e2e', () => {
       .post(`/companies/${companyId}/activities`)
       .send({
         name: 'Training',
+        type: 'TRAINING',
         startDate: '2026-01-01',
         endDate: '2026-01-02',
       })
@@ -268,6 +269,7 @@ describe('Activities e2e', () => {
       .post(`/companies/${companyId}/activities`)
       .send({
         name: 'Availability Test',
+        type: 'EMPLOYMENT',
         startDate: '2026-01-01',
         endDate: '2026-01-02',
       })
@@ -304,6 +306,7 @@ describe('Activities e2e', () => {
       .post(`/companies/${companyId}/activities`)
       .send({
         name: 'Single Update Test',
+        type: 'TRAINING_COURSE',
         startDate: '2026-01-01',
         endDate: '2026-01-01',
       })

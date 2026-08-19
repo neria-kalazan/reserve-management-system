@@ -31,6 +31,7 @@ const activityData = {
   id: 'activity-1',
   companyId: 'company-1',
   name: 'תעסוקה מבצעית',
+  type: 'EMPLOYMENT' as const,
   startDate: '2026-08-10T00:00:00.000Z',
   endDate: '2026-08-15T00:00:00.000Z',
   status: 'ACTIVE' as const,
@@ -60,7 +61,7 @@ describe('ActivityEditPage', () => {
     useActivityByIdMock.mockReturnValue({
       isPending: false,
       isError: false,
-      data: activityData,
+      data: { ...activityData, type: 'EMPLOYMENT' },
     } as unknown as ReturnType<typeof useActivityById>)
     useUpdateActivityMock.mockReturnValue({ mutateAsync: vi.fn(), isPending: false } as unknown as ReturnType<typeof useUpdateActivity>)
 
@@ -69,6 +70,7 @@ describe('ActivityEditPage', () => {
     await waitFor(() => expect(screen.getByDisplayValue('תעסוקה מבצעית')).toBeDefined())
     expect(screen.getByDisplayValue('2026-08-10')).toBeDefined()
     expect(screen.getByDisplayValue('2026-08-15')).toBeDefined()
+    expect(screen.getByText('תעסוקה')).toBeDefined()
   })
 
   it('validates required fields before submission', async () => {
@@ -76,7 +78,7 @@ describe('ActivityEditPage', () => {
     useActivityByIdMock.mockReturnValue({
       isPending: false,
       isError: false,
-      data: activityData,
+      data: { ...activityData, type: 'EMPLOYMENT' },
     } as unknown as ReturnType<typeof useActivityById>)
     useUpdateActivityMock.mockReturnValue({ mutateAsync, isPending: false } as unknown as ReturnType<typeof useUpdateActivity>)
 
@@ -130,6 +132,8 @@ describe('ActivityEditPage', () => {
     await waitFor(() => expect(screen.getByDisplayValue('תעסוקה מבצעית')).toBeDefined())
 
     fireEvent.change(screen.getByLabelText('שם התעסוקה'), { target: { value: 'תעסוקה מעודכנת' } })
+    fireEvent.click(screen.getByRole('combobox', { name: 'סוג התעסוקה' }))
+    fireEvent.click(screen.getByRole('option', { name: 'אימון' }))
     fireEvent.change(screen.getByLabelText('תאריך התחלה'), { target: { value: '2026-08-11' } })
     fireEvent.change(screen.getByLabelText('תאריך סיום'), { target: { value: '2026-08-16' } })
 
@@ -141,6 +145,7 @@ describe('ActivityEditPage', () => {
       activityId: 'activity-1',
       body: {
         name: 'תעסוקה מעודכנת',
+        type: 'TRAINING',
         startDate: '2026-08-11',
         endDate: '2026-08-16',
       },
@@ -177,6 +182,10 @@ describe('ActivityEditPage', () => {
     await waitFor(() => expect(screen.getByDisplayValue('תעסוקה מבצעית')).toBeDefined())
 
     fireEvent.change(screen.getByLabelText('שם התעסוקה'), { target: { value: 'שם חדש' } })
+    fireEvent.click(screen.getByRole('combobox', { name: 'סוג התעסוקה' }))
+    fireEvent.click(screen.getByRole('option', { name: 'אימון' }))
+    fireEvent.change(screen.getByLabelText('תאריך התחלה'), { target: { value: '2026-08-10' } })
+    fireEvent.change(screen.getByLabelText('תאריך סיום'), { target: { value: '2026-08-15' } })
     fireEvent.click(screen.getByRole('button', { name: 'שמירת שינויים' }))
 
     await waitFor(() => expect(screen.getByText('שמירת השינויים נכשלה')).toBeDefined())

@@ -188,7 +188,7 @@ describe('Task instances available users e2e', () => {
     const companyRes = await request(app.getHttpServer()).post('/companies').send({ name: 'Omega' }).expect(201);
     const companyId = companyRes.body.id;
 
-    const activityRes = await request(app.getHttpServer()).post(`/companies/${companyId}/activities`).send({ name: 'Ops', startDate: '2026-01-01', endDate: '2026-01-01' }).expect(201);
+    const activityRes = await request(app.getHttpServer()).post(`/companies/${companyId}/activities`).send({ name: 'Ops', type: 'TRAINING', startDate: '2026-01-01', endDate: '2026-01-01' }).expect(201);
     const activityId = activityRes.body.id;
 
     const unitRes = await request(app.getHttpServer()).post(`/companies/${companyId}/units`).send({ name: 'Ops', displayOrder: 1 }).expect(201);
@@ -224,7 +224,7 @@ describe('Task instances available users e2e', () => {
     const companyRes = await request(app.getHttpServer()).post('/companies').send({ name: 'Omega 2' }).expect(201);
     const companyId = companyRes.body.id;
 
-    const activityRes = await request(app.getHttpServer()).post(`/companies/${companyId}/activities`).send({ name: 'Ops 2', startDate: '2026-01-01', endDate: '2026-01-01' }).expect(201);
+    const activityRes = await request(app.getHttpServer()).post(`/companies/${companyId}/activities`).send({ name: 'Ops 2', type: 'TRAINING_COURSE', startDate: '2026-01-01', endDate: '2026-01-01' }).expect(201);
     const activityId = activityRes.body.id;
 
     const unitRes = await request(app.getHttpServer()).post(`/companies/${companyId}/units`).send({ name: 'Ops 2', displayOrder: 1 }).expect(201);

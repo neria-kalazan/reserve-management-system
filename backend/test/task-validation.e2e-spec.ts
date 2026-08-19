@@ -125,7 +125,7 @@ describe('Task validation e2e', () => {
     const companyRes = await request(app.getHttpServer()).post('/companies').send({ name: 'Epsilon' }).expect(201);
     const companyId = companyRes.body.id;
 
-    const activityRes = await request(app.getHttpServer()).post(`/companies/${companyId}/activities`).send({ name: 'Ops', startDate: '2026-01-01', endDate: '2026-01-02' }).expect(201);
+    const activityRes = await request(app.getHttpServer()).post(`/companies/${companyId}/activities`).send({ name: 'Ops', type: 'TRAINING', startDate: '2026-01-01', endDate: '2026-01-02' }).expect(201);
     const activityId = activityRes.body.id;
 
     const taskRes = await request(app.getHttpServer()).post(`/activities/${activityId}/tasks`).send({ name: 'Setup' }).expect(201);

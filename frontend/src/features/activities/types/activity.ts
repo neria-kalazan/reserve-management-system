@@ -1,4 +1,5 @@
 export type ActivityStatus = 'DRAFT' | 'ACTIVE' | 'COMPLETED' | 'CANCELLED'
+export type ActivityType = 'TRAINING' | 'EMPLOYMENT' | 'TRAINING_COURSE'
 export type DailyStatus = 'ACTIVE' | 'HOLIDAY' | 'SICK' | 'RELEASED'
 export type AvailabilityStatus = 'MORNING' | 'EVENING' | 'ALL_DAY' | 'UNAVAILABLE'
 
@@ -6,6 +7,7 @@ export interface Activity {
   id: string
   companyId: string
   name: string
+  type: ActivityType
   startDate: string
   endDate: string
   status: ActivityStatus
@@ -68,6 +70,8 @@ export interface ActivityOverview {
   manpowerSummary: ActivityOverviewManpowerSummary
   tasksOverview?: ActivityOverviewTask[]
   availabilitySummary?: ActivityOverviewAvailabilitySummary
+  averageHolidayDaysPerSoldier?: number
+  administrativeActiveDays?: number
 }
 
 export interface ActivityAvailabilityUser {
@@ -106,6 +110,7 @@ export interface BulkActivityAvailabilityUpdateResponse {
 
 export interface CreateActivityInput {
   name: string
+  type: ActivityType
   startDate: string
   endDate: string
   status?: ActivityStatus
@@ -113,6 +118,7 @@ export interface CreateActivityInput {
 
 export interface UpdateActivityInput {
   name?: string
+  type?: ActivityType
   startDate?: string
   endDate?: string
   status?: ActivityStatus

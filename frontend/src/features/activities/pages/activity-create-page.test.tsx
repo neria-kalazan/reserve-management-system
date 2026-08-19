@@ -39,6 +39,7 @@ describe('ActivityCreatePage', () => {
 
     expect(screen.getByRole('heading', { name: 'יצירת תעסוקה' })).toBeDefined()
     expect(screen.getByLabelText('שם התעסוקה')).toBeDefined()
+    expect(screen.getByLabelText('סוג התעסוקה')).toBeDefined()
     expect(screen.getByLabelText('תאריך התחלה')).toBeDefined()
     expect(screen.getByLabelText('תאריך סיום')).toBeDefined()
     expect(screen.getByRole('button', { name: 'יצירת תעסוקה' })).toBeDefined()
@@ -56,6 +57,7 @@ describe('ActivityCreatePage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'יצירת תעסוקה' }))
 
     expect(screen.getByText('יש להזין שם תעסוקה.')).toBeDefined()
+    expect(screen.getByText('יש לבחור סוג תעסוקה.')).toBeDefined()
     expect(screen.getByText('יש להזין תאריך התחלה.')).toBeDefined()
     expect(screen.getByText('יש להזין תאריך סיום.')).toBeDefined()
     expect(mutateAsync).not.toHaveBeenCalled()
@@ -90,6 +92,8 @@ describe('ActivityCreatePage', () => {
     render(<ActivityCreatePage />)
 
     fireEvent.change(screen.getByLabelText('שם התעסוקה'), { target: { value: '  תעסוקת פלוגה  ' } })
+    fireEvent.click(screen.getByRole('combobox', { name: 'סוג התעסוקה' }))
+    fireEvent.click(screen.getByRole('option', { name: 'תעסוקה' }))
     fireEvent.change(screen.getByLabelText('תאריך התחלה'), { target: { value: '2026-08-10' } })
     fireEvent.change(screen.getByLabelText('תאריך סיום'), { target: { value: '2026-08-15' } })
 
@@ -99,6 +103,7 @@ describe('ActivityCreatePage', () => {
 
     expect(mutateAsync).toHaveBeenCalledWith({
       name: 'תעסוקת פלוגה',
+      type: 'EMPLOYMENT',
       startDate: '2026-08-10',
       endDate: '2026-08-15',
     })
@@ -126,6 +131,8 @@ describe('ActivityCreatePage', () => {
     render(<ActivityCreatePage />)
 
     fireEvent.change(screen.getByLabelText('שם התעסוקה'), { target: { value: 'תעסוקה א' } })
+    fireEvent.click(screen.getByRole('combobox', { name: 'סוג התעסוקה' }))
+    fireEvent.click(screen.getByRole('option', { name: 'תעסוקה' }))
     fireEvent.change(screen.getByLabelText('תאריך התחלה'), { target: { value: '2026-08-10' } })
     fireEvent.change(screen.getByLabelText('תאריך סיום'), { target: { value: '2026-08-15' } })
 

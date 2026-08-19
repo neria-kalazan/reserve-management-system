@@ -1,8 +1,11 @@
 import { CalendarDays, BadgeCheck, Users, BriefcaseBusiness, Shield } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 
+import type { ActivityType } from '@/features/activities/types/activity'
 import type { CompanyDashboardResponse } from '@/features/dashboard/types/dashboard'
 import { EmptyState } from '@/shared/components/empty-state'
 import { StatusBadge } from '@/shared/components/status-badge'
+import { Button } from '@/shared/components/ui/button'
 import { Card, CardContent } from '@/shared/components/ui/card'
 
 const dateFormatter = new Intl.DateTimeFormat('he-IL', {
@@ -13,6 +16,12 @@ const dateFormatter = new Intl.DateTimeFormat('he-IL', {
 })
 
 const formatDateRange = (startDate: string, endDate: string) => `${dateFormatter.format(new Date(startDate))}–${dateFormatter.format(new Date(endDate))}`
+
+const ACTIVITY_DETAILS_LABELS: Record<ActivityType, string> = {
+  TRAINING: 'לפרטי האימון',
+  EMPLOYMENT: 'לפרטי התעסוקה',
+  TRAINING_COURSE: 'לפרטי ההשתלמות',
+}
 
 type SectionHeadingProps = {
   id: string
@@ -123,11 +132,13 @@ function ActivityList({
   description,
   items,
   emptyText,
+  onOpen,
 }: {
   title: string
   description: string
   items: CompanyDashboardResponse['upcomingActivities']
   emptyText: string
+  onOpen: (activityId: string) => void
 }) {
   return (
     <section aria-labelledby={`${title}-title`}>
@@ -144,7 +155,12 @@ function ActivityList({
                     <span>{formatDateRange(activity.startDate, activity.endDate)}</span>
                   </div>
                 </div>
-                <StatusBadge value={activity.status} />
+                <div className="flex shrink-0 items-center gap-2">
+                  <StatusBadge value={activity.status} />
+                  <Button type="button" variant="secondary" size="sm" onClick={() => onOpen(activity.id)}>
+                    {ACTIVITY_DETAILS_LABELS[activity.type] ?? 'לפרטי הפעילות'}
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           ))
@@ -165,6 +181,7 @@ export function DashboardOverview({
   roleHolders: Array<{ role: string; holder: string }>
   totals: { totalPersonnel: number; totalUnits: number; totalRoles: number; totalQualifications: number }
 }) {
+  const navigate = useNavigate()
   const { companySummary, upcomingActivities, recentActivities } = dashboard
 
   return (
@@ -185,15 +202,17 @@ export function DashboardOverview({
           description="רשימת הפעילויות הקרובות בתכנון"
           items={upcomingActivities}
           emptyText="אין פעילויות קרובות"
+          onOpen={(activityId) => navigate(`/activities/${activityId}`)}
         />
         <ActivityList
           title="פעילות אחרונה"
           description="רשימת פעילויות שנערכו לאחרונה"
           items={recentActivities}
           emptyText="אין פעילות אחרונה"
+          onOpen={(activityId) => navigate(`/activities/${activityId}`)}
         />
       </div>
-      
+
       <div className="grid gap-6 xl:grid-cols-2">
         <SummaryList
           title="הסמכות"

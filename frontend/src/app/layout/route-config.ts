@@ -1,11 +1,12 @@
 import {
   BadgeCheck,
+  CalendarDays,
   LayoutDashboard,
   Shield,
   Users,
 } from 'lucide-react'
 
-export type AppRouteKey = 'dashboard' | 'users' | 'roles' | 'qualifications' | 'units'
+export type AppRouteKey = 'dashboard' | 'activities' | 'users' | 'roles' | 'qualifications' | 'units'
 
 export interface AppRouteItem {
   key: AppRouteKey
@@ -21,6 +22,13 @@ export const appRoutes: AppRouteItem[] = [
     path: '/dashboard',
     label: 'דשבורד',
     icon: LayoutDashboard,
+    requiredPermission: 'MANAGE_COMPANIES',
+  },
+  {
+    key: 'activities',
+    path: '/activities',
+    label: 'פעילויות',
+    icon: CalendarDays,
     requiredPermission: 'MANAGE_COMPANIES',
   },
   {

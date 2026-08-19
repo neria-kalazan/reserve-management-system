@@ -18,6 +18,12 @@ enum ActivityStatus {
   CANCELLED
 }
 
+enum ActivityType {
+  TRAINING
+  EMPLOYMENT
+  TRAINING_COURSE
+}
+
 enum ActivityUserStatusEnum {
   ACTIVE
   HOLIDAY
@@ -58,6 +64,7 @@ model Activity {
   companyId String @db.Uuid
 
   name      String
+  type      ActivityType
   startDate DateTime
   endDate   DateTime
   status    ActivityStatus @default(DRAFT)

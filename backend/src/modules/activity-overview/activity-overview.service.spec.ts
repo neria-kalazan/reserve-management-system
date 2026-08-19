@@ -108,4 +108,41 @@ describe('ActivityOverviewService', () => {
     expect(result.tasksOverview).toEqual([]);
     expect(result.availabilitySummary.byAvailability).toEqual({});
   });
+
+  it('calculates historical administrative metrics from activity user statuses', async () => {
+    prisma.activity.findUnique.mockResolvedValue({ id: 'activity-1', name: 'Ops', startDate: new Date('2026-01-01T00:00:00.000Z'), endDate: new Date('2026-01-05T00:00:00.000Z'), status: 'COMPLETED', company: { id: 'c1', name: 'Co', status: 'ACTIVE' } });
+    prisma.activityUserStatus.findMany.mockResolvedValue([
+      { userId: 'u1', status: 'HOLIDAY', availability: 'ALL_DAY' },
+      { userId: 'u1', status: 'HOLIDAY', availability: 'ALL_DAY' },
+      { userId: 'u1', status: 'ACTIVE', availability: 'ALL_DAY' },
+      { userId: 'u2', status: 'HOLIDAY', availability: 'ALL_DAY' },
+      { userId: 'u2', status: 'HOLIDAY', availability: 'ALL_DAY' },
+      { userId: 'u2', status: 'HOLIDAY', availability: 'ALL_DAY' },
+      { userId: 'u2', status: 'HOLIDAY', availability: 'ALL_DAY' },
+      { userId: 'u2', status: 'ACTIVE', availability: 'ALL_DAY' },
+      { userId: 'u3', status: 'SICK', availability: 'ALL_DAY' },
+      { userId: 'u3', status: 'RELEASED', availability: 'ALL_DAY' },
+    ]);
+    prisma.activityTask.findMany.mockResolvedValue([]);
+    prisma.taskInstance.findMany.mockResolvedValue([]);
+    prisma.assignment.findMany.mockResolvedValue([]);
+
+    const result = await service.getOverview('activity-1');
+
+    expect(result.averageHolidayDaysPerSoldier).toBe(2);
+    expect(result.administrativeActiveDays).toBe(2);
+  });
+
+  it('uses zero when no participating soldiers exist for historical metrics', async () => {
+    prisma.activity.findUnique.mockResolvedValue({ id: 'activity-1', name: 'Ops', startDate: new Date('2026-01-01T00:00:00.000Z'), endDate: new Date('2026-01-05T00:00:00.000Z'), status: 'COMPLETED', company: { id: 'c1', name: 'Co', status: 'ACTIVE' } });
+    prisma.activityUserStatus.findMany.mockResolvedValue([]);
+    prisma.activityTask.findMany.mockResolvedValue([]);
+    prisma.taskInstance.findMany.mockResolvedValue([]);
+    prisma.assignment.findMany.mockResolvedValue([]);
+
+    const result = await service.getOverview('activity-1');
+
+    expect(result.averageHolidayDaysPerSoldier).toBe(0);
+    expect(result.administrativeActiveDays).toBe(0);
+  });
 });

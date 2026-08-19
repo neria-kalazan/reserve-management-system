@@ -15,14 +15,16 @@ describe('ActivitiesService', () => {
     expect(service).toBeDefined();
   });
 
-  it('create: creates activity with default draft status when company exists', async () => {
+  it('create: creates activity with required type when company exists', async () => {
     prisma.company.findUnique.mockResolvedValue({ id: 'c1' });
-    prisma.activity.create.mockResolvedValue({ id: 'a1', companyId: 'c1', status: 'DRAFT' });
+    prisma.activity.create.mockResolvedValue({ id: 'a1', companyId: 'c1', type: 'TRAINING', status: 'DRAFT' });
 
-    const res = await service.create('c1', { name: 'Ops', startDate: '2026-01-01', endDate: '2026-01-02' } as any);
+    const res = await service.create('c1', { name: 'Ops', startDate: '2026-01-01', endDate: '2026-01-02', type: 'TRAINING' } as any);
 
     expect(res).toBeDefined();
-    expect(prisma.activity.create).toHaveBeenCalled();
+    expect(prisma.activity.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ type: 'TRAINING' }),
+    }));
   });
 
   it('create: rejects invalid company', async () => {

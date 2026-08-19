@@ -5,20 +5,30 @@ import type { ApiError } from '@/api/client'
 import { ContentContainer } from '@/app/layout/content-container'
 import { PageHeader } from '@/app/layout/page-header'
 import { useCreateActivity } from '@/features/activities/queries/use-activities'
+import type { ActivityType } from '@/features/activities/types/activity'
 import { ErrorState } from '@/shared/components/error-state'
 import { Button } from '@/shared/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/card'
 import { Input } from '@/shared/components/ui/input'
 import { Label } from '@/shared/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/components/ui/select'
+
+const ACTIVITY_TYPE_OPTIONS: Array<{ value: ActivityType; label: string }> = [
+  { value: 'TRAINING', label: 'אימון' },
+  { value: 'EMPLOYMENT', label: 'תעסוקה' },
+  { value: 'TRAINING_COURSE', label: 'השתלמות' },
+]
 
 interface FormValues {
   name: string
+  type: ActivityType | ''
   startDate: string
   endDate: string
 }
 
 interface FormErrors {
   name: string | undefined
+  type: string | undefined
   startDate: string | undefined
   endDate: string | undefined
   form: string | undefined
@@ -26,6 +36,7 @@ interface FormErrors {
 
 const initialValues: FormValues = {
   name: '',
+  type: '',
   startDate: '',
   endDate: '',
 }
@@ -56,6 +67,7 @@ const toUserFacingError = (error: unknown) => {
 const validate = (values: FormValues): FormErrors => {
   const errors: FormErrors = {
     name: undefined,
+    type: undefined,
     startDate: undefined,
     endDate: undefined,
     form: undefined,
@@ -63,6 +75,10 @@ const validate = (values: FormValues): FormErrors => {
 
   if (values.name.trim().length === 0) {
     errors.name = 'יש להזין שם תעסוקה.'
+  }
+
+  if (!values.type) {
+    errors.type = 'יש לבחור סוג תעסוקה.'
   }
 
   if (values.startDate.length === 0) {
@@ -87,6 +103,7 @@ export function ActivityCreatePage() {
   const [values, setValues] = useState<FormValues>(initialValues)
   const [errors, setErrors] = useState<FormErrors>({
     name: undefined,
+    type: undefined,
     startDate: undefined,
     endDate: undefined,
     form: undefined,
@@ -101,7 +118,7 @@ export function ActivityCreatePage() {
     event.preventDefault()
 
     const nextErrors = validate(values)
-    const hasValidationErrors = Boolean(nextErrors.name || nextErrors.startDate || nextErrors.endDate)
+    const hasValidationErrors = Boolean(nextErrors.name || nextErrors.type || nextErrors.startDate || nextErrors.endDate)
 
     if (hasValidationErrors) {
       setErrors(nextErrors)
@@ -111,6 +128,7 @@ export function ActivityCreatePage() {
     try {
       await createActivityMutation.mutateAsync({
         name: values.name.trim(),
+        type: values.type as ActivityType,
         startDate: values.startDate,
         endDate: values.endDate,
       })
@@ -161,6 +179,26 @@ export function ActivityCreatePage() {
                   aria-invalid={errors.name ? 'true' : 'false'}
                 />
                 {errors.name ? <p className="text-sm text-danger">{errors.name}</p> : null}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="activity-type">סוג התעסוקה</Label>
+                <Select
+                  value={values.type || undefined}
+                  onValueChange={(value) => updateField('type', value as ActivityType)}
+                >
+                  <SelectTrigger id="activity-type" aria-invalid={errors.type ? 'true' : 'false'}>
+                    <SelectValue placeholder="בחר סוג תעסוקה" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ACTIVITY_TYPE_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {errors.type ? <p className="text-sm text-danger">{errors.type}</p> : null}
               </div>
 
               <div className="space-y-2">

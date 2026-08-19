@@ -140,8 +140,7 @@ describe('Activity tasks e2e', () => {
     const activityRes = await request(app.getHttpServer())
       .post(`/companies/${companyId}/activities`)
       .send({
-        name: 'Exercise',
-        startDate: '2026-01-01',
+        name: 'Exercise',        type: 'EMPLOYMENT',        startDate: '2026-01-01',
         endDate: '2026-01-02',
       })
       .expect(201);

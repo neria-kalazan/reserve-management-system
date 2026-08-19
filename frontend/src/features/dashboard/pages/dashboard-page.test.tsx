@@ -16,6 +16,15 @@ vi.mock('@/features/roles/queries/use-roles', () => ({
 vi.mock('@/features/units/queries/use-units', () => ({
   useCompanyUnits: vi.fn(),
 }))
+vi.mock('react-router-dom', async () => {
+  const actual = await vi.importActual<typeof import('react-router-dom')>('react-router-dom')
+
+  return {
+    ...actual,
+    useNavigate: () => navigateMock,
+  }
+})
+
 import { useAuthSession } from '@/app/auth/use-auth-session'
 import { useCompanyDashboard } from '@/features/dashboard/queries/use-company-dashboard'
 import { DashboardPage } from '@/features/dashboard/pages/dashboard-page'
@@ -23,6 +32,10 @@ import type { CompanyDashboardResponse } from '@/features/dashboard/types/dashbo
 import { useCompanyQualifications } from '@/features/qualifications/queries/use-qualifications'
 import { useCompanyRoles } from '@/features/roles/queries/use-roles'
 import { useCompanyUnits } from '@/features/units/queries/use-units'
+
+const { navigateMock } = vi.hoisted(() => ({
+  navigateMock: vi.fn(),
+}))
 
 const useAuthSessionMock = vi.mocked(useAuthSession)
 const useCompanyDashboardMock = vi.mocked(useCompanyDashboard)
@@ -47,6 +60,7 @@ const dashboardData: CompanyDashboardResponse = {
     {
       id: 'activity-1',
       name: 'תרגיל גדודי',
+      type: 'TRAINING',
       startDate: '2026-08-09T00:00:00.000Z',
       endDate: '2026-08-11T00:00:00.000Z',
       status: 'ACTIVE',
@@ -56,6 +70,7 @@ const dashboardData: CompanyDashboardResponse = {
     {
       id: 'activity-2',
       name: 'אימון קרבי',
+      type: 'EMPLOYMENT',
       startDate: '2026-07-15T00:00:00.000Z',
       endDate: '2026-07-17T00:00:00.000Z',
       status: 'COMPLETED',
@@ -70,6 +85,7 @@ describe('DashboardPage', () => {
     useCompanyQualificationsMock.mockReset()
     useCompanyRolesMock.mockReset()
     useCompanyUnitsMock.mockReset()
+    navigateMock.mockReset()
 
     useAuthSessionMock.mockReturnValue({
       user: { companyId: 'company-1', companyName: 'פלוגת דפנה' },
@@ -178,6 +194,91 @@ describe('DashboardPage', () => {
     expect(screen.getByText('תרגיל גדודי')).toBeDefined()
     expect(screen.getByText('פעילות אחרונה')).toBeDefined()
     expect(screen.getByText('אימון קרבי')).toBeDefined()
+  })
+
+  it('renders the correct action labels for each activity type and keeps the activity content unchanged', () => {
+    useCompanyDashboardMock.mockReturnValue({
+      isPending: false,
+      isError: false,
+      data: {
+        ...dashboardData,
+        upcomingActivities: [
+          {
+            id: 'training-1',
+            name: 'אימון ימי',
+            type: 'TRAINING',
+            startDate: '2026-08-09T00:00:00.000Z',
+            endDate: '2026-08-11T00:00:00.000Z',
+            status: 'ACTIVE',
+          },
+        ],
+        recentActivities: [
+          {
+            id: 'employment-1',
+            name: 'תעסוקה מבצעית',
+            type: 'EMPLOYMENT',
+            startDate: '2026-07-15T00:00:00.000Z',
+            endDate: '2026-07-17T00:00:00.000Z',
+            status: 'COMPLETED',
+          },
+          {
+            id: 'course-1',
+            name: 'השתלמות תפעולית',
+            type: 'TRAINING_COURSE',
+            startDate: '2026-06-20T00:00:00.000Z',
+            endDate: '2026-06-25T00:00:00.000Z',
+            status: 'CANCELLED',
+          },
+        ],
+      },
+    } as unknown as ReturnType<typeof useCompanyDashboard>)
+
+    render(<DashboardPage />)
+
+    expect(screen.getByText('אימון ימי')).toBeDefined()
+    expect(screen.getByText('תעסוקה מבצעית')).toBeDefined()
+    expect(screen.getByText('השתלמות תפעולית')).toBeDefined()
+    expect(screen.getByRole('button', { name: 'לפרטי האימון' })).toBeDefined()
+    expect(screen.getByRole('button', { name: 'לפרטי התעסוקה' })).toBeDefined()
+    expect(screen.getByRole('button', { name: 'לפרטי ההשתלמות' })).toBeDefined()
+  })
+
+  it('navigates to the activity details route from both activity sections', () => {
+    useCompanyDashboardMock.mockReturnValue({
+      isPending: false,
+      isError: false,
+      data: {
+        ...dashboardData,
+        upcomingActivities: [
+          {
+            id: 'upcoming-1',
+            name: 'תכנון עתידי',
+            type: 'TRAINING',
+            startDate: '2026-08-20T00:00:00.000Z',
+            endDate: '2026-08-25T00:00:00.000Z',
+            status: 'ACTIVE',
+          },
+        ],
+        recentActivities: [
+          {
+            id: 'recent-1',
+            name: 'פעילות ישנה',
+            type: 'EMPLOYMENT',
+            startDate: '2026-07-01T00:00:00.000Z',
+            endDate: '2026-07-03T00:00:00.000Z',
+            status: 'COMPLETED',
+          },
+        ],
+      },
+    } as unknown as ReturnType<typeof useCompanyDashboard>)
+
+    render(<DashboardPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'לפרטי האימון' }))
+    expect(navigateMock).toHaveBeenCalledWith('/activities/upcoming-1')
+
+    fireEvent.click(screen.getByRole('button', { name: 'לפרטי התעסוקה' }))
+    expect(navigateMock).toHaveBeenCalledWith('/activities/recent-1')
   })
 
   it('renders empty states when the dashboard has no activities or personnel details', () => {
