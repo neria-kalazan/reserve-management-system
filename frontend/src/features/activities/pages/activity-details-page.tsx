@@ -218,7 +218,7 @@ export function ActivityDetailsPage() {
             <Button
               type="button"
               variant="secondary"
-              onClick={() => console.info('טבלת נוכחות — טרם מומש')}
+              onClick={() => navigate(`/activities/${activityQuery.data?.id}/personnel-status-matrix`)}
             >
               טבלת נוכחות
             </Button>

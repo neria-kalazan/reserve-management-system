@@ -10,6 +10,7 @@ import { ActivityAvailabilityPage } from '@/features/activities/pages/activity-a
 import { ActivityCreatePage } from '@/features/activities/pages/activity-create-page'
 import { ActivityDetailsPage } from '@/features/activities/pages/activity-details-page'
 import { ActivityEditPage } from '@/features/activities/pages/activity-edit-page'
+import { ActivityPersonnelStatusMatrixPage } from '@/features/activities/pages/activity-personnel-status-matrix-page'
 import { ActivityPlanningPage } from '@/features/activities/pages/activity-planning-page'
 import { ActivityTaskCreatePage } from '@/features/activities/pages/activity-task-create-page'
 import { ActivityTaskInstancesPage } from '@/features/activities/pages/activity-task-instances-page'
@@ -110,6 +111,16 @@ const router = createBrowserRouter([
               {
                 index: true,
                 element: <ActivityAvailabilityPage />,
+              },
+            ],
+          },
+          {
+            path: '/activities/:activityId/personnel-status-matrix',
+            element: <PermissionRoute route={activitiesRoute} />,
+            children: [
+              {
+                index: true,
+                element: <ActivityPersonnelStatusMatrixPage />,
               },
             ],
           },

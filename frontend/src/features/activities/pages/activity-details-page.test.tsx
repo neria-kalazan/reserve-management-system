@@ -240,7 +240,7 @@ describe('ActivityDetailsPage', () => {
     expect(screen.getByRole('button', { name: 'תכנון תפעולי' })).toBeDefined()
     expect(screen.getByRole('button', { name: 'זמינות' })).toBeDefined()
     expect(screen.getByRole('button', { name: 'עריכת פעילות' })).toBeDefined()
-    expect(screen.queryByRole('button', { name: 'טבלת שיבוץ' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'טבלת שיבוץ' })).toBeDefined()
   })
 
   it('keeps operational UI for planned activity', () => {
@@ -265,7 +265,7 @@ describe('ActivityDetailsPage', () => {
     expect(screen.getByRole('button', { name: 'תכנון תפעולי' })).toBeDefined()
     expect(screen.getByRole('button', { name: 'זמינות' })).toBeDefined()
     expect(screen.getByRole('button', { name: 'עריכת פעילות' })).toBeDefined()
-    expect(screen.queryByRole('button', { name: 'טבלת שיבוץ' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'טבלת שיבוץ' })).toBeDefined()
   })
 
   it.each(['COMPLETED', 'CANCELLED'] as const)('renders historical layout for %s activity', (status) => {
@@ -284,6 +284,19 @@ describe('ActivityDetailsPage', () => {
         updatedAt: '2026-08-10T00:00:00.000Z',
       },
     } as unknown as ReturnType<typeof useActivityById>)
+    useActivityOverviewMock.mockReturnValue({
+      isPending: false,
+      isError: false,
+      data: {
+        activity: { id: 'activity-1', name: 'פעילות היסטורית', status },
+        manpowerSummary: { participantCount: 3, dailyStatusSummary: { ACTIVE: 2, HOLIDAY: 6 } },
+        tasksOverview: [],
+        availabilitySummary: { byAvailability: { ALL_DAY: 3 } },
+        averageHolidayDaysPerSoldier: 2,
+        administrativeActiveDays: 2,
+      },
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useActivityOverview>)
 
     render(<ActivityDetailsPage />)
 
@@ -313,6 +326,19 @@ describe('ActivityDetailsPage', () => {
         updatedAt: '2026-08-10T00:00:00.000Z',
       },
     } as unknown as ReturnType<typeof useActivityById>)
+    useActivityOverviewMock.mockReturnValue({
+      isPending: false,
+      isError: false,
+      data: {
+        activity: { id: 'activity-1', name: 'פעילות שהסתיימה', status: 'ACTIVE' },
+        manpowerSummary: { participantCount: 3, dailyStatusSummary: { ACTIVE: 2, HOLIDAY: 6 } },
+        tasksOverview: [],
+        availabilitySummary: { byAvailability: { ALL_DAY: 3 } },
+        averageHolidayDaysPerSoldier: 2,
+        administrativeActiveDays: 2,
+      },
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useActivityOverview>)
 
     render(<ActivityDetailsPage />)
 
@@ -351,8 +377,7 @@ describe('ActivityDetailsPage', () => {
     consoleSpy.mockRestore()
   })
 
-  it('logs attendance placeholder without navigation', () => {
-    const consoleSpy = vi.spyOn(console, 'info').mockImplementation(() => undefined)
+  it('navigates to the personnel status matrix from the historical attendance action', () => {
     useActivityByIdMock.mockReturnValue({
       isPending: false,
       isError: false,
@@ -373,8 +398,7 @@ describe('ActivityDetailsPage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'טבלת נוכחות' }))
 
-    expect(consoleSpy).toHaveBeenCalledWith('טבלת נוכחות — טרם מומש')
-    consoleSpy.mockRestore()
+    expect(navigateMock).toHaveBeenCalledWith('/activities/activity-1/personnel-status-matrix')
   })
 
   it('renders read-only task list scoped to the activity', () => {
@@ -443,9 +467,8 @@ describe('ActivityDetailsPage', () => {
     render(<ActivityDetailsPage />)
 
     expect(screen.getByText('ממוצע ימי חופשה ליחיד')).toBeDefined()
-    expect(screen.getByText('2')).toBeDefined()
     expect(screen.getByText('ימי פעילות שלישותיים')).toBeDefined()
-    expect(screen.getByText('2')).toBeDefined()
+    expect(screen.getAllByText('2').length).toBeGreaterThanOrEqual(2)
   })
 
   it('does not display historical metrics on planned or active activities', () => {

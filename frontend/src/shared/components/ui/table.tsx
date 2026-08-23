@@ -2,9 +2,13 @@ import * as React from 'react'
 
 import { cn } from '@/shared/utils/cn'
 
-const Table = React.forwardRef<HTMLTableElement, React.HTMLAttributes<HTMLTableElement>>(({ className, ...props }, ref) => (
+type TableProps = React.HTMLAttributes<HTMLTableElement> & {
+  scrollContainerRef?: React.RefObject<HTMLDivElement | null>
+}
+
+const Table = React.forwardRef<HTMLTableElement, TableProps>(({ className, scrollContainerRef, ...props }, ref) => (
   <div className="w-full overflow-hidden rounded-lg border border-border bg-surface">
-    <div className="w-full overflow-x-auto">
+    <div ref={scrollContainerRef} className="w-full overflow-x-auto">
       <table ref={ref} className={cn('w-full caption-bottom text-sm', className)} {...props} />
     </div>
   </div>
@@ -25,7 +29,7 @@ const TableBody = React.forwardRef<HTMLTableSectionElement, React.HTMLAttributes
 TableBody.displayName = 'TableBody'
 
 const TableRow = React.forwardRef<HTMLTableRowElement, React.HTMLAttributes<HTMLTableRowElement>>(({ className, ...props }, ref) => (
-  <tr ref={ref} className={cn('border-b border-border transition-colors hover:bg-surface-elevated', className)} {...props} />
+  <tr ref={ref} className={cn('border-b border-border hover:bg-surface-elevated', className)} {...props} />
 ))
 
 TableRow.displayName = 'TableRow'

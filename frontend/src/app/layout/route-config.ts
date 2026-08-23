@@ -12,6 +12,7 @@ export interface AppRouteItem {
   key: AppRouteKey
   path: string
   label: string
+  description?: string
   icon: typeof LayoutDashboard
   requiredPermission?: string
 }
@@ -21,6 +22,7 @@ export const appRoutes: AppRouteItem[] = [
     key: 'dashboard',
     path: '/dashboard',
     label: 'דשבורד',
+    description: 'סקירה כללית של הפעילויות והמצב העסקי.',
     icon: LayoutDashboard,
     requiredPermission: 'MANAGE_COMPANIES',
   },
@@ -28,6 +30,7 @@ export const appRoutes: AppRouteItem[] = [
     key: 'activities',
     path: '/activities',
     label: 'פעילויות',
+    description: 'ניהול פעילויות, סטטוס, תאריכים ונתוני נוכחות.',
     icon: CalendarDays,
     requiredPermission: 'MANAGE_COMPANIES',
   },
@@ -35,6 +38,7 @@ export const appRoutes: AppRouteItem[] = [
     key: 'users',
     path: '/users',
     label: 'כוח אדם',
+    description: 'ניהול עובדים ונתוני כוח אדם של החברה.',
     icon: Users,
     requiredPermission: 'MANAGE_COMPANIES',
   },
@@ -42,6 +46,7 @@ export const appRoutes: AppRouteItem[] = [
     key: 'roles',
     path: '/roles',
     label: 'תפקידים',
+    description: 'מיפוי תפקידים והסמכויות של החברה.',
     icon: Shield,
     requiredPermission: 'MANAGE_COMPANIES',
   },
@@ -49,6 +54,7 @@ export const appRoutes: AppRouteItem[] = [
     key: 'qualifications',
     path: '/qualifications',
     label: 'הסמכות',
+    description: 'ניהול הסמכות, הכשרות ומיומנויות.',
     icon: BadgeCheck,
     requiredPermission: 'MANAGE_COMPANIES',
   },
@@ -56,6 +62,7 @@ export const appRoutes: AppRouteItem[] = [
     key: 'units',
     path: '/units',
     label: 'מסגרות',
+    description: 'ניהול מסגרות, יחידות ותצורות ארגוניות.',
     icon: Shield,
     requiredPermission: 'MANAGE_COMPANIES',
   },

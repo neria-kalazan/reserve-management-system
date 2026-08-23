@@ -87,28 +87,43 @@ describe('UserFormPage', () => {
     } as ReturnType<typeof useAuthSession>)
 
     useCompanyUnitsMock.mockReturnValue({
-      data: [
-        { id: 'unit-1', name: 'יחידה 1', description: 'א', displayOrder: 1 },
-        { id: 'unit-2', name: 'יחידה 2', description: 'ב', displayOrder: 2 },
-      ],
+      data: {
+        items: [
+          { id: 'unit-1', name: 'יחידה 1', description: 'א', displayOrder: 1 },
+          { id: 'unit-2', name: 'יחידה 2', description: 'ב', displayOrder: 2 },
+        ],
+        total: 2,
+        page: 1,
+        pageSize: 10,
+      },
       isPending: false,
       isError: false,
     } as any)
 
     useCompanyRolesMock.mockReturnValue({
-      data: [
-        { id: 'role-1', name: 'תפקיד 1', description: 'ר1' },
-        { id: 'role-2', name: 'תפקיד 2', description: 'ר2' },
-      ],
+      data: {
+        items: [
+          { id: 'role-1', name: 'תפקיד 1', description: 'ר1' },
+          { id: 'role-2', name: 'תפקיד 2', description: 'ר2' },
+        ],
+        total: 2,
+        page: 1,
+        pageSize: 10,
+      },
       isPending: false,
       isError: false,
     } as any)
 
     useCompanyQualificationsMock.mockReturnValue({
-      data: [
-        { id: 'qual-1', name: 'סמכה 1', description: 'ס1' },
-        { id: 'qual-2', name: 'סמכה 2', description: 'ס2' },
-      ],
+      data: {
+        items: [
+          { id: 'qual-1', name: 'סמכה 1', description: 'ס1' },
+          { id: 'qual-2', name: 'סמכה 2', description: 'ס2' },
+        ],
+        total: 2,
+        page: 1,
+        pageSize: 10,
+      },
       isPending: false,
       isError: false,
     } as any)

@@ -197,6 +197,7 @@ export function UnitFormPage() {
                 <Input
                   id="unit-display-order"
                   type="number"
+                  min={0}
                   value={form.displayOrder}
                   onChange={(event) => setValue('displayOrder', event.target.value)}
                   aria-invalid={errors.displayOrder ? 'true' : 'false'}

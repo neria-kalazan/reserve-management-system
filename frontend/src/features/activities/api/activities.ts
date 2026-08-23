@@ -3,9 +3,11 @@ import type {
   Activity,
   ActivityAvailabilityRecord,
   ActivityOverview,
+  ActivityPersonnelStatusMatrix,
   BulkActivityAvailabilityUpdateInput,
   BulkActivityAvailabilityUpdateResponse,
   CreateActivityInput,
+  DailyStatus,
   UpdateActivityInput,
 } from '@/features/activities/types/activity'
 
@@ -20,6 +22,29 @@ export const getActivityOverview = (activityId: string) =>
 
 export const getActivityAvailability = (activityId: string) =>
   api.get<ActivityAvailabilityRecord[]>(`/activities/${encodeURIComponent(activityId)}/availability`)
+
+export const getActivityPersonnelStatusMatrix = (activityId: string) =>
+  api.get<ActivityPersonnelStatusMatrix>(`/activities/${encodeURIComponent(activityId)}/personnel-status-matrix`)
+
+export interface CreateActivityUserStatusInput {
+  date: string
+  status: DailyStatus
+}
+
+export const createActivityUserStatus = (
+  activityId: string,
+  userId: string,
+  body: CreateActivityUserStatusInput,
+) => api.post<{ id: string }>(`/activities/${encodeURIComponent(activityId)}/users/${encodeURIComponent(userId)}/status`, body)
+
+export const updateActivityUserStatus = (
+  activityId: string,
+  userId: string,
+  body: CreateActivityUserStatusInput,
+) => api.patch<{ id: string }>(`/activities/${encodeURIComponent(activityId)}/users/${encodeURIComponent(userId)}/status`, body)
+
+export const deleteActivityUserStatus = (activityId: string, userId: string, date: string) =>
+  api.delete<{ id: string }>(`/activities/${encodeURIComponent(activityId)}/users/${encodeURIComponent(userId)}/status?date=${encodeURIComponent(date)}`)
 
 export const generateActivityAvailability = (activityId: string) =>
   api.post<ActivityAvailabilityRecord[]>(`/activities/${encodeURIComponent(activityId)}/availability/generate`)

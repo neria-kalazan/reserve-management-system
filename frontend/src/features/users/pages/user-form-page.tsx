@@ -95,9 +95,9 @@ export function UserFormPage() {
     })
   }, [isEditMode, userQuery.data, userQualificationsQuery.data, userRolesQuery.data])
 
-  const unitOptions = useMemo(() => unitsQuery.data ?? [], [unitsQuery.data])
-  const roleOptions = useMemo(() => rolesQuery.data ?? [], [rolesQuery.data])
-  const qualificationOptions = useMemo(() => qualificationsQuery.data ?? [], [qualificationsQuery.data])
+  const unitOptions = useMemo(() => unitsQuery.data?.items ?? [], [unitsQuery.data])
+  const roleOptions = useMemo(() => rolesQuery.data?.items ?? [], [rolesQuery.data])
+  const qualificationOptions = useMemo(() => qualificationsQuery.data?.items ?? [], [qualificationsQuery.data])
 
   const isLoading =
     unitsQuery.isPending ||

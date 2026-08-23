@@ -1,5 +1,8 @@
 import { PrismaClient } from '@prisma/client';
 
+export const createUtcCalendarDate = (baseDate: Date = new Date()) =>
+  new Date(Date.UTC(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate()));
+
 export async function seedDemo(prisma: PrismaClient) {
   console.log('🌱 Seeding demo company...');
 
@@ -20,10 +23,9 @@ export async function seedDemo(prisma: PrismaClient) {
 
   console.log('🌱 Creating activity management demo data...');
 
-  const activityStartDate = new Date();
-  activityStartDate.setHours(0, 0, 0, 0);
+  const activityStartDate = createUtcCalendarDate(new Date());
   const activityEndDate = new Date(activityStartDate);
-  activityEndDate.setDate(activityEndDate.getDate() + 30);
+  activityEndDate.setUTCDate(activityEndDate.getUTCDate() + 30);
 
   const buildDateTime = (baseDate: Date, time: string, nextDay = false) => {
     const [hours, minutes] = time.split(':').map(Number);
@@ -417,13 +419,13 @@ export async function seedDemo(prisma: PrismaClient) {
 
   const activityDateRange: Date[] = [];
   const currentActivityDate = new Date(activity.startDate);
-  currentActivityDate.setHours(0, 0, 0, 0);
+  currentActivityDate.setUTCHours(0, 0, 0, 0);
   const activityEndDateOnly = new Date(activity.endDate);
-  activityEndDateOnly.setHours(0, 0, 0, 0);
+  activityEndDateOnly.setUTCHours(0, 0, 0, 0);
 
   while (currentActivityDate <= activityEndDateOnly) {
     activityDateRange.push(new Date(currentActivityDate));
-    currentActivityDate.setDate(currentActivityDate.getDate() + 1);
+    currentActivityDate.setUTCDate(currentActivityDate.getUTCDate() + 1);
   }
 
   const activeUsers = await prisma.user.findMany({
