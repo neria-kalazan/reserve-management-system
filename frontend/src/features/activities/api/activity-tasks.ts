@@ -14,6 +14,8 @@ export interface CreateActivityTaskInput {
   description?: string
 }
 
+export type UpdateActivityTaskInput = Partial<CreateActivityTaskInput>
+
 export interface ActivityTaskManpowerRequirement {
   required: boolean
   quantity: number
@@ -195,6 +197,12 @@ export const getActivityTasks = (activityId: string) =>
 
 export const postActivityTask = (activityId: string, body: CreateActivityTaskInput) =>
   api.post<ActivityTask>(`/activities/${encodeURIComponent(activityId)}/tasks`, body)
+
+export const getActivityTaskById = (activityTaskId: string) =>
+  api.get<ActivityTask>(`/activity-tasks/${encodeURIComponent(activityTaskId)}`)
+
+export const updateActivityTask = (activityTaskId: string, body: UpdateActivityTaskInput) =>
+  api.patch<ActivityTask>(`/activity-tasks/${encodeURIComponent(activityTaskId)}`, body)
 
 export const getCompanyRoles = (companyId: string) =>
   api.get<CompanyRole[]>(`/companies/${encodeURIComponent(companyId)}/roles`)

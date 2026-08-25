@@ -55,22 +55,91 @@ describe('Sidebar', () => {
       ],
     } as any)
 
-    render(
+    const { container } = render(
       <MemoryRouter>
         <Sidebar />
       </MemoryRouter>,
     )
 
-    expect(screen.getByText('פעילות')).toBeTruthy()
+    expect(container.querySelector('[data-sidebar-activity-section="true"]')).not.toBeNull()
+    expect(screen.queryByText('פעילות')).toBeNull()
+    expect(screen.getByText('מבצע אבירים')).toBeTruthy()
 
-    const dashboardLinks = screen.getAllByRole('link', { name: 'דשבורד' })
-    expect(dashboardLinks.map((link) => link.getAttribute('href'))).toContain('/activities/activity-1')
-    expect(dashboardLinks.map((link) => link.getAttribute('href'))).toContain('/dashboard')
+    const dashboardLinks = screen.getAllByRole('link').filter((link) => link.textContent?.includes('דשבורד'))
+    expect(dashboardLinks.some((link) => link.getAttribute('href') === '/activities/activity-1')).toBe(true)
+    expect(dashboardLinks.some((link) => link.getAttribute('href') === '/dashboard')).toBe(true)
 
-    expect(screen.getByRole('link', { name: 'מבצע אבירים' }).getAttribute('href')).toBe('/activities/activity-1')
-    expect(screen.getByRole('link', { name: 'טבלת נוכחות' }).getAttribute('href')).toBe('/activities/activity-1/personnel-status-matrix')
-    expect(screen.getByRole('link', { name: 'טבלת שיבוץ' }).getAttribute('href')).toBe('/activities/activity-1/planning')
-    expect(screen.getByRole('link', { name: 'משימות' }).getAttribute('href')).toBe('/activities/activity-1/tasks/new')
+    expect(screen.getByRole('link', { name: /טבלת נוכחות/i }).getAttribute('href')).toBe('/activities/activity-1/personnel-status-matrix')
+    expect(screen.getByRole('link', { name: /טבלת שיבוץ/i }).getAttribute('href')).toBe('/activities/activity-1/planning')
+    expect(screen.getByRole('link', { name: /משימות/i }).getAttribute('href')).toBe('/activities/activity-1/tasks')
+  })
+
+  it('marks the activity dashboard as active only on the exact dashboard route', () => {
+    useCompanyActivitiesMock.mockReturnValue({
+      data: [
+        {
+          id: 'activity-1',
+          name: 'מבצע אבירים',
+          status: 'ACTIVE',
+          startDate: '2026-08-01',
+          endDate: '2026-08-10',
+          type: 'EMPLOYMENT',
+          companyId: 'company-1',
+        },
+      ],
+    } as any)
+
+    const { unmount: unmountDashboard } = render(
+      <MemoryRouter initialEntries={['/activities/activity-1']}>
+        <Sidebar />
+      </MemoryRouter>,
+    )
+
+    const activityDashboardLink = screen.getAllByRole('link', { name: /דשבורד/i }).find(
+      (link) => link.getAttribute('href') === '/activities/activity-1',
+    )
+    expect(activityDashboardLink).toBeTruthy()
+    expect(activityDashboardLink?.getAttribute('aria-current')).toBe('page')
+    unmountDashboard()
+
+    const { unmount: unmountMatrix } = render(
+      <MemoryRouter initialEntries={['/activities/activity-1/personnel-status-matrix']}>
+        <Sidebar />
+      </MemoryRouter>,
+    )
+
+    const matrixDashboardLink = screen.getAllByRole('link', { name: /דשבורד/i }).find(
+      (link) => link.getAttribute('href') === '/activities/activity-1',
+    )
+    expect(matrixDashboardLink?.getAttribute('aria-current')).toBeNull()
+    expect(screen.getByRole('link', { name: /טבלת נוכחות/i }).getAttribute('aria-current')).toBe('page')
+    unmountMatrix()
+
+    const { unmount: unmountTaskList } = render(
+      <MemoryRouter initialEntries={['/activities/activity-1/tasks']}>
+        <Sidebar />
+      </MemoryRouter>,
+    )
+
+    const taskListDashboardLink = screen.getAllByRole('link', { name: /דשבורד/i }).find(
+      (link) => link.getAttribute('href') === '/activities/activity-1',
+    )
+    expect(taskListDashboardLink?.getAttribute('aria-current')).toBeNull()
+    expect(screen.getByRole('link', { name: /משימות/i }).getAttribute('aria-current')).toBe('page')
+    unmountTaskList()
+
+    const { unmount: unmountTaskEdit } = render(
+      <MemoryRouter initialEntries={['/activities/activity-1/tasks/task-2/edit']}>
+        <Sidebar />
+      </MemoryRouter>,
+    )
+
+    const editDashboardLink = screen.getAllByRole('link', { name: /דשבורד/i }).find(
+      (link) => link.getAttribute('href') === '/activities/activity-1',
+    )
+    expect(editDashboardLink?.getAttribute('aria-current')).toBeNull()
+    expect(screen.getByRole('link', { name: /משימות/i }).getAttribute('aria-current')).toBe('page')
+    unmountTaskEdit()
   })
 
   it('marks the parent navigation item as active for nested company routes', () => {

@@ -13,6 +13,7 @@ import { ActivityEditPage } from '@/features/activities/pages/activity-edit-page
 import { ActivityPersonnelStatusMatrixPage } from '@/features/activities/pages/activity-personnel-status-matrix-page'
 import { ActivityPlanningPage } from '@/features/activities/pages/activity-planning-page'
 import { ActivityTaskCreatePage } from '@/features/activities/pages/activity-task-create-page'
+import { ActivityTaskListPage } from '@/features/activities/pages/activity-task-list-page'
 import { ActivityTaskInstancesPage } from '@/features/activities/pages/activity-task-instances-page'
 import { ActivityTaskRequirementsPage } from '@/features/activities/pages/activity-task-requirements-page'
 import { ActivitiesPage } from '@/features/activities/pages/activities-page'
@@ -135,7 +136,27 @@ const router = createBrowserRouter([
             ],
           },
           {
+            path: '/activities/:activityId/tasks',
+            element: <PermissionRoute route={activitiesRoute} />,
+            children: [
+              {
+                index: true,
+                element: <ActivityTaskListPage />,
+              },
+            ],
+          },
+          {
             path: '/activities/:activityId/tasks/new',
+            element: <PermissionRoute route={activitiesRoute} />,
+            children: [
+              {
+                index: true,
+                element: <ActivityTaskCreatePage />,
+              },
+            ],
+          },
+          {
+            path: '/activities/:activityId/tasks/:taskId/edit',
             element: <PermissionRoute route={activitiesRoute} />,
             children: [
               {

@@ -6,6 +6,7 @@ import {
   createTaskInstanceAssignment,
   deleteActivityTaskInstance,
   deleteAssignment,
+  getActivityTaskById,
   getActivityTaskInstances,
   getActivityTaskRequirements,
   getActivityTasks,
@@ -18,6 +19,7 @@ import {
   getTaskInstanceValidation,
   getTaskInstanceWorkspace,
   postActivityTask,
+  updateActivityTask,
   updateActivityTaskInstance,
   updateActivityTaskRequirements,
 } from '@/features/activities/api/activity-tasks'
@@ -25,6 +27,7 @@ import type {
   ActivityTask,
   ActivityTaskInstance,
   ActivityTaskRequirements,
+  UpdateActivityTaskInput,
   Assignment,
   AvailableUser,
   CandidateEvaluation,
@@ -42,6 +45,9 @@ import type {
 
 export const activityTasksQueryKey = (activityId: string | undefined) =>
   ['activities', activityId, 'tasks'] as const
+
+export const activityTaskByIdQueryKey = (activityTaskId: string | undefined) =>
+  ['activity-tasks', activityTaskId] as const
 
 export const activityTaskRequirementsQueryKey = (activityTaskId: string | undefined) =>
   ['activity-tasks', activityTaskId, 'requirements'] as const
@@ -74,6 +80,16 @@ export function useActivityTasks(activityId: string | undefined) {
     queryKey: activityTasksQueryKey(activityId),
     queryFn: () => getActivityTasks(activityId as string),
     enabled: isAuthenticated && typeof activityId === 'string' && activityId.length > 0,
+  })
+}
+
+export function useActivityTaskById(activityTaskId: string | undefined) {
+  const { isAuthenticated } = useAuthSession()
+
+  return useQuery<ActivityTask>({
+    queryKey: activityTaskByIdQueryKey(activityTaskId),
+    queryFn: () => getActivityTaskById(activityTaskId as string),
+    enabled: isAuthenticated && typeof activityTaskId === 'string' && activityTaskId.length > 0,
   })
 }
 
@@ -130,6 +146,24 @@ export function useCreateActivityTask(activityId: string | undefined) {
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: activityTasksQueryKey(activityId) })
+    },
+  })
+}
+
+export function useUpdateActivityTask(activityTaskId: string | undefined) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (body: UpdateActivityTaskInput) => {
+      if (typeof activityTaskId !== 'string' || activityTaskId.length === 0) {
+        throw new Error('Cannot update a task without a valid activity task id.')
+      }
+
+      return updateActivityTask(activityTaskId, body)
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: activityTaskByIdQueryKey(activityTaskId) })
+      await queryClient.invalidateQueries({ queryKey: ['activity-tasks'] })
     },
   })
 }

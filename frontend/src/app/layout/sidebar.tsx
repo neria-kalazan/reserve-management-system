@@ -69,78 +69,87 @@ export function Sidebar({ onNavigate }: SidebarProps) {
           })}
 
           {activeActivity ? (
-            <div className="mt-2 space-y-1 rounded-md border border-border bg-surface-elevated p-2">
-              <p className="px-2 pt-1 text-[10px] font-medium uppercase tracking-[0.2em] text-muted">פעילות</p>
+            <div
+              className="mt-3 rounded-xl border border-border bg-surface-elevated p-2 shadow-panel"
+              data-sidebar-activity-section="true"
+            >
+              <div className="mb-2 flex items-center gap-2 rounded-md border border-transparent px-2.5 py-2.5">
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-border bg-background text-muted">
+                  <span className="text-[11px]">◉</span>
+                </span>
+                <span className="flex-1 text-sm font-semibold leading-5 text-foreground">{activeActivity.name}</span>
+              </div>
 
-              <NavLink
-                to={`/activities/${activeActivity.id}`}
-                onClick={onNavigate}
-                className={({ isActive }) =>
-                  cn(
-                    'group flex items-center gap-3 rounded-md border border-transparent px-3 py-2 text-right text-sm font-medium transition-colors',
-                    'hover:border-border-strong hover:bg-surface',
-                    isActive && 'border-primary/40 bg-primary-soft text-foreground',
-                  )
-                }
-              >
-                דשבורד
-              </NavLink>
+              <div className="mt-1 mr-2 space-y-1 border-r border-border/80 pr-2.5">
+                <NavLink
+                  to={`/activities/${activeActivity.id}`}
+                  end
+                  onClick={onNavigate}
+                  className={({ isActive }) =>
+                    cn(
+                      'group flex items-center gap-2 rounded-md border border-transparent px-2.5 py-2 text-right text-sm text-muted transition-colors',
+                      'hover:border-border-strong hover:bg-surface',
+                      isActive && 'border-primary/35 bg-primary-soft text-foreground',
+                    )
+                  }
+                >
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-border bg-background text-muted">
+                    <span className="text-[11px]">▣</span>
+                  </span>
+                  <span className="flex-1 text-sm font-medium">דשבורד</span>
+                </NavLink>
 
-              <NavLink
-                to={`/activities/${activeActivity.id}`}
-                onClick={onNavigate}
-                className={({ isActive }) =>
-                  cn(
-                    'group flex items-center gap-3 rounded-md border border-transparent px-3 py-2 text-right text-sm font-medium transition-colors',
-                    'hover:border-border-strong hover:bg-surface',
-                    isActive && 'border-primary/40 bg-primary-soft text-foreground',
-                  )
-                }
-              >
-                {activeActivity.name}
-              </NavLink>
+                <NavLink
+                  to={`/activities/${activeActivity.id}/personnel-status-matrix`}
+                  onClick={onNavigate}
+                  className={({ isActive }) =>
+                    cn(
+                      'group flex items-center gap-2 rounded-md border border-transparent px-2.5 py-2 text-right text-sm text-muted transition-colors',
+                      'hover:border-border-strong hover:bg-surface',
+                      isActive && 'border-primary/35 bg-primary-soft text-foreground',
+                    )
+                  }
+                >
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-border bg-background text-muted">
+                    <span className="text-[11px]">▤</span>
+                  </span>
+                  <span className="flex-1 text-sm font-medium">טבלת נוכחות</span>
+                </NavLink>
 
-              <NavLink
-                to={`/activities/${activeActivity.id}/personnel-status-matrix`}
-                onClick={onNavigate}
-                className={({ isActive }) =>
-                  cn(
-                    'group flex items-center gap-3 rounded-md border border-transparent px-3 py-2 text-right text-sm font-medium transition-colors',
-                    'hover:border-border-strong hover:bg-surface',
-                    isActive && 'border-primary/40 bg-primary-soft text-foreground',
-                  )
-                }
-              >
-                טבלת נוכחות
-              </NavLink>
+                <NavLink
+                  to={`/activities/${activeActivity.id}/planning`}
+                  onClick={onNavigate}
+                  className={({ isActive }) =>
+                    cn(
+                      'group flex items-center gap-2 rounded-md border border-transparent px-2.5 py-2 text-right text-sm text-muted transition-colors opacity-80',
+                      'hover:border-border-strong hover:bg-surface',
+                      isActive && 'border-primary/35 bg-primary-soft text-foreground opacity-100',
+                    )
+                  }
+                >
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-border bg-background text-muted">
+                    <span className="text-[11px]">▥</span>
+                  </span>
+                  <span className="flex-1 text-sm font-medium">טבלת שיבוץ</span>
+                </NavLink>
 
-              <NavLink
-                to={`/activities/${activeActivity.id}/planning`}
-                onClick={onNavigate}
-                className={({ isActive }) =>
-                  cn(
-                    'group flex items-center gap-3 rounded-md border border-transparent px-3 py-2 text-right text-sm font-medium transition-colors',
-                    'hover:border-border-strong hover:bg-surface',
-                    isActive && 'border-primary/40 bg-primary-soft text-foreground',
-                  )
-                }
-              >
-                טבלת שיבוץ
-              </NavLink>
-
-              <NavLink
-                to={`/activities/${activeActivity.id}/tasks/new`}
-                onClick={onNavigate}
-                className={({ isActive }) =>
-                  cn(
-                    'group flex items-center gap-3 rounded-md border border-transparent px-3 py-2 text-right text-sm font-medium transition-colors',
-                    'hover:border-border-strong hover:bg-surface',
-                    isActive && 'border-primary/40 bg-primary-soft text-foreground',
-                  )
-                }
-              >
-                משימות
-              </NavLink>
+                <NavLink
+                  to={`/activities/${activeActivity.id}/tasks`}
+                  onClick={onNavigate}
+                  className={({ isActive }) =>
+                    cn(
+                      'group flex items-center gap-2 rounded-md border border-transparent px-2.5 py-2 text-right text-sm text-muted transition-colors',
+                      'hover:border-border-strong hover:bg-surface',
+                      isActive && 'border-primary/35 bg-primary-soft text-foreground',
+                    )
+                  }
+                >
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-border bg-background text-muted">
+                    <span className="text-[11px]">✓</span>
+                  </span>
+                  <span className="flex-1 text-sm font-medium">משימות</span>
+                </NavLink>
+              </div>
             </div>
           ) : null}
         </nav>
