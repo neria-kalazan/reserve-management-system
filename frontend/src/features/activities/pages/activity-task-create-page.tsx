@@ -11,12 +11,12 @@ import { useActivityById } from '@/features/activities/queries/use-activities'
 import {
   useActivityTaskById,
   useActivityTaskRequirements,
-  useCompanyQualifications,
-  useCompanyRoles,
   useCreateActivityTask,
   useUpdateActivityTask,
   useUpdateActivityTaskRequirements,
 } from '@/features/activities/queries/use-activity-tasks'
+import { useCompanyQualifications } from '@/features/qualifications/queries/use-qualifications'
+import { useCompanyRoles } from '@/features/roles/queries/use-roles'
 import { ErrorState } from '@/shared/components/error-state'
 import { LoadingState } from '@/shared/components/loading-state'
 import { Button } from '@/shared/components/ui/button'
@@ -24,8 +24,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/shared/components/ui/dialog'
 import { Input } from '@/shared/components/ui/input'
 import { Label } from '@/shared/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/components/ui/select'
 import { Textarea } from '@/shared/components/ui/textarea'
+import { Trash2 } from 'lucide-react'
 
 interface FormValues {
   name: string
@@ -155,13 +155,13 @@ export function ActivityTaskCreatePage() {
     refetch: async () => undefined,
   }
   const rolesQuery = useCompanyRoles(activityQuery.data?.companyId) ?? {
-    data: [],
+    data: { items: [], total: 0, page: 1, pageSize: 50 },
     isPending: false,
     isError: false,
     refetch: async () => undefined,
   }
   const qualificationsQuery = useCompanyQualifications(activityQuery.data?.companyId) ?? {
-    data: [],
+    data: { items: [], total: 0, page: 1, pageSize: 50 },
     isPending: false,
     isError: false,
     refetch: async () => undefined,
@@ -237,8 +237,12 @@ export function ActivityTaskCreatePage() {
     })
   }, [isEditMode, requirementsQuery.data])
 
-  const roleOptions = useMemo(() => rolesQuery.data ?? [], [rolesQuery.data])
-  const qualificationOptions = useMemo(() => qualificationsQuery.data ?? [], [qualificationsQuery.data])
+  const roleOptions = useMemo(() => rolesQuery.data?.items ?? [], [rolesQuery.data])
+  const qualificationOptions = useMemo(() => qualificationsQuery.data?.items ?? [], [qualificationsQuery.data])
+
+  const getRoleName = (roleId: string) => roleOptions.find((option) => option.id === roleId)?.name ?? roleId
+  const getQualificationName = (qualificationId: string) =>
+    qualificationOptions.find((option) => option.id === qualificationId)?.name ?? qualificationId
 
   const updateField = <K extends keyof FormValues>(field: K, value: FormValues[K]) => {
     setValues((current) => ({ ...current, [field]: value }))
@@ -357,7 +361,7 @@ export function ActivityTaskCreatePage() {
       if (isEditMode && taskId) {
         await updateTaskMutation.mutateAsync(payload)
         await updateRequirementsMutation.mutateAsync(buildRequirementsPayload())
-        navigate(`/activities/${activityId}`)
+        navigate(`/activities/${activityId}/tasks`)
         return
       }
 
@@ -376,7 +380,7 @@ export function ActivityTaskCreatePage() {
         await updateActivityTaskRequirements(createdTask.id, buildRequirementsPayload())
       }
 
-      navigate(`/activities/${activityId}`)
+      navigate(`/activities/${activityId}/tasks`)
     } catch (error) {
       setErrors((current) => ({
         ...current,
@@ -567,32 +571,7 @@ export function ActivityTaskCreatePage() {
               </div>
 
               {!isRequirementsLoading ? (
-                <div className="space-y-5 border-t border-border pt-4">
-                  <div className="space-y-3 rounded-md border border-border bg-surface-elevated p-3">
-                    <div className="flex items-center justify-between gap-3">
-                      <Label className="text-sm font-medium text-foreground">כוח אדם</Label>
-                      <label className="flex items-center gap-2 text-sm text-muted">
-                        <input
-                          type="checkbox"
-                          checked={requirementsForm.manpowerRequired}
-                          onChange={(event) => onManpowerChange('required', event.target.checked)}
-                        />
-                        נדרש
-                      </label>
-                    </div>
-
-                    <div className="max-w-40 space-y-2">
-                      <Label htmlFor="manpower-quantity">כמות</Label>
-                      <Input
-                        id="manpower-quantity"
-                        type="number"
-                        min={0}
-                        value={requirementsForm.manpowerQuantity}
-                        onChange={(event) => onManpowerChange('quantity', Number(event.target.value) || 0)}
-                      />
-                    </div>
-                  </div>
-
+                <div className="space-y-5">
                   <div className="space-y-3">
                     <div className="flex items-center justify-between gap-2">
                       <Label className="text-sm font-medium text-foreground">תפקידים</Label>
@@ -610,56 +589,42 @@ export function ActivityTaskCreatePage() {
                     {requirementsForm.roles.length > 0 ? (
                       requirementsForm.roles.map((entry) => (
                         <div key={entry.key} className="rounded-md border border-border bg-surface px-3 py-3">
-                          <div className="grid gap-3 sm:grid-cols-[minmax(0,1.4fr)_120px_80px]">
-                            <div className="space-y-2">
-                              <Label>תפקיד</Label>
-                              <Select value={entry.roleId} onValueChange={(value) => setRoleEntry(entry.key, { roleId: value })}>
-                                <SelectTrigger>
-                                  <SelectValue placeholder="בחר תפקיד" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {roleOptions.map((option) => (
-                                    <SelectItem key={option.id} value={option.id}>
-                                      {option.name}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
+                          <div dir="rtl" className="flex flex-wrap items-center gap-3 gap-y-2">
+                            <div className="flex min-w-0 flex-1 items-center gap-2">
+                              <span className="shrink-0 text-sm font-medium text-muted-foreground">תפקיד:</span>
+                              <span className="min-w-0 truncate text-sm text-foreground">{getRoleName(entry.roleId)}</span>
                             </div>
 
-                            <div className="space-y-2">
-                              <Label>כמות</Label>
+                            <div className="flex flex-2 items-center gap-2">
+                              <Label className="shrink-0 text-sm text-muted-foreground">כמות:</Label>
                               <Input
                                 type="number"
                                 min={0}
                                 value={entry.quantity}
+                                className="h-9 w-20"
                                 onChange={(event) => setRoleEntry(entry.key, { quantity: Number(event.target.value) || 0 })}
                               />
                             </div>
 
-                            <div className="flex flex-col items-end justify-end gap-2">
-                              <div className="flex gap-1 rounded-md border border-border bg-surface-elevated p-1">
-                                <Button
-                                  type="button"
-                                  variant={entry.required ? 'primary' : 'secondary'}
-                                  size="sm"
-                                  onClick={() => setRoleEntry(entry.key, { required: true })}
-                                >
-                                  הכרחי
-                                </Button>
-                                <Button
-                                  type="button"
-                                  variant={!entry.required ? 'primary' : 'secondary'}
-                                  size="sm"
-                                  onClick={() => setRoleEntry(entry.key, { required: false })}
-                                >
-                                  לא הכרחי
-                                </Button>
-                              </div>
-                              <Button type="button" variant="ghost" size="sm" onClick={() => removeRoleEntry(entry.key)}>
-                                הסרה
-                              </Button>
-                            </div>
+                            <label className="flex flex-3 shrink-0 items-center gap-2 text-sm text-muted-foreground">
+                              <input
+                                type="checkbox"
+                                checked={entry.required}
+                                onChange={(event) => setRoleEntry(entry.key, { required: event.target.checked })}
+                              />
+                              הכרחי
+                            </label>
+
+                            <Button
+                              type="button"
+                              variant="destructive"
+                              size="icon"
+                              className="h-9 w-9"
+                              aria-label="הסרת תפקיד"
+                              onClick={() => removeRoleEntry(entry.key)}
+                            >
+                              <Trash2 className="h-4 w-4" aria-hidden="true" />
+                            </Button>
                           </div>
                         </div>
                       ))
@@ -685,67 +650,81 @@ export function ActivityTaskCreatePage() {
                     {requirementsForm.qualifications.length > 0 ? (
                       requirementsForm.qualifications.map((entry) => (
                         <div key={entry.key} className="rounded-md border border-border bg-surface px-3 py-3">
-                          <div className="grid gap-3 sm:grid-cols-[minmax(0,1.4fr)_120px_80px]">
-                            <div className="space-y-2">
-                              <Label>הכשרה</Label>
-                              <Select
-                                value={entry.roleId}
-                                onValueChange={(value) => setQualificationEntry(entry.key, { roleId: value })}
-                              >
-                                <SelectTrigger>
-                                  <SelectValue placeholder="בחר הכשרה" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {qualificationOptions.map((option) => (
-                                    <SelectItem key={option.id} value={option.id}>
-                                      {option.name}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
+                          <div dir="rtl" className="flex flex-wrap items-center gap-3 gap-y-2">
+                            <div className="flex min-w-0 flex-1 items-center gap-2">
+                              <span className="shrink-0 text-sm font-medium text-muted-foreground">הסמכה:</span>
+                              <span className="min-w-0 truncate text-sm text-foreground">{getQualificationName(entry.roleId)}</span>
                             </div>
 
-                            <div className="space-y-2">
-                              <Label>כמות</Label>
+                            <div className="flex flex-2 items-center gap-2">
+                              <Label className="shrink-0 text-sm text-muted-foreground">כמות:</Label>
                               <Input
                                 type="number"
                                 min={0}
                                 value={entry.quantity}
+                                className="h-9 w-20"
                                 onChange={(event) =>
                                   setQualificationEntry(entry.key, { quantity: Number(event.target.value) || 0 })
                                 }
                               />
                             </div>
 
-                            <div className="flex flex-col items-end justify-end gap-2">
-                              <div className="flex gap-1 rounded-md border border-border bg-surface-elevated p-1">
-                                <Button
-                                  type="button"
-                                  variant={entry.required ? 'primary' : 'secondary'}
-                                  size="sm"
-                                  onClick={() => setQualificationEntry(entry.key, { required: true })}
-                                >
-                                  הכרחי
-                                </Button>
-                                <Button
-                                  type="button"
-                                  variant={!entry.required ? 'primary' : 'secondary'}
-                                  size="sm"
-                                  onClick={() => setQualificationEntry(entry.key, { required: false })}
-                                >
-                                  לא הכרחי
-                                </Button>
-                              </div>
-                              <Button type="button" variant="ghost" size="sm" onClick={() => removeQualificationEntry(entry.key)}>
-                                הסרה
-                              </Button>
-                            </div>
+                            <label className="flex flex-3 shrink-0 items-center gap-2 text-sm text-muted-foreground">
+                              <input
+                                type="checkbox"
+                                checked={entry.required}
+                                onChange={(event) => setQualificationEntry(entry.key, { required: event.target.checked })}
+                              />
+                              הכרחי
+                            </label>
+
+                            <Button
+                              type="button"
+                              variant="destructive"
+                              size="icon"
+                              className="h-9 w-9"
+                              aria-label="הסרת הסמכה"
+                              onClick={() => removeQualificationEntry(entry.key)}
+                            >
+                              <Trash2 className="h-4 w-4" aria-hidden="true" />
+                            </Button>
                           </div>
                         </div>
                       ))
                     ) : (
                       <p className="text-sm text-muted">אין דרישות הכשרות מוגדרות.</p>
                     )}
+                  </div>
+
+                  <div className="space-y-3 rounded-md border border-border bg-surface-elevated p-3">
+                    <div dir="rtl" className="flex flex-wrap items-center gap-3 gap-y-2">
+                      <div className="flex min-w-0 flex-1 items-center gap-2">
+                        <span className="shrink-0 text-sm font-medium text-muted-foreground">סד"כ:</span>
+                      </div>
+
+                      <div className="flex flex-2 items-center gap-2">
+                        <Label htmlFor="manpower-quantity" className="shrink-0 text-sm text-muted-foreground">כמות:</Label>
+                        <Input
+                          id="manpower-quantity"
+                          type="number"
+                          min={0}
+                          className="h-9 w-20"
+                          aria-label="כמות"
+                          value={requirementsForm.manpowerQuantity}
+                          onChange={(event) => onManpowerChange('quantity', Number(event.target.value) || 0)}
+                        />
+                      </div>
+                      <label className="flex flex-3 shrink-0 items-center gap-2 text-sm text-muted-foreground">
+                        <input
+                          type="checkbox"
+                          checked={requirementsForm.manpowerRequired}
+                          onChange={(event) => onManpowerChange('required', event.target.checked)}
+                        />
+                        הכרחי
+                      </label>
+
+                      <div className="h-9 w-9"></div>
+                    </div>
                   </div>
                 </div>
               ) : null}

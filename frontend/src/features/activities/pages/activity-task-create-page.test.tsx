@@ -12,11 +12,17 @@ vi.mock('@/features/activities/queries/use-activities', () => ({
 vi.mock('@/features/activities/queries/use-activity-tasks', () => ({
   useActivityTaskById: vi.fn(),
   useActivityTaskRequirements: vi.fn(),
-  useCompanyQualifications: vi.fn(),
-  useCompanyRoles: vi.fn(),
   useCreateActivityTask: vi.fn(),
   useUpdateActivityTask: vi.fn(),
   useUpdateActivityTaskRequirements: vi.fn(),
+}))
+
+vi.mock('@/features/roles/queries/use-roles', () => ({
+  useCompanyRoles: vi.fn(),
+}))
+
+vi.mock('@/features/qualifications/queries/use-qualifications', () => ({
+  useCompanyQualifications: vi.fn(),
 }))
 
 const { navigateMock, useParamsMock } = vi.hoisted(() => ({
@@ -39,12 +45,12 @@ import { useActivityById } from '@/features/activities/queries/use-activities'
 import {
   useActivityTaskById,
   useActivityTaskRequirements,
-  useCompanyQualifications,
-  useCompanyRoles,
   useCreateActivityTask,
   useUpdateActivityTask,
   useUpdateActivityTaskRequirements,
 } from '@/features/activities/queries/use-activity-tasks'
+import { useCompanyQualifications } from '@/features/qualifications/queries/use-qualifications'
+import { useCompanyRoles } from '@/features/roles/queries/use-roles'
 import { ActivityTaskCreatePage } from '@/features/activities/pages/activity-task-create-page'
 
 const useActivityByIdMock = vi.mocked(useActivityById)
@@ -79,33 +85,53 @@ describe('ActivityTaskCreatePage', () => {
     } as unknown as ReturnType<typeof useActivityById>)
 
     useCompanyRolesMock.mockReturnValue({
-      data: [
-        { id: 'role-1', name: 'מפקד', description: null },
-        { id: 'role-2', name: 'נהג', description: null },
-      ],
+      data: {
+        items: [
+          { id: 'role-1', name: 'מפקד', description: null },
+          { id: 'role-2', name: 'נהג', description: null },
+        ],
+        total: 2,
+        page: 1,
+        pageSize: 50,
+      },
       isPending: false,
       isError: false,
       refetch: vi.fn(),
     } as unknown as ReturnType<typeof useCompanyRoles>)
 
     useCompanyQualificationsMock.mockReturnValue({
-      data: [
-        { id: 'qual-1', name: 'רישיון נהיגה', description: null },
-        { id: 'qual-2', name: 'כושר גופני', description: null },
-      ],
+      data: {
+        items: [
+          { id: 'qual-1', name: 'רישיון נהיגה', description: null },
+          { id: 'qual-2', name: 'כושר גופני', description: null },
+        ],
+        total: 2,
+        page: 1,
+        pageSize: 50,
+      },
       isPending: false,
       isError: false,
       refetch: vi.fn(),
     } as unknown as ReturnType<typeof useCompanyQualifications>)
   })
 
-  it('renders the create task form', () => {
+  it('renders the create task form from paginated role and qualification query results', () => {
     useCreateActivityTaskMock.mockReturnValue({
       mutateAsync: vi.fn(),
       isPending: false,
     } as unknown as ReturnType<typeof useCreateActivityTask>)
 
     render(<ActivityTaskCreatePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'הוספת תפקיד' }))
+    expect(screen.getByRole('dialog', { name: 'בחירת תפקידים' })).toBeDefined()
+    expect(screen.getByLabelText('מפקד')).toBeDefined()
+    fireEvent.click(screen.getByRole('button', { name: 'ביטול' }))
+
+    fireEvent.click(screen.getByRole('button', { name: 'הוספת הסמכה' }))
+    expect(screen.getByRole('dialog', { name: 'בחירת הסמכות' })).toBeDefined()
+    expect(screen.getByLabelText('רישיון נהיגה')).toBeDefined()
+    fireEvent.click(screen.getByRole('button', { name: 'ביטול' }))
 
     expect(screen.getByRole('heading', { name: 'יצירת משימה' })).toBeDefined()
     expect(screen.getByLabelText('שם המשימה')).toBeDefined()
@@ -145,7 +171,7 @@ describe('ActivityTaskCreatePage', () => {
       name: 'הכנה',
       description: 'בדיקת ציוד',
     })
-    expect(navigateMock).toHaveBeenCalledWith('/activities/activity-1')
+    expect(navigateMock).toHaveBeenCalledWith('/activities/activity-1/tasks')
   })
 
   it('keeps values entered after backend rejection', async () => {
@@ -228,7 +254,7 @@ describe('ActivityTaskCreatePage', () => {
       qualifications: [{ qualificationId: 'qual-1', required: false, quantity: 1 }],
     }))
 
-    expect(navigateMock).toHaveBeenCalledWith('/activities/activity-1')
+    expect(navigateMock).toHaveBeenCalledWith('/activities/activity-1/tasks')
   })
 
   it('opens the role selection modal, allows multi-select, and confirms roles into the form', async () => {
@@ -363,7 +389,7 @@ describe('ActivityTaskCreatePage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'אישור' }))
 
     expect(screen.getAllByText('מפקד').length).toBeGreaterThan(0)
-    fireEvent.click(screen.getAllByRole('button', { name: 'לא הכרחי' })[0])
+    fireEvent.click(screen.getAllByRole('checkbox', { name: 'הכרחי' })[0])
 
     fireEvent.click(screen.getByRole('button', { name: 'יצירת משימה' }))
 
@@ -390,7 +416,7 @@ describe('ActivityTaskCreatePage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'אישור' }))
 
     expect(screen.getAllByText('רישיון נהיגה').length).toBeGreaterThan(0)
-    fireEvent.click(screen.getAllByRole('button', { name: 'לא הכרחי' })[0])
+    fireEvent.click(screen.getAllByRole('checkbox', { name: 'הכרחי' })[0])
 
     fireEvent.click(screen.getByRole('button', { name: 'יצירת משימה' }))
 
@@ -433,8 +459,8 @@ describe('ActivityTaskCreatePage', () => {
     render(<ActivityTaskCreatePage />)
 
     expect(screen.getAllByText('מפקד').length).toBeGreaterThan(0)
-    expect(screen.getAllByRole('button', { name: 'הכרחי' }).length).toBeGreaterThan(0)
-    fireEvent.click(screen.getAllByRole('button', { name: 'לא הכרחי' })[0])
+    expect(screen.getAllByRole('checkbox', { name: 'הכרחי' }).length).toBeGreaterThan(0)
+    fireEvent.click(screen.getAllByRole('checkbox', { name: 'הכרחי' })[0])
     fireEvent.click(screen.getByRole('button', { name: 'שמירת משימה' }))
 
     await waitFor(() => expect(updateRequirementsMutation).toHaveBeenCalledWith({
@@ -459,7 +485,7 @@ describe('ActivityTaskCreatePage', () => {
     render(<ActivityTaskCreatePage />)
 
     fireEvent.change(screen.getByLabelText('שם המשימה'), { target: { value: 'הכנה' } })
-    fireEvent.click(screen.getByRole('checkbox', { name: /נדרש/i }))
+    fireEvent.click(screen.getByRole('checkbox', { name: /הכרחי/i }))
     const quantityInput = screen.getByLabelText('כמות')
     fireEvent.change(quantityInput, { target: { value: '0' } })
     fireEvent.click(screen.getByRole('button', { name: 'יצירת משימה' }))
