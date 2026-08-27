@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { useAuthSession } from '@/app/auth/use-auth-session'
+import { activitySchedulingDayQueryKey } from '@/features/activities/queries/use-activity-scheduling-day'
 import {
   createActivityTaskInstance,
   createTaskInstanceAssignment,
@@ -72,6 +73,22 @@ export const taskInstanceAssignmentsQueryKey = (taskInstanceId: string | undefin
 
 export const taskInstanceValidationQueryKey = (taskInstanceId: string | undefined) =>
   ['task-instances', taskInstanceId, 'validation'] as const
+
+export interface AssignmentSchedulingDayScope {
+  activityId: string | undefined
+  date: string | undefined
+}
+
+const hasSchedulingDayScope = (
+  scope: AssignmentSchedulingDayScope | undefined,
+): scope is { activityId: string; date: string } => {
+  return (
+    typeof scope?.activityId === 'string' &&
+    scope.activityId.length > 0 &&
+    typeof scope.date === 'string' &&
+    scope.date.length > 0
+  )
+}
 
 export function useActivityTasks(activityId: string | undefined) {
   const { isAuthenticated } = useAuthSession()
@@ -307,7 +324,10 @@ export function useDeleteActivityTaskInstance() {
   })
 }
 
-export function useCreateTaskInstanceAssignment(taskInstanceId: string | undefined) {
+export function useCreateTaskInstanceAssignment(
+  taskInstanceId: string | undefined,
+  schedulingDayScope?: AssignmentSchedulingDayScope,
+) {
   const queryClient = useQueryClient()
 
   return useMutation({
@@ -327,11 +347,17 @@ export function useCreateTaskInstanceAssignment(taskInstanceId: string | undefin
       await queryClient.invalidateQueries({ queryKey: taskInstanceValidationQueryKey(taskInstanceId) })
       await queryClient.invalidateQueries({ queryKey: taskInstanceWorkspaceQueryKey(taskInstanceId) })
       await queryClient.invalidateQueries({ queryKey: availableUsersQueryKey(taskInstanceId) })
+
+      if (hasSchedulingDayScope(schedulingDayScope)) {
+        await queryClient.invalidateQueries({
+          queryKey: activitySchedulingDayQueryKey(schedulingDayScope.activityId, schedulingDayScope.date),
+        })
+      }
     },
   })
 }
 
-export function useDeleteAssignment() {
+export function useDeleteAssignment(schedulingDayScope?: AssignmentSchedulingDayScope) {
   const queryClient = useQueryClient()
 
   return useMutation({
@@ -343,6 +369,12 @@ export function useDeleteAssignment() {
       await queryClient.invalidateQueries({ queryKey: taskInstanceValidationQueryKey(taskInstanceId) })
       await queryClient.invalidateQueries({ queryKey: taskInstanceWorkspaceQueryKey(taskInstanceId) })
       await queryClient.invalidateQueries({ queryKey: availableUsersQueryKey(taskInstanceId) })
+
+      if (hasSchedulingDayScope(schedulingDayScope)) {
+        await queryClient.invalidateQueries({
+          queryKey: activitySchedulingDayQueryKey(schedulingDayScope.activityId, schedulingDayScope.date),
+        })
+      }
     },
   })
 }

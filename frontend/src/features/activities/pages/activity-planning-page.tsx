@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 
 import type { ApiError } from '@/api/client'
@@ -7,6 +7,16 @@ import { ContentContainer } from '@/app/layout/content-container'
 import { PageHeader } from '@/app/layout/page-header'
 import { useActivityById } from '@/features/activities/queries/use-activities'
 import { useActivitySchedulingDay } from '@/features/activities/queries/use-activity-scheduling-day'
+import {
+  useActivityTasks,
+  useCreateActivityTaskInstance,
+  useCreateTaskInstanceAssignment,
+  useDeleteActivityTaskInstance,
+  useDeleteAssignment,
+  useUpdateActivityTaskInstance,
+} from '@/features/activities/queries/use-activity-tasks'
+import { useCompanyUsers } from '@/features/users/queries/use-users'
+import type { CompanyUser } from '@/features/users/api/users'
 import { EmptyState } from '@/shared/components/empty-state'
 import { ErrorState } from '@/shared/components/error-state'
 import { LoadingState } from '@/shared/components/loading-state'
@@ -14,7 +24,24 @@ import { StatusBadge, ValidationBadge } from '@/shared/components/status-badge'
 import { Badge } from '@/shared/components/ui/badge'
 import { Button } from '@/shared/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/card'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/shared/components/ui/dialog'
+import { Input } from '@/shared/components/ui/input'
+import { Label } from '@/shared/components/ui/label'
 import { ScrollArea } from '@/shared/components/ui/scroll-area'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/shared/components/ui/select'
 
 const dateFormatter = new Intl.DateTimeFormat('he-IL', {
   day: '2-digit',
@@ -45,6 +72,9 @@ const isApiError = (value: unknown): value is ApiError => {
 
 const formatDate = (value: string) => dateFormatter.format(new Date(value))
 const formatTime = (value: string) => timeFormatter.format(new Date(value))
+const formatUserName = (user: Pick<CompanyUser, 'firstName' | 'lastName'>) => `${user.firstName} ${user.lastName}`.trim()
+const getMutationErrorMessage = (error: unknown, fallbackMessage: string) =>
+  isApiError(error) ? error.message : fallbackMessage
 
 const formatSelectedDay = (dateKey: string) => {
   const date = new Date(`${dateKey}T00:00:00.000Z`)
@@ -84,6 +114,42 @@ const addUtcDays = (dateKey: string, amount: number) => {
   return `${year}-${month}-${day}`
 }
 
+const toDateTimeInputValue = (value: string) => {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) {
+    return ''
+  }
+
+  const year = date.getUTCFullYear()
+  const month = String(date.getUTCMonth() + 1).padStart(2, '0')
+  const day = String(date.getUTCDate()).padStart(2, '0')
+  const hours = String(date.getUTCHours()).padStart(2, '0')
+  const minutes = String(date.getUTCMinutes()).padStart(2, '0')
+
+  return `${year}-${month}-${day}T${hours}:${minutes}`
+}
+
+interface TaskInstanceEditorState {
+  mode: 'create' | 'edit'
+  taskInstanceId?: string
+  activityTaskId: string
+  title: string
+  startTime: string
+  endTime: string
+}
+
+const createDefaultTaskInstanceState = (
+  selectedDate: string,
+  activityTaskId: string,
+  title = '',
+): TaskInstanceEditorState => ({
+  mode: 'create',
+  activityTaskId,
+  title,
+  startTime: `${selectedDate}T08:00`,
+  endTime: `${selectedDate}T16:00`,
+})
+
 const requirementBadgeClassName = (required: boolean) =>
   required
     ? 'border-danger/30 bg-danger-soft text-danger'
@@ -116,28 +182,175 @@ const getEvaluationBadgeClassName = (severity: 'NORMAL' | 'WARNING' | 'CRITICAL'
 function AssignmentSlotCard({
   taskInstance,
   slotIndex,
+  activityId,
+  selectedDate,
+  companyUsers,
+  isUsersPending,
+  isUsersError,
+  onRetryUsers,
+  onRefreshDay,
 }: {
   taskInstance: SchedulingDayTaskInstance
   slotIndex: number
+  activityId: string
+  selectedDate: string
+  companyUsers: CompanyUser[]
+  isUsersPending: boolean
+  isUsersError: boolean
+  onRetryUsers: () => void
+  onRefreshDay: () => Promise<unknown>
 }) {
   const assignment = taskInstance.assignments[slotIndex]
+  const [searchText, setSearchText] = useState('')
+  const [assignmentError, setAssignmentError] = useState<string | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const schedulingScope = { activityId, date: selectedDate }
+  const createAssignmentMutation = useCreateTaskInstanceAssignment(taskInstance.id, schedulingScope)
+  const deleteAssignmentMutation = useDeleteAssignment(schedulingScope)
+  const replaceDeleteAssignmentMutation = useDeleteAssignment()
+
+  const matchingUsers = useMemo(() => {
+    const normalizedSearch = searchText.trim().toLocaleLowerCase()
+    if (normalizedSearch.length === 0) {
+      return []
+    }
+
+    return companyUsers
+      .filter((user) => user.id !== assignment?.userId)
+      .filter((user) => {
+        const candidateText = [user.firstName, user.lastName, user.email, user.phone, user.personalNumber]
+          .filter(Boolean)
+          .join(' ')
+          .toLocaleLowerCase()
+
+        return candidateText.includes(normalizedSearch)
+      })
+      .slice(0, 6)
+  }, [assignment?.userId, companyUsers, searchText])
+
+  const hasSearchText = searchText.trim().length > 0
+  const isBusy =
+    isSubmitting ||
+    createAssignmentMutation.isPending ||
+    deleteAssignmentMutation.isPending ||
+    replaceDeleteAssignmentMutation.isPending
+
+  const assignUser = async (userId: string) => {
+    if (isBusy) {
+      return
+    }
+
+    setAssignmentError(null)
+    setIsSubmitting(true)
+
+    let removedExistingAssignment = false
+
+    try {
+      if (assignment) {
+        await replaceDeleteAssignmentMutation.mutateAsync(assignment.id)
+        removedExistingAssignment = true
+      }
+
+      await createAssignmentMutation.mutateAsync({ userId })
+      setSearchText('')
+    } catch (error) {
+      if (removedExistingAssignment) {
+        await onRefreshDay()
+      }
+
+      setAssignmentError(getMutationErrorMessage(error, 'שמירת השיבוץ נכשלה. אפשר לנסות שוב.'))
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const removeAssignment = async () => {
+    if (!assignment || isBusy) {
+      return
+    }
+
+    setAssignmentError(null)
+    setIsSubmitting(true)
+
+    try {
+      await deleteAssignmentMutation.mutateAsync(assignment.id)
+      setSearchText('')
+    } catch (error) {
+      setAssignmentError(getMutationErrorMessage(error, 'מחיקת השיבוץ נכשלה. אפשר לנסות שוב.'))
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
 
   if (!assignment) {
     return (
-      <div className="rounded-md border border-dashed border-border bg-surface px-3 py-3 text-right">
+      <div data-testid={`planning-slot-${taskInstance.id}-${slotIndex}`} className="rounded-md border border-dashed border-border bg-surface px-3 py-3 text-right">
         <div className="flex items-center justify-between gap-2">
           <p className="text-sm font-medium text-foreground">מקום {slotIndex + 1}</p>
           <Badge className="border-border-strong bg-border text-muted-foreground">פנוי</Badge>
         </div>
-        <p className="mt-2 text-xs text-muted">לא שובץ חייל במיקום זה.</p>
+
+        <div className="mt-3 space-y-2">
+          <Label htmlFor={`planning-assignment-search-${taskInstance.id}-${slotIndex}`} className="text-xs text-muted">
+            שיבוץ חייל למקום {slotIndex + 1}
+          </Label>
+          <Input
+            id={`planning-assignment-search-${taskInstance.id}-${slotIndex}`}
+            value={searchText}
+            onChange={(event) => setSearchText(event.target.value)}
+            placeholder="חיפוש לפי שם או מספר אישי"
+            disabled={isBusy || isUsersPending}
+          />
+        </div>
+
+        {isUsersPending ? <p className="mt-2 text-xs text-muted">טוען חיילים…</p> : null}
+
+        {isUsersError ? (
+          <div className="mt-2 rounded-md border border-danger/30 bg-danger-soft/20 px-3 py-2 text-xs text-danger">
+            <p>טעינת החיילים נכשלה.</p>
+            <Button type="button" variant="secondary" size="sm" className="mt-2" onClick={onRetryUsers}>
+              ניסיון חוזר
+            </Button>
+          </div>
+        ) : null}
+
+        {!isUsersPending && !isUsersError && hasSearchText && matchingUsers.length === 0 ? (
+          <p className="mt-2 text-xs text-muted">לא נמצאו חיילים התואמים את החיפוש.</p>
+        ) : null}
+
+        {matchingUsers.length > 0 ? (
+          <div className="mt-2 space-y-2">
+            {matchingUsers.map((user) => (
+              <button
+                key={user.id}
+                type="button"
+                className="flex w-full items-center justify-between rounded-md border border-border bg-surface-elevated px-3 py-2 text-right text-sm text-foreground hover:bg-surface disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={isBusy}
+                onClick={() => void assignUser(user.id)}
+              >
+                <span className="min-w-0">
+                  <span className="block font-medium">{formatUserName(user)}</span>
+                  <span className="block text-xs text-muted">{user.personalNumber}</span>
+                </span>
+                <span className="text-xs text-muted">בחר</span>
+              </button>
+            ))}
+          </div>
+        ) : null}
+
+        {assignmentError ? (
+          <div className="mt-2 rounded-md border border-danger/30 bg-danger-soft/20 px-3 py-2 text-xs text-danger" role="alert">
+            {assignmentError}
+          </div>
+        ) : null}
       </div>
     )
   }
 
-  const userName = `${assignment.user.firstName} ${assignment.user.lastName}`.trim()
+  const userName = formatUserName(assignment.user)
 
   return (
-    <div className="rounded-md border border-border bg-surface px-3 py-3 text-right">
+    <div data-testid={`planning-slot-${taskInstance.id}-${slotIndex}`} className="rounded-md border border-border bg-surface px-3 py-3 text-right">
       <div className="flex items-center justify-between gap-2">
         <p className="text-sm font-medium text-foreground">מקום {slotIndex + 1}</p>
         <Badge className="border-success/30 bg-success-soft text-success">מאויש</Badge>
@@ -177,11 +390,89 @@ function AssignmentSlotCard({
           ))}
         </ul>
       ) : null}
+
+      <div className="mt-3 space-y-2 rounded-md border border-border bg-surface-elevated px-3 py-3">
+        <div className="flex items-center justify-between gap-2">
+          <Button type="button" variant="destructive" size="sm" onClick={() => void removeAssignment()} disabled={isBusy}>
+            הסרת שיבוץ
+          </Button>
+          <Label htmlFor={`planning-assignment-search-${taskInstance.id}-${slotIndex}`} className="text-xs text-muted">
+            החלפת חייל
+          </Label>
+        </div>
+
+        <Input
+          id={`planning-assignment-search-${taskInstance.id}-${slotIndex}`}
+          value={searchText}
+          onChange={(event) => setSearchText(event.target.value)}
+          placeholder="חיפוש חייל חלופי"
+          disabled={isBusy || isUsersPending}
+        />
+
+        {isUsersPending ? <p className="text-xs text-muted">טוען חיילים…</p> : null}
+
+        {isUsersError ? (
+          <div className="rounded-md border border-danger/30 bg-danger-soft/20 px-3 py-2 text-xs text-danger">
+            <p>טעינת החיילים נכשלה.</p>
+            <Button type="button" variant="secondary" size="sm" className="mt-2" onClick={onRetryUsers}>
+              ניסיון חוזר
+            </Button>
+          </div>
+        ) : null}
+
+        {!isUsersPending && !isUsersError && hasSearchText && matchingUsers.length === 0 ? (
+          <p className="text-xs text-muted">לא נמצאו חיילים התואמים את החיפוש.</p>
+        ) : null}
+
+        {matchingUsers.length > 0 ? (
+          <div className="space-y-2">
+            {matchingUsers.map((user) => (
+              <button
+                key={user.id}
+                type="button"
+                className="flex w-full items-center justify-between rounded-md border border-border bg-surface px-3 py-2 text-right text-sm text-foreground hover:bg-surface disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={isBusy}
+                onClick={() => void assignUser(user.id)}
+              >
+                <span className="min-w-0">
+                  <span className="block font-medium">{formatUserName(user)}</span>
+                  <span className="block text-xs text-muted">{user.personalNumber}</span>
+                </span>
+                <span className="text-xs text-muted">החלף</span>
+              </button>
+            ))}
+          </div>
+        ) : null}
+
+        {assignmentError ? (
+          <div className="rounded-md border border-danger/30 bg-danger-soft/20 px-3 py-2 text-xs text-danger" role="alert">
+            {assignmentError}
+          </div>
+        ) : null}
+      </div>
     </div>
   )
 }
 
-function SchedulingTaskCard({ taskInstance }: { taskInstance: SchedulingDayTaskInstance }) {
+function SchedulingTaskCard({
+  taskInstance,
+  activityId,
+  selectedDate,
+  companyUsers,
+  isUsersPending,
+  isUsersError,
+  onRetryUsers,
+  onRefreshDay,
+}: {
+  taskInstance: SchedulingDayTaskInstance
+  activityId: string
+  selectedDate: string
+  companyUsers: CompanyUser[]
+  isUsersPending: boolean
+  isUsersError: boolean
+  onRetryUsers: () => void
+  onRefreshDay: () => Promise<unknown>
+}) {
   const slotCount = Math.max(taskInstance.assignmentSlots.total, 0)
   const slots = Array.from({ length: slotCount }, (_, index) => index)
 
@@ -299,7 +590,18 @@ function SchedulingTaskCard({ taskInstance }: { taskInstance: SchedulingDayTaskI
         ) : (
           <div className="space-y-2">
             {slots.map((slotIndex) => (
-              <AssignmentSlotCard key={`${taskInstance.id}-slot-${slotIndex}`} taskInstance={taskInstance} slotIndex={slotIndex} />
+              <AssignmentSlotCard
+                key={`${taskInstance.id}-slot-${slotIndex}`}
+                taskInstance={taskInstance}
+                slotIndex={slotIndex}
+                activityId={activityId}
+                selectedDate={selectedDate}
+                companyUsers={companyUsers}
+                isUsersPending={isUsersPending}
+                isUsersError={isUsersError}
+                onRetryUsers={onRetryUsers}
+                onRefreshDay={onRefreshDay}
+              />
             ))}
           </div>
         )}
@@ -312,7 +614,20 @@ export function ActivityPlanningPage() {
   const navigate = useNavigate()
   const { activityId } = useParams<{ activityId: string }>()
   const activityQuery = useActivityById(activityId)
+  const activityTasksQuery = useActivityTasks(activityId)
   const [selectedDate, setSelectedDate] = useState<string | undefined>(undefined)
+  const [taskInstanceEditor, setTaskInstanceEditor] = useState<TaskInstanceEditorState | null>(null)
+  const [taskInstanceEditorError, setTaskInstanceEditorError] = useState<string | null>(null)
+
+  const createTaskInstanceMutation = useCreateActivityTaskInstance(taskInstanceEditor?.activityTaskId)
+  const updateTaskInstanceMutation = useUpdateActivityTaskInstance()
+  const deleteTaskInstanceMutation = useDeleteActivityTaskInstance()
+  const companyUsersQuery = useCompanyUsers(activityQuery.data?.companyId, {
+    page: 1,
+    pageSize: 100,
+    sortBy: 'firstName',
+    sortOrder: 'asc',
+  })
 
   useEffect(() => {
     const activity = activityQuery.data
@@ -340,6 +655,7 @@ export function ActivityPlanningPage() {
 
   const activityStartDateKey = activityQuery.data ? toDateKey(activityQuery.data.startDate) : undefined
   const activityEndDateKey = activityQuery.data ? toDateKey(activityQuery.data.endDate) : undefined
+  const companyUsers = companyUsersQuery.data?.items ?? []
 
   const canGoToPreviousDay =
     typeof selectedDate === 'string' &&
@@ -367,6 +683,122 @@ export function ActivityPlanningPage() {
     }
 
     setSelectedDate(addUtcDays(selectedDate, 1))
+  }
+
+  const isTaskInstanceFormBusy =
+    createTaskInstanceMutation.isPending ||
+    updateTaskInstanceMutation.isPending ||
+    deleteTaskInstanceMutation.isPending
+
+  const openCreateTaskInstanceDialog = (activityTaskId: string, taskName: string) => {
+    if (!selectedDate) {
+      return
+    }
+
+    setTaskInstanceEditorError(null)
+    setTaskInstanceEditor(createDefaultTaskInstanceState(selectedDate, activityTaskId, taskName))
+  }
+
+  const openEditTaskInstanceDialog = (taskInstance: SchedulingDayTaskInstance) => {
+    setTaskInstanceEditorError(null)
+    setTaskInstanceEditor({
+      mode: 'edit',
+      taskInstanceId: taskInstance.id,
+      activityTaskId: taskInstance.activityTask.id,
+      title: taskInstance.title,
+      startTime: toDateTimeInputValue(taskInstance.startTime),
+      endTime: toDateTimeInputValue(taskInstance.endTime),
+    })
+  }
+
+  const closeTaskInstanceDialog = () => {
+    if (isTaskInstanceFormBusy) {
+      return
+    }
+
+    setTaskInstanceEditorError(null)
+    setTaskInstanceEditor(null)
+  }
+
+  const onTaskInstanceEditorChange = (field: 'activityTaskId' | 'title' | 'startTime' | 'endTime', value: string) => {
+    setTaskInstanceEditor((current) => {
+      if (!current) {
+        return current
+      }
+
+      return {
+        ...current,
+        [field]: value,
+      }
+    })
+  }
+
+  const submitTaskInstanceEditor = async () => {
+    if (!taskInstanceEditor) {
+      return
+    }
+
+    setTaskInstanceEditorError(null)
+
+    const title = taskInstanceEditor.title.trim()
+    if (title.length === 0) {
+      setTaskInstanceEditorError('יש להזין כותרת למופע המשימה.')
+      return
+    }
+
+    const start = new Date(taskInstanceEditor.startTime)
+    const end = new Date(taskInstanceEditor.endTime)
+
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+      setTaskInstanceEditorError('יש להזין זמני התחלה וסיום תקינים.')
+      return
+    }
+
+    if (start >= end) {
+      setTaskInstanceEditorError('שעת הסיום חייבת להיות אחרי שעת ההתחלה.')
+      return
+    }
+
+    const payload = {
+      title,
+      startTime: start.toISOString(),
+      endTime: end.toISOString(),
+    }
+
+    try {
+      if (taskInstanceEditor.mode === 'create') {
+        await createTaskInstanceMutation.mutateAsync(payload)
+      } else {
+        if (!taskInstanceEditor.taskInstanceId) {
+          setTaskInstanceEditorError('לא נמצא מזהה מופע משימה לעדכון.')
+          return
+        }
+
+        await updateTaskInstanceMutation.mutateAsync({
+          taskInstanceId: taskInstanceEditor.taskInstanceId,
+          body: payload,
+        })
+      }
+
+      await schedulingDayQuery.refetch()
+      setTaskInstanceEditor(null)
+    } catch {
+      setTaskInstanceEditorError('שמירת מופע המשימה נכשלה. אפשר לנסות שוב.')
+    }
+  }
+
+  const deleteTaskInstance = async (taskInstance: SchedulingDayTaskInstance) => {
+    const confirmed = window.confirm('האם למחוק את מופע המשימה?')
+    if (!confirmed) {
+      return
+    }
+
+    try {
+      await deleteTaskInstanceMutation.mutateAsync(taskInstance.id)
+      await schedulingDayQuery.refetch()
+    } catch {
+      setTaskInstanceEditorError('מחיקת מופע המשימה נכשלה. אפשר לנסות שוב.')
+    }
   }
 
   if (!activityId) {
@@ -521,9 +953,34 @@ export function ActivityPlanningPage() {
 
         <Card>
           <CardHeader className="px-4 py-4 sm:px-5">
-            <CardTitle className="text-base">לוח שיבוץ יומי</CardTitle>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <CardTitle className="text-base">לוח שיבוץ יומי</CardTitle>
+              {schedulingDayQuery.data?.isDayOpened ? (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => {
+                    const defaultTask = activityTasksQuery.data?.[0]
+                    if (!defaultTask) {
+                      setTaskInstanceEditorError('לא נמצאו משימות פעילות להוספת מופע.')
+                      return
+                    }
+
+                    openCreateTaskInstanceDialog(defaultTask.id, defaultTask.name)
+                  }}
+                  disabled={activityTasksQuery.isPending || !activityTasksQuery.data || activityTasksQuery.data.length === 0}
+                >
+                  הוספת מופע משימה
+                </Button>
+              ) : null}
+            </div>
           </CardHeader>
           <CardContent className="space-y-4 px-4 pb-5 sm:px-5">
+            {taskInstanceEditorError ? (
+              <div className="rounded-md border border-danger/30 bg-danger-soft/20 px-3 py-2 text-sm text-danger" role="alert">
+                {taskInstanceEditorError}
+              </div>
+            ) : null}
             {!schedulingDayQuery.data?.isDayOpened ? (
               <EmptyState
                 title="היום עדיין לא נפתח"
@@ -538,13 +995,136 @@ export function ActivityPlanningPage() {
               <ScrollArea className="w-full" dir="rtl">
                 <div className="flex min-w-max gap-3 pb-2">
                   {schedulingDayQuery.data.taskInstances.map((taskInstance) => (
-                    <SchedulingTaskCard key={taskInstance.id} taskInstance={taskInstance} />
+                    <div key={taskInstance.id} className="space-y-2">
+                      <div className="flex items-center justify-end gap-2">
+                        <Button type="button" variant="secondary" size="sm" onClick={() => openEditTaskInstanceDialog(taskInstance)}>
+                          עריכה
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="sm"
+                          disabled={deleteTaskInstanceMutation.isPending}
+                          onClick={() => void deleteTaskInstance(taskInstance)}
+                        >
+                          מחיקה
+                        </Button>
+                      </div>
+                      <SchedulingTaskCard
+                        taskInstance={taskInstance}
+                        activityId={activityId}
+                        selectedDate={selectedDate}
+                        companyUsers={companyUsers}
+                        isUsersPending={companyUsersQuery.isPending}
+                        isUsersError={companyUsersQuery.isError}
+                        onRetryUsers={() => {
+                          void companyUsersQuery.refetch()
+                        }}
+                        onRefreshDay={() => schedulingDayQuery.refetch()}
+                      />
+                    </div>
                   ))}
                 </div>
               </ScrollArea>
             )}
           </CardContent>
         </Card>
+
+        <Dialog open={taskInstanceEditor !== null} onOpenChange={(open) => {
+          if (!open) {
+            closeTaskInstanceDialog()
+          }
+        }}>
+          <DialogContent aria-describedby={undefined}>
+            <DialogHeader>
+              <DialogTitle>{taskInstanceEditor?.mode === 'edit' ? 'עריכת מופע משימה' : 'מופע משימה חדש'}</DialogTitle>
+              <DialogDescription>
+                {taskInstanceEditor?.mode === 'edit'
+                  ? 'אפשר לעדכן את המשימה המשויכת, הכותרת וטווח הזמנים.'
+                  : 'בחר משימה, עדכן כותרת והגדר זמני התחלה וסיום.'}
+              </DialogDescription>
+            </DialogHeader>
+
+            {taskInstanceEditor ? (
+              <div className="space-y-4">
+                <div className="space-y-2 text-right">
+                  <Label htmlFor="planning-task-instance-task">משימה</Label>
+                  <Select
+                    value={taskInstanceEditor.activityTaskId}
+                    onValueChange={(value) => onTaskInstanceEditorChange('activityTaskId', value)}
+                    disabled={
+                      isTaskInstanceFormBusy ||
+                      taskInstanceEditor.mode === 'edit' ||
+                      activityTasksQuery.isPending ||
+                      !activityTasksQuery.data ||
+                      activityTasksQuery.data.length === 0
+                    }
+                  >
+                    <SelectTrigger id="planning-task-instance-task">
+                      <SelectValue placeholder="בחירת משימה" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(activityTasksQuery.data ?? []).map((task) => (
+                        <SelectItem key={task.id} value={task.id}>
+                          {task.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2 text-right">
+                  <Label htmlFor="planning-task-instance-title">כותרת</Label>
+                  <Input
+                    id="planning-task-instance-title"
+                    value={taskInstanceEditor.title}
+                    onChange={(event) => onTaskInstanceEditorChange('title', event.target.value)}
+                    disabled={isTaskInstanceFormBusy}
+                  />
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="space-y-2 text-right">
+                    <Label htmlFor="planning-task-instance-start">התחלה</Label>
+                    <Input
+                      id="planning-task-instance-start"
+                      type="datetime-local"
+                      value={taskInstanceEditor.startTime}
+                      onChange={(event) => onTaskInstanceEditorChange('startTime', event.target.value)}
+                      disabled={isTaskInstanceFormBusy}
+                    />
+                  </div>
+
+                  <div className="space-y-2 text-right">
+                    <Label htmlFor="planning-task-instance-end">סיום</Label>
+                    <Input
+                      id="planning-task-instance-end"
+                      type="datetime-local"
+                      value={taskInstanceEditor.endTime}
+                      onChange={(event) => onTaskInstanceEditorChange('endTime', event.target.value)}
+                      disabled={isTaskInstanceFormBusy}
+                    />
+                  </div>
+                </div>
+
+                {taskInstanceEditorError ? (
+                  <div className="rounded-md border border-danger/30 bg-danger-soft/20 px-3 py-2 text-sm text-danger" role="alert">
+                    {taskInstanceEditorError}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+
+            <DialogFooter>
+              <Button type="button" variant="secondary" onClick={closeTaskInstanceDialog} disabled={isTaskInstanceFormBusy}>
+                ביטול
+              </Button>
+              <Button type="button" onClick={() => void submitTaskInstanceEditor()} disabled={isTaskInstanceFormBusy || !taskInstanceEditor}>
+                {taskInstanceEditor?.mode === 'edit' ? 'שמירת שינויים' : 'יצירת מופע'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </ContentContainer>
     </>
   )

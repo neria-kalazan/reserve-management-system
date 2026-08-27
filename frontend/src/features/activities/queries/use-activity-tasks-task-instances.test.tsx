@@ -325,7 +325,7 @@ describe('Activity task instances data layer', () => {
     expect(taskInstanceAssignmentsQueryKey('instance-1')).toEqual(['task-instances', 'instance-1', 'assignments'])
   })
 
-  it('creates and deletes assignments while invalidating assignments and validation state', async () => {
+  it('creates and deletes assignments while invalidating assignments, validation, and scoped scheduling-day state', async () => {
     useAuthSessionMock.mockReturnValue({
       isAuthenticated: true,
       user: { id: 'user-1', companyId: 'company-1' },
@@ -374,10 +374,12 @@ describe('Activity task instances data layer', () => {
     })
 
     const createWrapperWithQueryClient = createWrapper(queryClient)
-    const createAssignmentResult = renderHook(() => useCreateTaskInstanceAssignment('instance-2'), {
+    const schedulingDayScope = { activityId: 'activity-1', date: '2026-01-02' }
+
+    const createAssignmentResult = renderHook(() => useCreateTaskInstanceAssignment('instance-2', schedulingDayScope), {
       wrapper: createWrapperWithQueryClient,
     })
-    const deleteAssignmentResult = renderHook(() => useDeleteAssignment(), {
+    const deleteAssignmentResult = renderHook(() => useDeleteAssignment(schedulingDayScope), {
       wrapper: createWrapperWithQueryClient,
     })
 
@@ -390,5 +392,35 @@ describe('Activity task instances data layer', () => {
     expect(invalidateQueriesSpy).toHaveBeenCalledWith({ queryKey: ['task-instances', 'instance-2', 'validation'] })
     expect(invalidateQueriesSpy).toHaveBeenCalledWith({ queryKey: ['task-instances', 'instance-2', 'workspace'] })
     expect(invalidateQueriesSpy).toHaveBeenCalledWith({ queryKey: ['task-instances', 'instance-2', 'available-users'] })
+    expect(invalidateQueriesSpy).toHaveBeenCalledWith({
+      queryKey: ['activities', 'activity-1', 'scheduling', 'day', '2026-01-02'],
+    })
+  })
+
+  it('propagates assignment mutation errors to the caller', async () => {
+    useAuthSessionMock.mockReturnValue({
+      isAuthenticated: true,
+      user: { id: 'user-1', companyId: 'company-1' },
+    } as ReturnType<typeof useAuthSession>)
+
+    const createFailure = new Error('create assignment failed')
+    const deleteFailure = new Error('delete assignment failed')
+    createTaskInstanceAssignmentMock.mockRejectedValueOnce(createFailure)
+    deleteAssignmentMock.mockRejectedValueOnce(deleteFailure)
+
+    const createWrapperWithQueryClient = createWrapper(createQueryClient())
+    const createAssignmentResult = renderHook(() => useCreateTaskInstanceAssignment('instance-2'), {
+      wrapper: createWrapperWithQueryClient,
+    })
+    const deleteAssignmentResult = renderHook(() => useDeleteAssignment(), {
+      wrapper: createWrapperWithQueryClient,
+    })
+
+    await expect(
+      createAssignmentResult.result.current.mutateAsync({ userId: 'user-9' }),
+    ).rejects.toThrow('create assignment failed')
+    await expect(deleteAssignmentResult.result.current.mutateAsync('assignment-2')).rejects.toThrow(
+      'delete assignment failed',
+    )
   })
 })

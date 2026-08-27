@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/features/activities/queries/use-activities', () => ({
@@ -9,9 +9,41 @@ vi.mock('@/features/activities/queries/use-activity-scheduling-day', () => ({
   useActivitySchedulingDay: vi.fn(),
 }))
 
-const { navigateMock, useParamsMock } = vi.hoisted(() => ({
+vi.mock('@/features/activities/queries/use-activity-tasks', () => ({
+  useActivityTasks: vi.fn(),
+  useCreateActivityTaskInstance: vi.fn(),
+  useCreateTaskInstanceAssignment: vi.fn(),
+  useUpdateActivityTaskInstance: vi.fn(),
+  useDeleteActivityTaskInstance: vi.fn(),
+  useDeleteAssignment: vi.fn(),
+}))
+
+vi.mock('@/features/users/queries/use-users', () => ({
+  useCompanyUsers: vi.fn(),
+}))
+
+const {
+  navigateMock,
+  useParamsMock,
+  schedulingRefetchMock,
+  companyUsersRefetchMock,
+  createTaskInstanceMutateAsyncMock,
+  updateTaskInstanceMutateAsyncMock,
+  deleteTaskInstanceMutateAsyncMock,
+  createAssignmentMutateAsyncMock,
+  deleteAssignmentMutateAsyncMock,
+  replaceDeleteAssignmentMutateAsyncMock,
+} = vi.hoisted(() => ({
   navigateMock: vi.fn(),
   useParamsMock: vi.fn(),
+  schedulingRefetchMock: vi.fn(),
+  companyUsersRefetchMock: vi.fn(),
+  createTaskInstanceMutateAsyncMock: vi.fn(),
+  updateTaskInstanceMutateAsyncMock: vi.fn(),
+  deleteTaskInstanceMutateAsyncMock: vi.fn(),
+  createAssignmentMutateAsyncMock: vi.fn(),
+  deleteAssignmentMutateAsyncMock: vi.fn(),
+  replaceDeleteAssignmentMutateAsyncMock: vi.fn(),
 }))
 
 vi.mock('react-router-dom', async () => {
@@ -26,10 +58,26 @@ vi.mock('react-router-dom', async () => {
 
 import { useActivityById } from '@/features/activities/queries/use-activities'
 import { useActivitySchedulingDay } from '@/features/activities/queries/use-activity-scheduling-day'
+import {
+  useActivityTasks,
+  useCreateActivityTaskInstance,
+  useCreateTaskInstanceAssignment,
+  useDeleteActivityTaskInstance,
+  useDeleteAssignment,
+  useUpdateActivityTaskInstance,
+} from '@/features/activities/queries/use-activity-tasks'
+import { useCompanyUsers } from '@/features/users/queries/use-users'
 import { ActivityPlanningPage } from '@/features/activities/pages/activity-planning-page'
 
 const useActivityByIdMock = vi.mocked(useActivityById)
 const useActivitySchedulingDayMock = vi.mocked(useActivitySchedulingDay)
+const useActivityTasksMock = vi.mocked(useActivityTasks)
+const useCreateActivityTaskInstanceMock = vi.mocked(useCreateActivityTaskInstance)
+const useCreateTaskInstanceAssignmentMock = vi.mocked(useCreateTaskInstanceAssignment)
+const useUpdateActivityTaskInstanceMock = vi.mocked(useUpdateActivityTaskInstance)
+const useDeleteActivityTaskInstanceMock = vi.mocked(useDeleteActivityTaskInstance)
+const useDeleteAssignmentMock = vi.mocked(useDeleteAssignment)
+const useCompanyUsersMock = vi.mocked(useCompanyUsers)
 
 const activityData = {
   id: 'activity-1',
@@ -123,7 +171,7 @@ const makeSchedulingQuery = (overrides: Record<string, unknown> = {}) => ({
   isPending: false,
   isError: false,
   data: buildSchedulingDayData('2026-08-10', false),
-  refetch: vi.fn(),
+  refetch: schedulingRefetchMock,
   ...overrides,
 })
 
@@ -131,8 +179,30 @@ describe('ActivityPlanningPage', () => {
   beforeEach(() => {
     useActivityByIdMock.mockReset()
     useActivitySchedulingDayMock.mockReset()
+    useActivityTasksMock.mockReset()
+    useCreateActivityTaskInstanceMock.mockReset()
+    useCreateTaskInstanceAssignmentMock.mockReset()
+    useUpdateActivityTaskInstanceMock.mockReset()
+    useDeleteActivityTaskInstanceMock.mockReset()
+    useDeleteAssignmentMock.mockReset()
+    useCompanyUsersMock.mockReset()
     navigateMock.mockReset()
     useParamsMock.mockReset()
+    schedulingRefetchMock.mockReset()
+    companyUsersRefetchMock.mockReset()
+    createTaskInstanceMutateAsyncMock.mockReset()
+    updateTaskInstanceMutateAsyncMock.mockReset()
+    deleteTaskInstanceMutateAsyncMock.mockReset()
+    createAssignmentMutateAsyncMock.mockReset()
+    deleteAssignmentMutateAsyncMock.mockReset()
+    replaceDeleteAssignmentMutateAsyncMock.mockReset()
+
+    createTaskInstanceMutateAsyncMock.mockResolvedValue({ id: 'instance-created' })
+    updateTaskInstanceMutateAsyncMock.mockResolvedValue({ id: 'instance-1', activityTaskId: 'task-1' })
+    deleteTaskInstanceMutateAsyncMock.mockResolvedValue({ id: 'instance-1', activityTaskId: 'task-1' })
+    createAssignmentMutateAsyncMock.mockResolvedValue({ id: 'assignment-created' })
+    deleteAssignmentMutateAsyncMock.mockResolvedValue({ id: 'assignment-1', taskInstanceId: 'instance-1' })
+    replaceDeleteAssignmentMutateAsyncMock.mockResolvedValue({ id: 'assignment-1', taskInstanceId: 'instance-1' })
 
     useParamsMock.mockReturnValue({ activityId: 'activity-1' })
     useActivityByIdMock.mockReturnValue({
@@ -141,6 +211,90 @@ describe('ActivityPlanningPage', () => {
       data: activityData,
       refetch: vi.fn(),
     } as unknown as ReturnType<typeof useActivityById>)
+
+    useActivityTasksMock.mockReturnValue({
+      isPending: false,
+      data: [
+        {
+          id: 'task-1',
+          activityId: 'activity-1',
+          name: 'הכנה',
+          description: 'desc',
+          createdAt: '2026-08-10T00:00:00.000Z',
+          updatedAt: '2026-08-10T00:00:00.000Z',
+        },
+        {
+          id: 'task-2',
+          activityId: 'activity-1',
+          name: 'לוגיסטיקה',
+          description: 'desc',
+          createdAt: '2026-08-10T00:00:00.000Z',
+          updatedAt: '2026-08-10T00:00:00.000Z',
+        },
+      ],
+    } as unknown as ReturnType<typeof useActivityTasks>)
+
+    useCreateActivityTaskInstanceMock.mockReturnValue({
+      mutateAsync: createTaskInstanceMutateAsyncMock,
+      isPending: false,
+    } as unknown as ReturnType<typeof useCreateActivityTaskInstance>)
+
+    useCreateTaskInstanceAssignmentMock.mockReturnValue({
+      mutateAsync: createAssignmentMutateAsyncMock,
+      isPending: false,
+    } as unknown as ReturnType<typeof useCreateTaskInstanceAssignment>)
+
+    useUpdateActivityTaskInstanceMock.mockReturnValue({
+      mutateAsync: updateTaskInstanceMutateAsyncMock,
+      isPending: false,
+    } as unknown as ReturnType<typeof useUpdateActivityTaskInstance>)
+
+    useDeleteActivityTaskInstanceMock.mockReturnValue({
+      mutateAsync: deleteTaskInstanceMutateAsyncMock,
+      isPending: false,
+    } as unknown as ReturnType<typeof useDeleteActivityTaskInstance>)
+
+    useDeleteAssignmentMock.mockImplementation((scope) => ({
+      mutateAsync: scope ? deleteAssignmentMutateAsyncMock : replaceDeleteAssignmentMutateAsyncMock,
+      isPending: false,
+    }) as unknown as ReturnType<typeof useDeleteAssignment>)
+
+    useCompanyUsersMock.mockReturnValue({
+      isPending: false,
+      isError: false,
+      data: {
+        items: [
+          {
+            id: 'user-1',
+            firstName: 'איילה',
+            lastName: 'כהן',
+            phone: '0500000000',
+            email: 'a@example.com',
+            personalNumber: '123456',
+            isActive: true,
+            unit: { id: 'unit-1', name: 'א׳', description: null, displayOrder: 1 },
+            roles: [],
+            qualifications: [],
+          },
+          {
+            id: 'user-2',
+            firstName: 'רונית',
+            lastName: 'לוי',
+            phone: '0500000001',
+            email: 'r@example.com',
+            personalNumber: '654321',
+            isActive: true,
+            unit: { id: 'unit-1', name: 'א׳', description: null, displayOrder: 1 },
+            roles: [],
+            qualifications: [],
+          },
+        ],
+        total: 2,
+        page: 1,
+        pageSize: 100,
+      },
+      refetch: companyUsersRefetchMock,
+    } as unknown as ReturnType<typeof useCompanyUsers>)
 
     useActivitySchedulingDayMock.mockImplementation((requestedActivityId, date) => {
       if (requestedActivityId !== 'activity-1' || !date) {
@@ -247,6 +401,48 @@ describe('ActivityPlanningPage', () => {
     expect(screen.getAllByText('מאויש').length).toBeGreaterThan(0)
   })
 
+  it('renders a soldier selector for an empty assignment slot using the paginated company users query', async () => {
+    render(<ActivityPlanningPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'יום הבא' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('planning-slot-instance-2-0')).toBeDefined()
+    })
+
+    const emptySlot = screen.getByTestId('planning-slot-instance-2-0')
+    expect(within(emptySlot).getByLabelText('שיבוץ חייל למקום 1')).toBeDefined()
+    expect(useCompanyUsersMock).toHaveBeenCalledWith('company-1', {
+      page: 1,
+      pageSize: 100,
+      sortBy: 'firstName',
+      sortOrder: 'asc',
+    })
+  })
+
+  it('searching and selecting a soldier in an empty slot triggers assignment creation with scheduling scope', async () => {
+    render(<ActivityPlanningPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'יום הבא' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('planning-slot-instance-2-0')).toBeDefined()
+    })
+
+    const emptySlot = screen.getByTestId('planning-slot-instance-2-0')
+    fireEvent.change(within(emptySlot).getByLabelText('שיבוץ חייל למקום 1'), { target: { value: 'רונית' } })
+    fireEvent.click(within(emptySlot).getByRole('button', { name: /רונית לוי/i }))
+
+    await waitFor(() => {
+      expect(createAssignmentMutateAsyncMock).toHaveBeenCalledWith({ userId: 'user-2' })
+    })
+
+    expect(useCreateTaskInstanceAssignmentMock).toHaveBeenCalledWith('instance-2', {
+      activityId: 'activity-1',
+      date: '2026-08-11',
+    })
+  })
+
   it('displays assigned soldiers from read model data', async () => {
     render(<ActivityPlanningPage />)
 
@@ -258,6 +454,94 @@ describe('ActivityPlanningPage', () => {
 
     expect(screen.getByText('מספר אישי: 123456')).toBeDefined()
     expect(screen.getByText('מסגרת: א׳')).toBeDefined()
+  })
+
+  it('removing a filled assignment calls delete with scheduling scope and keeps existing task rendering intact', async () => {
+    render(<ActivityPlanningPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'יום הבא' }))
+
+    await waitFor(() => {
+      expect(screen.getByText('איילה כהן')).toBeDefined()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'הסרת שיבוץ' }))
+
+    await waitFor(() => {
+      expect(deleteAssignmentMutateAsyncMock).toHaveBeenCalledWith('assignment-1')
+    })
+
+    expect(useDeleteAssignmentMock).toHaveBeenCalledWith({
+      activityId: 'activity-1',
+      date: '2026-08-11',
+    })
+    expect(screen.getByText('משמרת בוקר')).toBeDefined()
+  })
+
+  it('changing a soldier performs delete current assignment followed by create new assignment', async () => {
+    render(<ActivityPlanningPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'יום הבא' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('planning-slot-instance-1-0')).toBeDefined()
+    })
+
+    const filledSlot = screen.getByTestId('planning-slot-instance-1-0')
+    fireEvent.change(within(filledSlot).getByLabelText('החלפת חייל'), { target: { value: 'רונית' } })
+    fireEvent.click(within(filledSlot).getByRole('button', { name: /רונית לוי/i }))
+
+    await waitFor(() => {
+      expect(replaceDeleteAssignmentMutateAsyncMock).toHaveBeenCalledWith('assignment-1')
+      expect(createAssignmentMutateAsyncMock).toHaveBeenCalledWith({ userId: 'user-2' })
+    })
+
+    expect(replaceDeleteAssignmentMutateAsyncMock.mock.invocationCallOrder[0]).toBeLessThan(
+      createAssignmentMutateAsyncMock.mock.invocationCallOrder[0],
+    )
+  })
+
+  it('mutation failure does not incorrectly remove the displayed soldier', async () => {
+    deleteAssignmentMutateAsyncMock.mockRejectedValueOnce(new Error('delete failed'))
+
+    render(<ActivityPlanningPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'יום הבא' }))
+
+    await waitFor(() => {
+      expect(screen.getByText('איילה כהן')).toBeDefined()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'הסרת שיבוץ' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toBeDefined()
+    })
+
+    expect(screen.getByText('איילה כהן')).toBeDefined()
+  })
+
+  it('prevents duplicate assignment submissions while an assignment request is pending', async () => {
+    createAssignmentMutateAsyncMock.mockImplementationOnce(
+      () => new Promise(() => {}),
+    )
+
+    render(<ActivityPlanningPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'יום הבא' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('planning-slot-instance-2-0')).toBeDefined()
+    })
+
+    const emptySlot = screen.getByTestId('planning-slot-instance-2-0')
+    fireEvent.change(within(emptySlot).getByLabelText('שיבוץ חייל למקום 1'), { target: { value: 'רונית' } })
+    const selectButton = within(emptySlot).getByRole('button', { name: /רונית לוי/i })
+
+    fireEvent.click(selectButton)
+    fireEvent.click(selectButton)
+
+    expect(createAssignmentMutateAsyncMock).toHaveBeenCalledTimes(1)
   })
 
   it('displays requirements with required vs optional semantics', async () => {
@@ -313,6 +597,83 @@ describe('ActivityPlanningPage', () => {
     await waitFor(() => {
       expect(useActivitySchedulingDayMock).toHaveBeenLastCalledWith('activity-1', '2026-08-10')
     })
+  })
+
+  it('creates a task instance from the opened day board and refetches day data', async () => {
+    render(<ActivityPlanningPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'יום הבא' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'הוספת מופע משימה' })).toBeDefined()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'הוספת מופע משימה' }))
+    fireEvent.click(screen.getByRole('button', { name: 'יצירת מופע' }))
+
+    await waitFor(() => {
+      expect(createTaskInstanceMutateAsyncMock).toHaveBeenCalledTimes(1)
+    })
+
+    expect(createTaskInstanceMutateAsyncMock).toHaveBeenCalledWith({
+      title: 'הכנה',
+      startTime: expect.stringMatching(/Z$/),
+      endTime: expect.stringMatching(/Z$/),
+    })
+    expect(schedulingRefetchMock).toHaveBeenCalled()
+  })
+
+  it('edits an existing task instance from the board and refetches day data', async () => {
+    render(<ActivityPlanningPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'יום הבא' }))
+
+    await waitFor(() => {
+      expect(screen.getByText('משמרת בוקר')).toBeDefined()
+    })
+
+    const editButtons = screen.getAllByRole('button', { name: 'עריכה' })
+    fireEvent.click(editButtons[0])
+
+    const titleInput = screen.getByLabelText('כותרת')
+    fireEvent.change(titleInput, { target: { value: 'משמרת בוקר מעודכנת' } })
+    fireEvent.click(screen.getByRole('button', { name: 'שמירת שינויים' }))
+
+    await waitFor(() => {
+      expect(updateTaskInstanceMutateAsyncMock).toHaveBeenCalledTimes(1)
+    })
+
+    expect(updateTaskInstanceMutateAsyncMock).toHaveBeenCalledWith({
+      taskInstanceId: 'instance-1',
+      body: {
+        title: 'משמרת בוקר מעודכנת',
+        startTime: expect.stringMatching(/Z$/),
+        endTime: expect.stringMatching(/Z$/),
+      },
+    })
+    expect(schedulingRefetchMock).toHaveBeenCalled()
+  })
+
+  it('deletes a task instance from the board and refetches day data', async () => {
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true)
+
+    render(<ActivityPlanningPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'יום הבא' }))
+
+    await waitFor(() => {
+      expect(screen.getByText('משמרת בוקר')).toBeDefined()
+    })
+
+    const deleteButtons = screen.getAllByRole('button', { name: 'מחיקה' })
+    fireEvent.click(deleteButtons[0])
+
+    await waitFor(() => {
+      expect(deleteTaskInstanceMutateAsyncMock).toHaveBeenCalledWith('instance-1')
+    })
+
+    expect(schedulingRefetchMock).toHaveBeenCalled()
+    confirmSpy.mockRestore()
   })
 
   it('does not allow navigation outside activity date range', async () => {
