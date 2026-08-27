@@ -250,8 +250,8 @@ describe('TaskInstancesService', () => {
       userRoles: [{ roleId: 'role-1' }],
       userQualifications: [{ qualificationId: 'qual-1' }],
     });
-    prisma.activityTaskRoleRequirement.findMany.mockResolvedValue([{ roleId: 'role-1', required: true }]);
-    prisma.activityTaskQualificationRequirement.findMany.mockResolvedValue([{ qualificationId: 'qual-1', required: true }]);
+    prisma.activityTaskRoleRequirement.findMany.mockResolvedValue([{ roleId: 'role-1', required: true, role: { name: 'Medic' } }]);
+    prisma.activityTaskQualificationRequirement.findMany.mockResolvedValue([{ qualificationId: 'qual-1', required: true, qualification: { name: 'CPR' } }]);
     prisma.activityUserStatus.findMany.mockResolvedValue([{ userId: 'user-1', status: 'ACTIVE', availability: 'ALL_DAY' }]);
 
     const res = await service.evaluateCandidate('instance-1', 'user-1');
@@ -261,10 +261,11 @@ describe('TaskInstancesService', () => {
       severity: 'NORMAL',
       reasonCodes: [],
       reasonMessages: [],
+      reasons: [],
     });
   });
 
-  it('evaluateCandidate: returns WARNING for a missing required qualification', async () => {
+  it('evaluateCandidate: returns CRITICAL for a missing required qualification', async () => {
     prisma.taskInstance.findUnique.mockResolvedValue({
       id: 'instance-1',
       startTime: new Date('2026-01-01T09:00:00.000Z'),
@@ -276,17 +277,26 @@ describe('TaskInstancesService', () => {
       userRoles: [{ roleId: 'role-1' }],
       userQualifications: [],
     });
-    prisma.activityTaskRoleRequirement.findMany.mockResolvedValue([{ roleId: 'role-1', required: true }]);
-    prisma.activityTaskQualificationRequirement.findMany.mockResolvedValue([{ qualificationId: 'qual-1', required: true }]);
+    prisma.activityTaskRoleRequirement.findMany.mockResolvedValue([{ roleId: 'role-1', required: true, role: { name: 'Medic' } }]);
+    prisma.activityTaskQualificationRequirement.findMany.mockResolvedValue([{ qualificationId: 'qual-1', required: true, qualification: { name: 'CPR' } }]);
     prisma.activityUserStatus.findMany.mockResolvedValue([{ userId: 'user-1', status: 'ACTIVE', availability: 'ALL_DAY' }]);
 
     const res = await service.evaluateCandidate('instance-1', 'user-1');
 
     expect(res).toEqual({
       userId: 'user-1',
-      severity: 'WARNING',
+      severity: 'CRITICAL',
       reasonCodes: ['MISSING_REQUIRED_QUALIFICATION'],
       reasonMessages: ['User is missing a required qualification'],
+      reasons: [
+        {
+          code: 'MISSING_REQUIRED_QUALIFICATION',
+          severity: 'CRITICAL',
+          message: 'User is missing a required qualification',
+          qualificationId: 'qual-1',
+          qualificationName: 'CPR',
+        },
+      ],
     });
   });
 
@@ -302,8 +312,8 @@ describe('TaskInstancesService', () => {
       userRoles: [],
       userQualifications: [{ qualificationId: 'qual-1' }],
     });
-    prisma.activityTaskRoleRequirement.findMany.mockResolvedValue([{ roleId: 'role-1', required: true }]);
-    prisma.activityTaskQualificationRequirement.findMany.mockResolvedValue([{ qualificationId: 'qual-1', required: true }]);
+    prisma.activityTaskRoleRequirement.findMany.mockResolvedValue([{ roleId: 'role-1', required: true, role: { name: 'Medic' } }]);
+    prisma.activityTaskQualificationRequirement.findMany.mockResolvedValue([{ qualificationId: 'qual-1', required: true, qualification: { name: 'CPR' } }]);
     prisma.activityUserStatus.findMany.mockResolvedValue([{ userId: 'user-1', status: 'ACTIVE', availability: 'ALL_DAY' }]);
 
     const res = await service.evaluateCandidate('instance-1', 'user-1');
@@ -313,6 +323,151 @@ describe('TaskInstancesService', () => {
       severity: 'CRITICAL',
       reasonCodes: ['MISSING_REQUIRED_ROLE'],
       reasonMessages: ['User is missing a required role'],
+      reasons: [
+        {
+          code: 'MISSING_REQUIRED_ROLE',
+          severity: 'CRITICAL',
+          message: 'User is missing a required role',
+          roleId: 'role-1',
+          roleName: 'Medic',
+        },
+      ],
+    });
+  });
+
+  it('evaluateCandidate: returns WARNING for a missing optional role', async () => {
+    prisma.taskInstance.findUnique.mockResolvedValue({
+      id: 'instance-1',
+      startTime: new Date('2026-01-01T09:00:00.000Z'),
+      activityTask: { id: 'task-1', activity: { id: 'activity-1', companyId: 'company-1' } },
+    });
+    prisma.user.findUnique.mockResolvedValue({
+      id: 'user-1',
+      companyId: 'company-1',
+      userRoles: [],
+      userQualifications: [{ qualificationId: 'qual-1' }],
+    });
+    prisma.activityTaskRoleRequirement.findMany.mockResolvedValue([{ roleId: 'role-2', required: false, role: { name: 'Driver' } }]);
+    prisma.activityTaskQualificationRequirement.findMany.mockResolvedValue([{ qualificationId: 'qual-1', required: true, qualification: { name: 'CPR' } }]);
+    prisma.activityUserStatus.findMany.mockResolvedValue([{ userId: 'user-1', status: 'ACTIVE', availability: 'ALL_DAY' }]);
+
+    const res = await service.evaluateCandidate('instance-1', 'user-1');
+
+    expect(res).toEqual({
+      userId: 'user-1',
+      severity: 'WARNING',
+      reasonCodes: ['MISSING_OPTIONAL_ROLE'],
+      reasonMessages: ['User is missing an optional role'],
+      reasons: [
+        {
+          code: 'MISSING_OPTIONAL_ROLE',
+          severity: 'WARNING',
+          message: 'User is missing an optional role',
+          roleId: 'role-2',
+          roleName: 'Driver',
+        },
+      ],
+    });
+  });
+
+  it('evaluateCandidate: returns WARNING for a missing optional qualification', async () => {
+    prisma.taskInstance.findUnique.mockResolvedValue({
+      id: 'instance-1',
+      startTime: new Date('2026-01-01T09:00:00.000Z'),
+      activityTask: { id: 'task-1', activity: { id: 'activity-1', companyId: 'company-1' } },
+    });
+    prisma.user.findUnique.mockResolvedValue({
+      id: 'user-1',
+      companyId: 'company-1',
+      userRoles: [{ roleId: 'role-1' }],
+      userQualifications: [],
+    });
+    prisma.activityTaskRoleRequirement.findMany.mockResolvedValue([{ roleId: 'role-1', required: true, role: { name: 'Medic' } }]);
+    prisma.activityTaskQualificationRequirement.findMany.mockResolvedValue([{ qualificationId: 'qual-2', required: false, qualification: { name: 'Radio' } }]);
+    prisma.activityUserStatus.findMany.mockResolvedValue([{ userId: 'user-1', status: 'ACTIVE', availability: 'ALL_DAY' }]);
+
+    const res = await service.evaluateCandidate('instance-1', 'user-1');
+
+    expect(res).toEqual({
+      userId: 'user-1',
+      severity: 'WARNING',
+      reasonCodes: ['MISSING_OPTIONAL_QUALIFICATION'],
+      reasonMessages: ['User is missing an optional qualification'],
+      reasons: [
+        {
+          code: 'MISSING_OPTIONAL_QUALIFICATION',
+          severity: 'WARNING',
+          message: 'User is missing an optional qualification',
+          qualificationId: 'qual-2',
+          qualificationName: 'Radio',
+        },
+      ],
+    });
+  });
+
+  it('evaluateCandidate: keeps availability problems as WARNING', async () => {
+    prisma.taskInstance.findUnique.mockResolvedValue({
+      id: 'instance-1',
+      startTime: new Date('2026-01-01T18:00:00.000Z'),
+      activityTask: { id: 'task-1', activity: { id: 'activity-1', companyId: 'company-1' } },
+    });
+    prisma.user.findUnique.mockResolvedValue({
+      id: 'user-1',
+      companyId: 'company-1',
+      userRoles: [{ roleId: 'role-1' }],
+      userQualifications: [{ qualificationId: 'qual-1' }],
+    });
+    prisma.activityTaskRoleRequirement.findMany.mockResolvedValue([{ roleId: 'role-1', required: true, role: { name: 'Medic' } }]);
+    prisma.activityTaskQualificationRequirement.findMany.mockResolvedValue([{ qualificationId: 'qual-1', required: true, qualification: { name: 'CPR' } }]);
+    prisma.activityUserStatus.findMany.mockResolvedValue([{ userId: 'user-1', status: 'ACTIVE', availability: 'MORNING' }]);
+
+    const res = await service.evaluateCandidate('instance-1', 'user-1');
+
+    expect(res).toEqual({
+      userId: 'user-1',
+      severity: 'WARNING',
+      reasonCodes: ['UNAVAILABLE_FOR_TIME_WINDOW'],
+      reasonMessages: ['User is not available for this task time'],
+      reasons: [
+        {
+          code: 'UNAVAILABLE_FOR_TIME_WINDOW',
+          severity: 'WARNING',
+          message: 'User is not available for this task time',
+        },
+      ],
+    });
+  });
+
+  it('evaluateCandidate: keeps inactive user as CRITICAL', async () => {
+    prisma.taskInstance.findUnique.mockResolvedValue({
+      id: 'instance-1',
+      startTime: new Date('2026-01-01T09:00:00.000Z'),
+      activityTask: { id: 'task-1', activity: { id: 'activity-1', companyId: 'company-1' } },
+    });
+    prisma.user.findUnique.mockResolvedValue({
+      id: 'user-1',
+      companyId: 'company-1',
+      userRoles: [{ roleId: 'role-1' }],
+      userQualifications: [{ qualificationId: 'qual-1' }],
+    });
+    prisma.activityTaskRoleRequirement.findMany.mockResolvedValue([{ roleId: 'role-1', required: true, role: { name: 'Medic' } }]);
+    prisma.activityTaskQualificationRequirement.findMany.mockResolvedValue([{ qualificationId: 'qual-1', required: true, qualification: { name: 'CPR' } }]);
+    prisma.activityUserStatus.findMany.mockResolvedValue([{ userId: 'user-1', status: 'SICK', availability: 'ALL_DAY' }]);
+
+    const res = await service.evaluateCandidate('instance-1', 'user-1');
+
+    expect(res).toEqual({
+      userId: 'user-1',
+      severity: 'CRITICAL',
+      reasonCodes: ['USER_STATUS_NOT_ACTIVE'],
+      reasonMessages: ['User status is not active for this task date'],
+      reasons: [
+        {
+          code: 'USER_STATUS_NOT_ACTIVE',
+          severity: 'CRITICAL',
+          message: 'User status is not active for this task date',
+        },
+      ],
     });
   });
 
@@ -328,8 +483,14 @@ describe('TaskInstancesService', () => {
       userRoles: [],
       userQualifications: [],
     });
-    prisma.activityTaskRoleRequirement.findMany.mockResolvedValue([{ roleId: 'role-1', required: true }]);
-    prisma.activityTaskQualificationRequirement.findMany.mockResolvedValue([{ qualificationId: 'qual-1', required: true }]);
+    prisma.activityTaskRoleRequirement.findMany.mockResolvedValue([
+      { roleId: 'role-1', required: true, role: { name: 'Medic' } },
+      { roleId: 'role-2', required: false, role: { name: 'Driver' } },
+    ]);
+    prisma.activityTaskQualificationRequirement.findMany.mockResolvedValue([
+      { qualificationId: 'qual-1', required: true, qualification: { name: 'CPR' } },
+      { qualificationId: 'qual-2', required: false, qualification: { name: 'Radio' } },
+    ]);
     prisma.activityUserStatus.findMany.mockResolvedValue([{ userId: 'user-1', status: 'ACTIVE', availability: 'EVENING' }]);
 
     const res = await service.evaluateCandidate('instance-1', 'user-1');
@@ -337,11 +498,54 @@ describe('TaskInstancesService', () => {
     expect(res).toEqual({
       userId: 'user-1',
       severity: 'CRITICAL',
-      reasonCodes: ['MISSING_REQUIRED_ROLE', 'MISSING_REQUIRED_QUALIFICATION', 'UNAVAILABLE_FOR_TIME_WINDOW'],
+      reasonCodes: [
+        'MISSING_REQUIRED_ROLE',
+        'MISSING_OPTIONAL_ROLE',
+        'MISSING_REQUIRED_QUALIFICATION',
+        'MISSING_OPTIONAL_QUALIFICATION',
+        'UNAVAILABLE_FOR_TIME_WINDOW',
+      ],
       reasonMessages: [
         'User is missing a required role',
+        'User is missing an optional role',
         'User is missing a required qualification',
+        'User is missing an optional qualification',
         'User is not available for this task time',
+      ],
+      reasons: [
+        {
+          code: 'MISSING_REQUIRED_ROLE',
+          severity: 'CRITICAL',
+          message: 'User is missing a required role',
+          roleId: 'role-1',
+          roleName: 'Medic',
+        },
+        {
+          code: 'MISSING_OPTIONAL_ROLE',
+          severity: 'WARNING',
+          message: 'User is missing an optional role',
+          roleId: 'role-2',
+          roleName: 'Driver',
+        },
+        {
+          code: 'MISSING_REQUIRED_QUALIFICATION',
+          severity: 'CRITICAL',
+          message: 'User is missing a required qualification',
+          qualificationId: 'qual-1',
+          qualificationName: 'CPR',
+        },
+        {
+          code: 'MISSING_OPTIONAL_QUALIFICATION',
+          severity: 'WARNING',
+          message: 'User is missing an optional qualification',
+          qualificationId: 'qual-2',
+          qualificationName: 'Radio',
+        },
+        {
+          code: 'UNAVAILABLE_FOR_TIME_WINDOW',
+          severity: 'WARNING',
+          message: 'User is not available for this task time',
+        },
       ],
     });
   });

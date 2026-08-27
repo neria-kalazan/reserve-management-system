@@ -145,9 +145,17 @@ describe('SchedulingDayResponseDto contract', () => {
                 availability: 'MORNING',
               },
               evaluation: {
+                userId: 'user-1',
                 severity: 'WARNING',
                 reasonCodes: ['UNAVAILABLE_FOR_TIME_WINDOW'],
                 reasonMessages: ['User is not available for this task time'],
+                reasons: [
+                  {
+                    code: 'UNAVAILABLE_FOR_TIME_WINDOW',
+                    severity: 'WARNING',
+                    message: 'User is not available for this task time',
+                  },
+                ],
               },
             },
             {
@@ -168,11 +176,49 @@ describe('SchedulingDayResponseDto contract', () => {
                 unit: null,
               },
               evaluation: {
+                userId: 'user-2',
                 severity: 'CRITICAL',
-                reasonCodes: ['MISSING_REQUIRED_ROLE', 'MISSING_REQUIRED_QUALIFICATION'],
+                reasonCodes: [
+                  'MISSING_REQUIRED_ROLE',
+                  'MISSING_OPTIONAL_ROLE',
+                  'MISSING_REQUIRED_QUALIFICATION',
+                  'MISSING_OPTIONAL_QUALIFICATION',
+                ],
                 reasonMessages: [
                   'User is missing a required role',
+                  'User is missing an optional role',
                   'User is missing a required qualification',
+                  'User is missing an optional qualification',
+                ],
+                reasons: [
+                  {
+                    code: 'MISSING_REQUIRED_ROLE',
+                    severity: 'CRITICAL',
+                    message: 'User is missing a required role',
+                    roleId: 'role-commander',
+                    roleName: 'Commander',
+                  },
+                  {
+                    code: 'MISSING_OPTIONAL_ROLE',
+                    severity: 'WARNING',
+                    message: 'User is missing an optional role',
+                    roleId: 'role-driver',
+                    roleName: 'Driver',
+                  },
+                  {
+                    code: 'MISSING_REQUIRED_QUALIFICATION',
+                    severity: 'CRITICAL',
+                    message: 'User is missing a required qualification',
+                    qualificationId: 'qual-medic',
+                    qualificationName: 'Medic',
+                  },
+                  {
+                    code: 'MISSING_OPTIONAL_QUALIFICATION',
+                    severity: 'WARNING',
+                    message: 'User is missing an optional qualification',
+                    qualificationId: 'qual-radio',
+                    qualificationName: 'Radio',
+                  },
                 ],
               },
             },
@@ -198,6 +244,13 @@ describe('SchedulingDayResponseDto contract', () => {
     expect(taskInstance.requirements.qualifications.find((entry) => entry.qualificationId === 'qual-radio')?.required).toBe(false);
     expect(taskInstance.assignments).toHaveLength(2);
     expect(taskInstance.assignments[0]?.evaluation.reasonCodes).toContain('UNAVAILABLE_FOR_TIME_WINDOW');
+    expect(taskInstance.assignments[1]?.evaluation.reasons[0]).toEqual({
+      code: 'MISSING_REQUIRED_ROLE',
+      severity: 'CRITICAL',
+      message: 'User is missing a required role',
+      roleId: 'role-commander',
+      roleName: 'Commander',
+    });
     expect(taskInstance.validation.warnings.some((issue) => issue.type === 'AVAILABILITY')).toBe(true);
   });
 

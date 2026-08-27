@@ -184,9 +184,18 @@ describe('ActivitySchedulingDayService', () => {
     });
     taskInstancesService.evaluateCandidate.mockResolvedValue({
       userId: 'user-1',
-      severity: 'WARNING',
+      severity: 'CRITICAL',
       reasonCodes: ['MISSING_REQUIRED_QUALIFICATION'],
       reasonMessages: ['User is missing a required qualification'],
+      reasons: [
+        {
+          code: 'MISSING_REQUIRED_QUALIFICATION',
+          severity: 'CRITICAL',
+          message: 'User is missing a required qualification',
+          qualificationId: 'qual-1',
+          qualificationName: 'CPR',
+        },
+      ],
     });
 
     const result = await service.getSchedulingDay('activity-1', '2026-08-15');
@@ -200,9 +209,18 @@ describe('ActivitySchedulingDayService', () => {
     });
     expect(result.taskInstances[0].assignments[0].evaluation).toEqual({
       userId: 'user-1',
-      severity: 'WARNING',
+      severity: 'CRITICAL',
       reasonCodes: ['MISSING_REQUIRED_QUALIFICATION'],
       reasonMessages: ['User is missing a required qualification'],
+      reasons: [
+        {
+          code: 'MISSING_REQUIRED_QUALIFICATION',
+          severity: 'CRITICAL',
+          message: 'User is missing a required qualification',
+          qualificationId: 'qual-1',
+          qualificationName: 'CPR',
+        },
+      ],
     });
   });
 

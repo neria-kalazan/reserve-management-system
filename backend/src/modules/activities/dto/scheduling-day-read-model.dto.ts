@@ -1,5 +1,6 @@
 import { ActivityStatus } from '@prisma/client';
 import { ActivityUserAvailabilityValue, ActivityUserStatusValue } from '../../activity-user-status/dto/activity-user-status-item.dto';
+import { CandidateEvaluationReason } from '../../task-instances/task-instances.service';
 import { TaskValidationResult } from '../../task-instances/task-validation.service';
 
 export type SchedulingCandidateSeverity = 'NORMAL' | 'WARNING' | 'CRITICAL';
@@ -70,9 +71,11 @@ export class SchedulingDayAvailabilitySnapshotDto {
 }
 
 export class SchedulingDayCandidateEvaluationDto {
+  userId: string;
   severity: SchedulingCandidateSeverity;
   reasonCodes: string[];
   reasonMessages: string[];
+  reasons: CandidateEvaluationReason[];
 }
 
 export class SchedulingDayAssignmentDto {

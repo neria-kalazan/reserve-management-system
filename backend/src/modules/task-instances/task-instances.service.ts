@@ -4,6 +4,32 @@ import { CreateTaskInstanceDto } from './dto/create-task-instance.dto';
 import { BulkCreateTaskInstancesDto } from './dto/bulk-create-task-instances.dto';
 import { UpdateTaskInstanceDto } from './dto/update-task-instance.dto';
 
+export type CandidateEvaluationSeverity = 'NORMAL' | 'WARNING' | 'CRITICAL';
+
+export interface CandidateEvaluationReason {
+  code:
+    | 'MISSING_REQUIRED_ROLE'
+    | 'MISSING_OPTIONAL_ROLE'
+    | 'MISSING_REQUIRED_QUALIFICATION'
+    | 'MISSING_OPTIONAL_QUALIFICATION'
+    | 'USER_STATUS_NOT_ACTIVE'
+    | 'UNAVAILABLE_FOR_TIME_WINDOW';
+  severity: Exclude<CandidateEvaluationSeverity, 'NORMAL'>;
+  message: string;
+  roleId?: string;
+  roleName?: string;
+  qualificationId?: string;
+  qualificationName?: string;
+}
+
+export interface CandidateEvaluationResult {
+  userId: string;
+  severity: CandidateEvaluationSeverity;
+  reasonCodes: string[];
+  reasonMessages: string[];
+  reasons: CandidateEvaluationReason[];
+}
+
 @Injectable()
 export class TaskInstancesService {
   constructor(private readonly prisma: PrismaService) {}
@@ -194,26 +220,41 @@ export class TaskInstancesService {
   private buildCandidateEvaluation(
     taskInstance: { startTime: Date; activityTask: { id: string; activity?: { id?: string; companyId?: string } } },
     user: { id: string; companyId?: string; userRoles: Array<{ roleId: string }>; userQualifications: Array<{ qualificationId: string }> },
-    roleRequirements: Array<{ roleId: string; required: boolean }>,
-    qualificationRequirements: Array<{ qualificationId: string; required: boolean }>,
+    roleRequirements: Array<{ roleId: string; required: boolean; role?: { name: string | null } | null }>,
+    qualificationRequirements: Array<{ qualificationId: string; required: boolean; qualification?: { name: string | null } | null }>,
     availabilityRecord: { status: string; availability: string } | null,
-  ) {
-    const reasonCodes: string[] = [];
-    const reasonMessages: string[] = [];
+  ): CandidateEvaluationResult {
+    const reasons: CandidateEvaluationReason[] = [];
+
+    const pushReason = (reason: CandidateEvaluationReason) => {
+      reasons.push(reason);
+    };
 
     const availableRoleIds = new Set(user.userRoles.map((relation: { roleId: string }) => relation.roleId));
     for (const requirement of roleRequirements) {
-      if (requirement.required && !availableRoleIds.has(requirement.roleId)) {
-        reasonCodes.push('MISSING_REQUIRED_ROLE');
-        reasonMessages.push('User is missing a required role');
+      if (!availableRoleIds.has(requirement.roleId)) {
+        pushReason({
+          code: requirement.required ? 'MISSING_REQUIRED_ROLE' : 'MISSING_OPTIONAL_ROLE',
+          severity: requirement.required ? 'CRITICAL' : 'WARNING',
+          message: requirement.required ? 'User is missing a required role' : 'User is missing an optional role',
+          roleId: requirement.roleId,
+          ...(requirement.role?.name ? { roleName: requirement.role.name } : {}),
+        });
       }
     }
 
     const availableQualificationIds = new Set(user.userQualifications.map((relation: { qualificationId: string }) => relation.qualificationId));
     for (const requirement of qualificationRequirements) {
-      if (requirement.required && !availableQualificationIds.has(requirement.qualificationId)) {
-        reasonCodes.push('MISSING_REQUIRED_QUALIFICATION');
-        reasonMessages.push('User is missing a required qualification');
+      if (!availableQualificationIds.has(requirement.qualificationId)) {
+        pushReason({
+          code: requirement.required ? 'MISSING_REQUIRED_QUALIFICATION' : 'MISSING_OPTIONAL_QUALIFICATION',
+          severity: requirement.required ? 'CRITICAL' : 'WARNING',
+          message: requirement.required
+            ? 'User is missing a required qualification'
+            : 'User is missing an optional qualification',
+          qualificationId: requirement.qualificationId,
+          ...(requirement.qualification?.name ? { qualificationName: requirement.qualification.name } : {}),
+        });
       }
     }
 
@@ -223,30 +264,40 @@ export class TaskInstancesService {
       const allowedAvailability = isMorningTask ? ['ALL_DAY', 'MORNING'] : ['ALL_DAY', 'EVENING'];
 
       if (availabilityRecord.status !== 'ACTIVE') {
-        reasonCodes.push('USER_STATUS_NOT_ACTIVE');
-        reasonMessages.push('User status is not active for this task date');
+        pushReason({
+          code: 'USER_STATUS_NOT_ACTIVE',
+          severity: 'CRITICAL',
+          message: 'User status is not active for this task date',
+        });
       }
 
       if (availabilityRecord.availability !== 'ALL_DAY' && !allowedAvailability.includes(availabilityRecord.availability)) {
-        reasonCodes.push('UNAVAILABLE_FOR_TIME_WINDOW');
-        reasonMessages.push('User is not available for this task time');
+        pushReason({
+          code: 'UNAVAILABLE_FOR_TIME_WINDOW',
+          severity: 'WARNING',
+          message: 'User is not available for this task time',
+        });
       }
     } else {
-      reasonCodes.push('UNAVAILABLE_FOR_TIME_WINDOW');
-      reasonMessages.push('User is not available for this task time');
+      pushReason({
+        code: 'UNAVAILABLE_FOR_TIME_WINDOW',
+        severity: 'WARNING',
+        message: 'User is not available for this task time',
+      });
     }
 
-    const severity = reasonCodes.includes('MISSING_REQUIRED_ROLE') || reasonCodes.includes('USER_STATUS_NOT_ACTIVE')
+    const severity = reasons.some((reason) => reason.severity === 'CRITICAL')
       ? 'CRITICAL'
-      : reasonCodes.length > 0
+      : reasons.length > 0
         ? 'WARNING'
         : 'NORMAL';
 
     return {
       userId: user.id,
       severity,
-      reasonCodes,
-      reasonMessages,
+      reasonCodes: reasons.map((reason) => reason.code),
+      reasonMessages: reasons.map((reason) => reason.message),
+      reasons,
     };
   }
 
@@ -301,12 +352,12 @@ export class TaskInstancesService {
     const [roleRequirements, qualificationRequirements, availabilityRecords] = await Promise.all([
       this.prisma.activityTaskRoleRequirement.findMany({
         where: { activityTaskId: taskInstance.activityTask.id },
-        select: { roleId: true, required: true },
+        select: { roleId: true, required: true, role: { select: { name: true } } },
         orderBy: { createdAt: 'asc' },
       }),
       this.prisma.activityTaskQualificationRequirement.findMany({
         where: { activityTaskId: taskInstance.activityTask.id },
-        select: { qualificationId: true, required: true },
+        select: { qualificationId: true, required: true, qualification: { select: { name: true } } },
         orderBy: { createdAt: 'asc' },
       }),
       this.prisma.activityUserStatus.findMany({

@@ -7,7 +7,7 @@ import {
   SchedulingDayTaskInstanceDto,
 } from './dto/scheduling-day-read-model.dto';
 import { TaskValidationResult, TaskValidationService } from '../task-instances/task-validation.service';
-import { TaskInstancesService } from '../task-instances/task-instances.service';
+import { CandidateEvaluationResult, TaskInstancesService } from '../task-instances/task-instances.service';
 
 @Injectable()
 export class ActivitySchedulingDayService {
@@ -175,7 +175,7 @@ export class ActivitySchedulingDayService {
       ),
     );
 
-    const evaluationByTaskInstanceAndUser = new Map<string, { severity: 'NORMAL' | 'WARNING' | 'CRITICAL'; reasonCodes: string[]; reasonMessages: string[] }>();
+    const evaluationByTaskInstanceAndUser = new Map<string, CandidateEvaluationResult>();
     for (const item of assignmentEvaluations) {
       evaluationByTaskInstanceAndUser.set(`${item.taskInstanceId}:${item.userId}`, item.evaluation);
     }
@@ -223,9 +223,11 @@ export class ActivitySchedulingDayService {
         const availabilityKey = `${assignment.userId}:${this.formatDateKey(this.toDayStart(taskInstance.startTime))}`;
         const availability = availabilityByUserAndDate.get(availabilityKey);
         const evaluation = evaluationByTaskInstanceAndUser.get(`${taskInstance.id}:${assignment.userId}`) ?? {
+          userId: assignment.userId,
           severity: 'NORMAL',
           reasonCodes: [],
           reasonMessages: [],
+          reasons: [],
         };
 
         return {
