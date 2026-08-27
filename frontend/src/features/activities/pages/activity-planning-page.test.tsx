@@ -1,16 +1,12 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/features/activities/queries/use-activities', () => ({
   useActivityById: vi.fn(),
-  useActivityAvailability: vi.fn(),
 }))
 
-vi.mock('@/features/activities/queries/use-activity-tasks', () => ({
-  useActivityTasks: vi.fn(),
-  useActivityTaskInstances: vi.fn(),
-  useTaskInstanceWorkspace: vi.fn(),
-  useTaskInstanceValidation: vi.fn(),
+vi.mock('@/features/activities/queries/use-activity-scheduling-day', () => ({
+  useActivitySchedulingDay: vi.fn(),
 }))
 
 const { navigateMock, useParamsMock } = vi.hoisted(() => ({
@@ -28,695 +24,340 @@ vi.mock('react-router-dom', async () => {
   }
 })
 
-import { useActivityAvailability, useActivityById } from '@/features/activities/queries/use-activities'
-import {
-  useActivityTaskInstances,
-  useActivityTasks,
-  useTaskInstanceValidation,
-  useTaskInstanceWorkspace,
-} from '@/features/activities/queries/use-activity-tasks'
+import { useActivityById } from '@/features/activities/queries/use-activities'
+import { useActivitySchedulingDay } from '@/features/activities/queries/use-activity-scheduling-day'
 import { ActivityPlanningPage } from '@/features/activities/pages/activity-planning-page'
 
 const useActivityByIdMock = vi.mocked(useActivityById)
-const useActivityAvailabilityMock = vi.mocked(useActivityAvailability)
-const useActivityTasksMock = vi.mocked(useActivityTasks)
-const useActivityTaskInstancesMock = vi.mocked(useActivityTaskInstances)
-const useTaskInstanceWorkspaceMock = vi.mocked(useTaskInstanceWorkspace)
-const useTaskInstanceValidationMock = vi.mocked(useTaskInstanceValidation)
+const useActivitySchedulingDayMock = vi.mocked(useActivitySchedulingDay)
+
+const activityData = {
+  id: 'activity-1',
+  companyId: 'company-1',
+  name: 'פעילות מבצעית',
+  startDate: '2026-08-10T00:00:00.000Z',
+  endDate: '2026-08-15T00:00:00.000Z',
+  status: 'ACTIVE',
+  createdAt: '2026-08-10T00:00:00.000Z',
+  updatedAt: '2026-08-10T00:00:00.000Z',
+}
+
+const baseTaskInstance = {
+  id: 'instance-1',
+  activityTaskId: 'task-1',
+  activityTask: {
+    id: 'task-1',
+    name: 'הכנה',
+    description: 'הכנת הצוות למשימה',
+  },
+  title: 'משמרת בוקר',
+  startTime: '2026-08-11T08:00:00.000Z',
+  endTime: '2026-08-11T12:00:00.000Z',
+  isOvernight: false,
+  requirements: {
+    manpower: { required: true, quantity: 2 },
+    roles: [{ roleId: 'role-1', roleName: 'חובש', required: true, quantity: 1 }],
+    qualifications: [{ qualificationId: 'qual-1', qualificationName: 'ירי', required: false, quantity: 1 }],
+  },
+  assignmentSlots: {
+    total: 2,
+    filled: 1,
+    unfilled: 1,
+  },
+  assignments: [
+    {
+      id: 'assignment-1',
+      taskInstanceId: 'instance-1',
+      userId: 'user-1',
+      createdBy: null,
+      createdAt: '2026-08-11T06:00:00.000Z',
+      updatedAt: '2026-08-11T06:00:00.000Z',
+      user: {
+        id: 'user-1',
+        firstName: 'איילה',
+        lastName: 'כהן',
+        personalNumber: '123456',
+        phone: '0500000000',
+        email: 'a@example.com',
+        isActive: true,
+        unit: { id: 'unit-1', name: 'א׳' },
+      },
+      availability: {
+        status: 'ACTIVE',
+        availability: 'ALL_DAY',
+      },
+      evaluation: {
+        userId: 'user-1',
+        severity: 'WARNING',
+        reasonCodes: ['MISSING_REQUIRED_QUALIFICATION'],
+        reasonMessages: ['חסרה הסמכה נדרשת'],
+      },
+    },
+  ],
+  validation: {
+    requiredErrors: [{ type: 'MANPOWER', message: 'חסר כוח אדם' }],
+    warnings: [{ type: 'AVAILABILITY', message: 'זמינות חלקית' }],
+    summary: { isValid: false },
+  },
+}
+
+const buildSchedulingDayData = (
+  date: string,
+  isDayOpened: boolean,
+  taskInstances: any[] = [],
+) => ({
+  activity: {
+    id: 'activity-1',
+    companyId: 'company-1',
+    name: 'פעילות מבצעית',
+    status: 'ACTIVE',
+    startDate: '2026-08-10T00:00:00.000Z',
+    endDate: '2026-08-15T00:00:00.000Z',
+  },
+  date,
+  isDayOpened,
+  taskInstances,
+})
+
+const makeSchedulingQuery = (overrides: Record<string, unknown> = {}) => ({
+  isPending: false,
+  isError: false,
+  data: buildSchedulingDayData('2026-08-10', false),
+  refetch: vi.fn(),
+  ...overrides,
+})
 
 describe('ActivityPlanningPage', () => {
   beforeEach(() => {
     useActivityByIdMock.mockReset()
-    useActivityAvailabilityMock.mockReset()
-    useActivityTasksMock.mockReset()
-    useActivityTaskInstancesMock.mockReset()
-    useTaskInstanceWorkspaceMock.mockReset()
-    useTaskInstanceValidationMock.mockReset()
+    useActivitySchedulingDayMock.mockReset()
     navigateMock.mockReset()
     useParamsMock.mockReset()
+
     useParamsMock.mockReturnValue({ activityId: 'activity-1' })
-
-    useActivityTasksMock.mockReturnValue({
-      isPending: false,
-      isError: false,
-      data: [],
-      refetch: vi.fn(),
-    } as unknown as ReturnType<typeof useActivityTasks>)
-
-    useActivityTaskInstancesMock.mockReturnValue({
-      isPending: false,
-      isError: false,
-      data: [],
-      refetch: vi.fn(),
-    } as unknown as ReturnType<typeof useActivityTaskInstances>)
-
-    useActivityAvailabilityMock.mockReturnValue({
-      isPending: false,
-      isError: false,
-      data: [],
-      refetch: vi.fn(),
-    } as unknown as ReturnType<typeof useActivityAvailability>)
-
-    useTaskInstanceWorkspaceMock.mockReturnValue({
-      isPending: false,
-      isError: false,
-      data: undefined,
-      refetch: vi.fn(),
-    } as unknown as ReturnType<typeof useTaskInstanceWorkspace>)
-
-    useTaskInstanceValidationMock.mockReturnValue({
-      isPending: false,
-      isError: false,
-      data: undefined,
-      refetch: vi.fn(),
-    } as unknown as ReturnType<typeof useTaskInstanceValidation>)
-  })
-
-  it('requests availability for the current activity and renders user/date/status/availability details', () => {
     useActivityByIdMock.mockReturnValue({
       isPending: false,
       isError: false,
-      data: {
-        id: 'activity-1',
-        companyId: 'company-1',
-        name: 'פעילות מבצעית',
-        startDate: '2026-08-10T00:00:00.000Z',
-        endDate: '2026-08-15T00:00:00.000Z',
-        status: 'ACTIVE',
-        createdAt: '2026-08-10T00:00:00.000Z',
-        updatedAt: '2026-08-10T00:00:00.000Z',
-      },
-    } as ReturnType<typeof useActivityById>)
-
-    useActivityAvailabilityMock.mockReturnValue({
-      isPending: false,
-      isError: false,
-      data: [
-        {
-          id: 'availability-1',
-          activityId: 'activity-1',
-          userId: 'user-1',
-          date: '2026-08-12T00:00:00.000Z',
-          status: 'ACTIVE',
-          availability: 'ALL_DAY',
-          user: { id: 'user-1', firstName: 'אבי', lastName: 'כהן', isActive: true },
-        },
-        {
-          id: 'availability-2',
-          activityId: 'activity-1',
-          userId: 'user-2',
-          date: '2026-08-13T00:00:00.000Z',
-          status: 'HOLIDAY',
-          availability: 'EVENING',
-          user: { id: 'user-2', firstName: 'נועה', lastName: 'לוי', isActive: false },
-        },
-      ],
-    } as ReturnType<typeof useActivityAvailability>)
-
-    useActivityTasksMock.mockReturnValue({
-      isPending: false,
-      isError: false,
-      data: [{ id: 'task-1', activityId: 'activity-1', name: 'הכנה', description: null }],
-      refetch: vi.fn(),
-    } as unknown as ReturnType<typeof useActivityTasks>)
-
-    useActivityTaskInstancesMock.mockReturnValue({
-      isPending: false,
-      isError: false,
-      data: [{ id: 'instance-1', activityTaskId: 'task-1', title: 'משמרת בוקר', startTime: '2026-08-12T08:00:00.000Z', endTime: '2026-08-12T12:00:00.000Z' }],
-      refetch: vi.fn(),
-    } as unknown as ReturnType<typeof useActivityTaskInstances>)
-
-    useTaskInstanceWorkspaceMock.mockReturnValue({
-      isPending: false,
-      isError: false,
-      data: { requirements: { manpower: { required: true, quantity: 2 } }, currentAssignments: [] },
-    } as unknown as ReturnType<typeof useTaskInstanceWorkspace>)
-
-    useTaskInstanceValidationMock.mockReturnValue({
-      isPending: false,
-      isError: false,
-      data: { requiredErrors: [], warnings: [], summary: { isValid: true } },
-    } as unknown as ReturnType<typeof useTaskInstanceValidation>)
-
-    render(<ActivityPlanningPage />)
-
-    expect(useActivityAvailabilityMock).toHaveBeenCalledWith('activity-1')
-    expect(screen.getByText('זמינות פעילות')).toBeDefined()
-    expect(screen.getByText('אבי כהן')).toBeDefined()
-    expect(screen.getByText('נועה לוי')).toBeDefined()
-    expect(screen.getAllByText('12.08.2026').length).toBeGreaterThan(0)
-    expect(screen.getAllByText('13.08.2026').length).toBeGreaterThan(0)
-    expect(screen.getAllByText('פעיל').length).toBeGreaterThan(0)
-    expect(screen.getAllByText('חופשה').length).toBeGreaterThan(0)
-    expect(screen.getAllByText('כל היום').length).toBeGreaterThan(0)
-    expect(screen.getAllByText('ערב').length).toBeGreaterThan(0)
-  })
-
-  it('renders loading, error, and empty states for activity availability without breaking planning content', () => {
-    useActivityByIdMock.mockReturnValue({
-      isPending: false,
-      isError: false,
-      data: {
-        id: 'activity-1',
-        companyId: 'company-1',
-        name: 'פעילות מבצעית',
-        startDate: '2026-08-10T00:00:00.000Z',
-        endDate: '2026-08-15T00:00:00.000Z',
-        status: 'ACTIVE',
-        createdAt: '2026-08-10T00:00:00.000Z',
-        updatedAt: '2026-08-10T00:00:00.000Z',
-      },
-    } as ReturnType<typeof useActivityById>)
-
-    useActivityTasksMock.mockReturnValue({
-      isPending: false,
-      isError: false,
-      data: [{ id: 'task-1', activityId: 'activity-1', name: 'הכנה', description: null }],
-      refetch: vi.fn(),
-    } as unknown as ReturnType<typeof useActivityTasks>)
-
-    useActivityTaskInstancesMock.mockReturnValue({
-      isPending: false,
-      isError: false,
-      data: [{ id: 'instance-1', activityTaskId: 'task-1', title: 'משמרת בוקר', startTime: '2026-08-12T08:00:00.000Z', endTime: '2026-08-12T12:00:00.000Z' }],
-      refetch: vi.fn(),
-    } as unknown as ReturnType<typeof useActivityTaskInstances>)
-
-    useTaskInstanceWorkspaceMock.mockReturnValue({
-      isPending: false,
-      isError: false,
-      data: { requirements: { manpower: { required: true, quantity: 2 } }, currentAssignments: [] },
-    } as unknown as ReturnType<typeof useTaskInstanceWorkspace>)
-
-    useTaskInstanceValidationMock.mockReturnValue({
-      isPending: false,
-      isError: false,
-      data: { requiredErrors: [], warnings: [], summary: { isValid: true } },
-    } as unknown as ReturnType<typeof useTaskInstanceValidation>)
-
-    useActivityAvailabilityMock.mockReturnValue({
-      isPending: true,
-      isError: false,
-      data: undefined,
-      refetch: vi.fn(),
-    } as unknown as ReturnType<typeof useActivityAvailability>)
-
-    const { rerender } = render(<ActivityPlanningPage />)
-
-    expect(screen.getByText('טוען זמינות פעילות')).toBeDefined()
-    expect(screen.getByText('הכנה')).toBeDefined()
-
-    useActivityAvailabilityMock.mockReturnValue({
-      isPending: false,
-      isError: true,
-      data: undefined,
-      error: { status: 500, message: 'failed' },
-      refetch: vi.fn(),
-    } as unknown as ReturnType<typeof useActivityAvailability>)
-
-    rerender(<ActivityPlanningPage />)
-    expect(screen.getByText('טעינת זמינות הפעילות נכשלה')).toBeDefined()
-    expect(screen.getByText('הכנה')).toBeDefined()
-
-    useActivityAvailabilityMock.mockReturnValue({
-      isPending: false,
-      isError: false,
-      data: [],
-      refetch: vi.fn(),
-    } as unknown as ReturnType<typeof useActivityAvailability>)
-
-    rerender(<ActivityPlanningPage />)
-    expect(screen.getByText('אין נתוני זמינות להצגה')).toBeDefined()
-    expect(screen.getByText('הכנה')).toBeDefined()
-  })
-
-  it('renders activity context, manpower coverage, validation state, and assigned users', () => {
-    useActivityByIdMock.mockReturnValue({
-      isPending: false,
-      isError: false,
-      data: {
-        id: 'activity-1',
-        companyId: 'company-1',
-        name: 'פעילות מבצעית',
-        startDate: '2026-08-10T00:00:00.000Z',
-        endDate: '2026-08-15T00:00:00.000Z',
-        status: 'ACTIVE',
-        createdAt: '2026-08-10T00:00:00.000Z',
-        updatedAt: '2026-08-10T00:00:00.000Z',
-      },
-    } as ReturnType<typeof useActivityById>)
-
-    useActivityTasksMock.mockReturnValue({
-      isPending: false,
-      isError: false,
-      data: [{ id: 'task-1', activityId: 'activity-1', name: 'הכנה', description: null }],
-      refetch: vi.fn(),
-    } as unknown as ReturnType<typeof useActivityTasks>)
-
-    useActivityTaskInstancesMock.mockReturnValue({
-      isPending: false,
-      isError: false,
-      data: [
-        { id: 'instance-1', activityTaskId: 'task-1', title: 'משמרת בוקר', startTime: '2026-08-12T08:00:00.000Z', endTime: '2026-08-12T12:00:00.000Z' },
-        { id: 'instance-2', activityTaskId: 'task-1', title: 'משמרת ערב', startTime: '2026-08-12T16:00:00.000Z', endTime: '2026-08-12T20:00:00.000Z' },
-      ],
-      refetch: vi.fn(),
-    } as unknown as ReturnType<typeof useActivityTaskInstances>)
-
-    useTaskInstanceWorkspaceMock.mockImplementation((taskInstanceId) => ({
-      isPending: false,
-      isError: false,
-      data: taskInstanceId === 'instance-1'
-        ? {
-            requirements: { manpower: { required: true, quantity: 2 } },
-            currentAssignments: [
-              { assignmentId: 'assignment-1', userId: 'user-1', user: { id: 'user-1', firstName: 'אבי', lastName: 'כהן' } },
-            ],
-          }
-        : {
-            requirements: { manpower: { required: true, quantity: 1 } },
-            currentAssignments: [],
-          },
-    }) as unknown as ReturnType<typeof useTaskInstanceWorkspace>)
-
-    useTaskInstanceValidationMock.mockImplementation((taskInstanceId) => ({
-      isPending: false,
-      isError: false,
-      data: taskInstanceId === 'instance-1'
-        ? {
-            requiredErrors: [{ type: 'MANPOWER', message: 'לא מספק חיילים' }],
-            warnings: [],
-            summary: { isValid: false },
-          }
-        : {
-            requiredErrors: [],
-            warnings: [{ type: 'AVAILABILITY', message: 'יש אזהרה זמינות' }],
-            summary: { isValid: true },
-          },
-    }) as unknown as ReturnType<typeof useTaskInstanceValidation>)
-
-    render(<ActivityPlanningPage />)
-
-    expect(screen.getByText('תכנון תפעולי')).toBeDefined()
-    expect(screen.getAllByText('פעילות מבצעית').length).toBeGreaterThanOrEqual(1)
-    expect(screen.getAllByText('הכנה').length).toBeGreaterThanOrEqual(1)
-    expect(screen.getByText('משמרת בוקר')).toBeDefined()
-    expect(screen.getByText('משמרת ערב')).toBeDefined()
-    expect(screen.getByText('דרוש: 2')).toBeDefined()
-    expect(screen.getByText('מוקצים: 1')).toBeDefined()
-    expect(screen.getAllByText('משובצים:').length).toBeGreaterThan(0)
-    expect(screen.getByText('אבי כהן')).toBeDefined()
-    expect(screen.getAllByText('מחסור בכוח אדם · 1 / 2').length).toBeGreaterThan(0)
-    expect(screen.getByText('1 בעיה')).toBeDefined()
-    expect(screen.getAllByRole('button', { name: 'שיבוץ' }).length).toBeGreaterThan(0)
-  })
-
-  it('navigates to the existing task-instance assignment route for each task instance', () => {
-    useActivityByIdMock.mockReturnValue({
-      isPending: false,
-      isError: false,
-      data: {
-        id: 'activity-1',
-        companyId: 'company-1',
-        name: 'פעילות מבצעית',
-        startDate: '2026-08-10T00:00:00.000Z',
-        endDate: '2026-08-15T00:00:00.000Z',
-        status: 'ACTIVE',
-        createdAt: '2026-08-10T00:00:00.000Z',
-        updatedAt: '2026-08-10T00:00:00.000Z',
-      },
-    } as ReturnType<typeof useActivityById>)
-
-    useActivityTasksMock.mockReturnValue({
-      isPending: false,
-      isError: false,
-      data: [{ id: 'task-1', activityId: 'activity-1', name: 'הכנה', description: null }],
-      refetch: vi.fn(),
-    } as unknown as ReturnType<typeof useActivityTasks>)
-
-    useActivityTaskInstancesMock.mockReturnValue({
-      isPending: false,
-      isError: false,
-      data: [{ id: 'instance-1', activityTaskId: 'task-1', title: 'משמרת בוקר', startTime: '2026-08-12T08:00:00.000Z', endTime: '2026-08-12T12:00:00.000Z' }],
-      refetch: vi.fn(),
-    } as unknown as ReturnType<typeof useActivityTaskInstances>)
-
-    useTaskInstanceWorkspaceMock.mockReturnValue({
-      isPending: false,
-      isError: false,
-      data: {
-        requirements: { manpower: { required: true, quantity: 2 } },
-        currentAssignments: [],
-      },
-    } as unknown as ReturnType<typeof useTaskInstanceWorkspace>)
-
-    useTaskInstanceValidationMock.mockReturnValue({
-      isPending: false,
-      isError: false,
-      data: {
-        requiredErrors: [],
-        warnings: [],
-        summary: { isValid: true },
-      },
-    } as unknown as ReturnType<typeof useTaskInstanceValidation>)
-
-    render(<ActivityPlanningPage />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'שיבוץ' }))
-    expect(navigateMock).toHaveBeenCalledWith('/activities/activity-1/tasks/task-1/task-instances')
-  })
-
-  it('renders backend validation warnings and required errors with separate operational summaries', () => {
-    useActivityByIdMock.mockReturnValue({
-      isPending: false,
-      isError: false,
-      data: {
-        id: 'activity-1',
-        companyId: 'company-1',
-        name: 'פעילות מבצעית',
-        startDate: '2026-08-10T00:00:00.000Z',
-        endDate: '2026-08-15T00:00:00.000Z',
-        status: 'ACTIVE',
-        createdAt: '2026-08-10T00:00:00.000Z',
-        updatedAt: '2026-08-10T00:00:00.000Z',
-      },
-    } as ReturnType<typeof useActivityById>)
-
-    useActivityTasksMock.mockReturnValue({
-      isPending: false,
-      isError: false,
-      data: [{ id: 'task-1', activityId: 'activity-1', name: 'הכנה', description: null }],
-      refetch: vi.fn(),
-    } as unknown as ReturnType<typeof useActivityTasks>)
-
-    useActivityTaskInstancesMock.mockReturnValue({
-      isPending: false,
-      isError: false,
-      data: [{ id: 'instance-1', activityTaskId: 'task-1', title: 'משמרת בוקר', startTime: '2026-08-12T08:00:00.000Z', endTime: '2026-08-12T12:00:00.000Z' }],
-      refetch: vi.fn(),
-    } as unknown as ReturnType<typeof useActivityTaskInstances>)
-
-    useTaskInstanceWorkspaceMock.mockReturnValue({
-      isPending: false,
-      isError: false,
-      data: {
-        requirements: { manpower: { required: true, quantity: 2 } },
-        currentAssignments: [{ assignmentId: 'assignment-1', userId: 'user-1', user: { id: 'user-1', firstName: 'אבי', lastName: 'כהן' } }],
-      },
-    } as unknown as ReturnType<typeof useTaskInstanceWorkspace>)
-
-    useTaskInstanceValidationMock.mockReturnValue({
-      isPending: false,
-      isError: false,
-      data: {
-        requiredErrors: [{ type: 'MANPOWER', message: 'חסרה כמות כוח האדם הנדרשת' }],
-        warnings: [{ type: 'AVAILABILITY', message: 'חלק מהמשתמשים לא זמינים' }],
-        summary: { isValid: false },
-      },
-    } as unknown as ReturnType<typeof useTaskInstanceValidation>)
-
-    render(<ActivityPlanningPage />)
-
-    expect(screen.getByText('מחסור בכוח אדם · 1 / 2')).toBeDefined()
-    expect(screen.getByText('1 בעיה')).toBeDefined()
-    expect(screen.getByText('חסרה כמות כוח האדם הנדרשת')).toBeDefined()
-    expect(screen.getByText('חלק מהמשתמשים לא זמינים')).toBeDefined()
-  })
-
-  it('does not invent validation issues when backend validation data is unavailable', () => {
-    useActivityByIdMock.mockReturnValue({
-      isPending: false,
-      isError: false,
-      data: {
-        id: 'activity-1',
-        companyId: 'company-1',
-        name: 'פעילות מבצעית',
-        startDate: '2026-08-10T00:00:00.000Z',
-        endDate: '2026-08-15T00:00:00.000Z',
-        status: 'ACTIVE',
-        createdAt: '2026-08-10T00:00:00.000Z',
-        updatedAt: '2026-08-10T00:00:00.000Z',
-      },
-    } as ReturnType<typeof useActivityById>)
-
-    useActivityTasksMock.mockReturnValue({
-      isPending: false,
-      isError: false,
-      data: [{ id: 'task-1', activityId: 'activity-1', name: 'הכנה', description: null }],
-      refetch: vi.fn(),
-    } as unknown as ReturnType<typeof useActivityTasks>)
-
-    useActivityTaskInstancesMock.mockReturnValue({
-      isPending: false,
-      isError: false,
-      data: [{ id: 'instance-1', activityTaskId: 'task-1', title: 'משמרת בוקר', startTime: '2026-08-12T08:00:00.000Z', endTime: '2026-08-12T12:00:00.000Z' }],
-      refetch: vi.fn(),
-    } as unknown as ReturnType<typeof useActivityTaskInstances>)
-
-    useTaskInstanceWorkspaceMock.mockReturnValue({
-      isPending: false,
-      isError: false,
-      data: {
-        requirements: { manpower: { required: true, quantity: 2 } },
-        currentAssignments: [],
-      },
-    } as unknown as ReturnType<typeof useTaskInstanceWorkspace>)
-
-    useTaskInstanceValidationMock.mockReturnValue({
-      isPending: false,
-      isError: false,
-      data: undefined,
-    } as unknown as ReturnType<typeof useTaskInstanceValidation>)
-
-    render(<ActivityPlanningPage />)
-
-    expect(screen.getByText('מחסור בכוח אדם · 0 / 2')).toBeDefined()
-    expect(screen.queryByText('1 בעיה')).toBeNull()
-    expect(screen.queryByText('1 אזהרה')).toBeNull()
-  })
-
-  it('renders full and under-covered manpower states independently', () => {
-    useActivityByIdMock.mockReturnValue({
-      isPending: false,
-      isError: false,
-      data: {
-        id: 'activity-1',
-        companyId: 'company-1',
-        name: 'פעילות מבצעית',
-        startDate: '2026-08-10T00:00:00.000Z',
-        endDate: '2026-08-15T00:00:00.000Z',
-        status: 'ACTIVE',
-        createdAt: '2026-08-10T00:00:00.000Z',
-        updatedAt: '2026-08-10T00:00:00.000Z',
-      },
-    } as ReturnType<typeof useActivityById>)
-
-    useActivityTasksMock.mockReturnValue({
-      isPending: false,
-      isError: false,
-      data: [{ id: 'task-1', activityId: 'activity-1', name: 'הכנה', description: null }],
-      refetch: vi.fn(),
-    } as unknown as ReturnType<typeof useActivityTasks>)
-
-    useActivityTaskInstancesMock.mockReturnValue({
-      isPending: false,
-      isError: false,
-      data: [
-        { id: 'instance-1', activityTaskId: 'task-1', title: 'משמרת בוקר', startTime: '2026-08-12T08:00:00.000Z', endTime: '2026-08-12T12:00:00.000Z' },
-        { id: 'instance-2', activityTaskId: 'task-1', title: 'משמרת ערב', startTime: '2026-08-12T16:00:00.000Z', endTime: '2026-08-12T20:00:00.000Z' },
-      ],
-      refetch: vi.fn(),
-    } as unknown as ReturnType<typeof useActivityTaskInstances>)
-
-    useTaskInstanceWorkspaceMock.mockImplementation((taskInstanceId) => ({
-      isPending: false,
-      isError: false,
-      data: taskInstanceId === 'instance-1'
-        ? {
-            requirements: { manpower: { required: true, quantity: 5 } },
-            currentAssignments: [
-              { assignmentId: 'assignment-1', userId: 'user-1', user: { id: 'user-1', firstName: 'אבי', lastName: 'כהן' } },
-              { assignmentId: 'assignment-2', userId: 'user-2', user: { id: 'user-2', firstName: 'בר', lastName: 'אור' } },
-              { assignmentId: 'assignment-3', userId: 'user-3', user: { id: 'user-3', firstName: 'גיא', lastName: 'לוי' } },
-            ],
-          }
-        : {
-            requirements: { manpower: { required: true, quantity: 3 } },
-            currentAssignments: [
-              { assignmentId: 'assignment-4', userId: 'user-4', user: { id: 'user-4', firstName: 'דנה', lastName: 'שמעוני' } },
-              { assignmentId: 'assignment-5', userId: 'user-5', user: { id: 'user-5', firstName: 'הללי', lastName: 'מזרחי' } },
-              { assignmentId: 'assignment-6', userId: 'user-6', user: { id: 'user-6', firstName: 'זוהר', lastName: 'נעמן' } },
-            ],
-          },
-    }) as unknown as ReturnType<typeof useTaskInstanceWorkspace>)
-
-    useTaskInstanceValidationMock.mockReturnValue({
-      isPending: false,
-      isError: false,
-      data: {
-        requiredErrors: [],
-        warnings: [],
-        summary: { isValid: true },
-      },
-    } as unknown as ReturnType<typeof useTaskInstanceValidation>)
-
-    render(<ActivityPlanningPage />)
-
-    expect(screen.getByText('מחסור בכוח אדם · 3 / 5')).toBeDefined()
-    expect(screen.getByText('כיסוי מלא · 3 / 3')).toBeDefined()
-  })
-
-  it('renders neutral manpower state when manpower data is unavailable', () => {
-    useActivityByIdMock.mockReturnValue({
-      isPending: false,
-      isError: false,
-      data: {
-        id: 'activity-1',
-        companyId: 'company-1',
-        name: 'פעילות מבצעית',
-        startDate: '2026-08-10T00:00:00.000Z',
-        endDate: '2026-08-15T00:00:00.000Z',
-        status: 'ACTIVE',
-        createdAt: '2026-08-10T00:00:00.000Z',
-        updatedAt: '2026-08-10T00:00:00.000Z',
-      },
-    } as ReturnType<typeof useActivityById>)
-
-    useActivityTasksMock.mockReturnValue({
-      isPending: false,
-      isError: false,
-      data: [{ id: 'task-1', activityId: 'activity-1', name: 'הכנה', description: null }],
-      refetch: vi.fn(),
-    } as unknown as ReturnType<typeof useActivityTasks>)
-
-    useActivityTaskInstancesMock.mockReturnValue({
-      isPending: false,
-      isError: false,
-      data: [{ id: 'instance-1', activityTaskId: 'task-1', title: 'משמרת בוקר', startTime: '2026-08-12T08:00:00.000Z', endTime: '2026-08-12T12:00:00.000Z' }],
-      refetch: vi.fn(),
-    } as unknown as ReturnType<typeof useActivityTaskInstances>)
-
-    useTaskInstanceWorkspaceMock.mockReturnValue({
-      isPending: false,
-      isError: false,
-      data: {
-        requirements: { manpower: null },
-        currentAssignments: [],
-      },
-    } as unknown as ReturnType<typeof useTaskInstanceWorkspace>)
-
-    useTaskInstanceValidationMock.mockReturnValue({
-      isPending: false,
-      isError: false,
-      data: {
-        requiredErrors: [],
-        warnings: [],
-        summary: { isValid: true },
-      },
-    } as unknown as ReturnType<typeof useTaskInstanceValidation>)
-
-    render(<ActivityPlanningPage />)
-
-    expect(screen.getByText('כוח אדם לא זמין · 0 / —')).toBeDefined()
-    expect(screen.queryByText('0 / 0')).toBeNull()
-  })
-
-  it('renders loading and retry states', () => {
-    useActivityByIdMock.mockReturnValue({
-      isPending: true,
-      isError: false,
-      data: undefined,
+      data: activityData,
       refetch: vi.fn(),
     } as unknown as ReturnType<typeof useActivityById>)
 
-    render(<ActivityPlanningPage />)
+    useActivitySchedulingDayMock.mockImplementation((requestedActivityId, date) => {
+      if (requestedActivityId !== 'activity-1' || !date) {
+        return makeSchedulingQuery({ isPending: true, data: undefined }) as ReturnType<typeof useActivitySchedulingDay>
+      }
 
-    expect(screen.getByText('טוען תכנון תפעולי')).toBeDefined()
+      if (date === '2026-08-11') {
+        return makeSchedulingQuery({
+          data: buildSchedulingDayData(date, true, [
+            baseTaskInstance,
+            {
+              ...baseTaskInstance,
+              id: 'instance-2',
+              title: 'משמרת לילה',
+              startTime: '2026-08-11T22:00:00.000Z',
+              endTime: '2026-08-12T04:00:00.000Z',
+              isOvernight: true,
+              assignmentSlots: { total: 1, filled: 0, unfilled: 1 },
+              assignments: [],
+              validation: {
+                requiredErrors: [],
+                warnings: [],
+                summary: { isValid: true },
+              },
+            },
+          ]),
+        }) as ReturnType<typeof useActivitySchedulingDay>
+      }
+
+      if (date === '2026-08-12') {
+        return makeSchedulingQuery({
+          data: buildSchedulingDayData(date, true, []),
+        }) as ReturnType<typeof useActivitySchedulingDay>
+      }
+
+      return makeSchedulingQuery({
+        data: buildSchedulingDayData(date, false, []),
+      }) as ReturnType<typeof useActivitySchedulingDay>
+    })
   })
 
-  it('renders an error state with retry', () => {
+  it('initializes selected date to activity start date', async () => {
+    render(<ActivityPlanningPage />)
+
+    await waitFor(() => {
+      expect(useActivitySchedulingDayMock).toHaveBeenLastCalledWith('activity-1', '2026-08-10')
+    })
+
+    expect(screen.getByTestId('planning-selected-date').textContent).toBe('10.08.2026')
+  })
+
+  it('keeps unopened-day state for closed day', () => {
+    render(<ActivityPlanningPage />)
+
+    expect(screen.getByText('היום עדיין לא נפתח')).toBeDefined()
+  })
+
+  it('renders opened day task instances as scheduling board cards', async () => {
+    render(<ActivityPlanningPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'יום הבא' }))
+
+    await waitFor(() => {
+      expect(screen.getByText('משמרת בוקר')).toBeDefined()
+    })
+
+    expect(screen.getByText('משמרת לילה')).toBeDefined()
+  })
+
+  it('displays task title and time range for opened day instances', async () => {
+    render(<ActivityPlanningPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'יום הבא' }))
+
+    await waitFor(() => {
+      expect(screen.getAllByText('התחלה').length).toBeGreaterThan(0)
+    })
+
+    expect(screen.getByText('08:00')).toBeDefined()
+    expect(screen.getByText('12:00')).toBeDefined()
+  })
+
+  it('marks overnight task instances', async () => {
+    render(<ActivityPlanningPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'יום הבא' }))
+
+    await waitFor(() => {
+      expect(screen.getByText('לילה')).toBeDefined()
+    })
+  })
+
+  it('shows filled and unfilled assignment slots', async () => {
+    render(<ActivityPlanningPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'יום הבא' }))
+
+    await waitFor(() => {
+      expect(screen.getByText('1 מאוישים / 2 תקנים')).toBeDefined()
+    })
+
+    expect(screen.getAllByText('פנויים: 1').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('פנוי').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('מאויש').length).toBeGreaterThan(0)
+  })
+
+  it('displays assigned soldiers from read model data', async () => {
+    render(<ActivityPlanningPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'יום הבא' }))
+
+    await waitFor(() => {
+      expect(screen.getByText('איילה כהן')).toBeDefined()
+    })
+
+    expect(screen.getByText('מספר אישי: 123456')).toBeDefined()
+    expect(screen.getByText('מסגרת: א׳')).toBeDefined()
+  })
+
+  it('displays requirements with required vs optional semantics', async () => {
+    render(<ActivityPlanningPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'יום הבא' }))
+
+    await waitFor(() => {
+      expect(screen.getAllByText('דרישות').length).toBeGreaterThan(0)
+    })
+
+    expect(screen.getAllByText('כוח אדם').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('תפקידים').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('הסמכות').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('חובה').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('אופציונלי').length).toBeGreaterThan(0)
+  })
+
+  it('displays validation and warning information from response', async () => {
+    render(<ActivityPlanningPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'יום הבא' }))
+
+    await waitFor(() => {
+      expect(screen.getByText('בעיות חובה')).toBeDefined()
+    })
+
+    expect(screen.getByText('חסר כוח אדם')).toBeDefined()
+    expect(screen.getByText('אזהרות')).toBeDefined()
+    expect(screen.getByText('זמינות חלקית')).toBeDefined()
+  })
+
+  it('shows empty state for opened day with zero task instances', async () => {
+    render(<ActivityPlanningPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'יום הבא' }))
+    fireEvent.click(screen.getByRole('button', { name: 'יום הבא' }))
+
+    await waitFor(() => {
+      expect(screen.getByText('אין מופעי משימה ליום פתוח זה')).toBeDefined()
+    })
+  })
+
+  it('keeps existing day navigation behavior and refreshes query key args', async () => {
+    render(<ActivityPlanningPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'יום הבא' }))
+    await waitFor(() => {
+      expect(useActivitySchedulingDayMock).toHaveBeenLastCalledWith('activity-1', '2026-08-11')
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'יום קודם' }))
+    await waitFor(() => {
+      expect(useActivitySchedulingDayMock).toHaveBeenLastCalledWith('activity-1', '2026-08-10')
+    })
+  })
+
+  it('does not allow navigation outside activity date range', async () => {
+    render(<ActivityPlanningPage />)
+
+    const previousButton = screen.getByRole('button', { name: 'יום קודם' })
+    expect((previousButton as HTMLButtonElement).disabled).toBe(true)
+
+    const nextButton = screen.getByRole('button', { name: 'יום הבא' })
+    fireEvent.click(nextButton)
+    fireEvent.click(nextButton)
+    fireEvent.click(nextButton)
+    fireEvent.click(nextButton)
+    fireEvent.click(nextButton)
+
+    await waitFor(() => {
+      expect(useActivitySchedulingDayMock).toHaveBeenLastCalledWith('activity-1', '2026-08-15')
+    })
+
+    expect((nextButton as HTMLButtonElement).disabled).toBe(true)
+    fireEvent.click(nextButton)
+
+    await waitFor(() => {
+      expect(useActivitySchedulingDayMock).toHaveBeenLastCalledWith('activity-1', '2026-08-15')
+    })
+  })
+
+  it('renders scheduling-day error state with retry action', () => {
     const refetch = vi.fn()
-    useActivityByIdMock.mockReturnValue({
-      isPending: false,
-      isError: true,
-      error: { status: 500, message: 'failed' },
-      data: undefined,
-      refetch,
-    } as unknown as ReturnType<typeof useActivityById>)
+    useActivitySchedulingDayMock.mockReturnValue(
+      makeSchedulingQuery({
+        isError: true,
+        error: { status: 500, message: 'failed' },
+        refetch,
+      }) as ReturnType<typeof useActivitySchedulingDay>,
+    )
 
     render(<ActivityPlanningPage />)
 
-    expect(screen.getByText('טעינת תכנון התפעול נכשל')).toBeDefined()
+    expect(screen.getByText('טעינת יום השיבוץ נכשלה')).toBeDefined()
     fireEvent.click(screen.getByRole('button', { name: 'ניסיון חוזר' }))
     expect(refetch).toHaveBeenCalledTimes(1)
   })
 
-  it('renders empty state when no task instances exist', () => {
-    useActivityByIdMock.mockReturnValue({
-      isPending: false,
-      isError: false,
-      data: {
-        id: 'activity-1',
-        companyId: 'company-1',
-        name: 'פעילות מבצעית',
-        startDate: '2026-08-10T00:00:00.000Z',
-        endDate: '2026-08-15T00:00:00.000Z',
-        status: 'ACTIVE',
-        createdAt: '2026-08-10T00:00:00.000Z',
-        updatedAt: '2026-08-10T00:00:00.000Z',
-      },
-    } as ReturnType<typeof useActivityById>)
-
-    useActivityTasksMock.mockReturnValue({
-      isPending: false,
-      isError: false,
-      data: [{ id: 'task-1', activityId: 'activity-1', name: 'הכנה', description: null }],
-      refetch: vi.fn(),
-    } as unknown as ReturnType<typeof useActivityTasks>)
-
-    useActivityTaskInstancesMock.mockReturnValue({
-      isPending: false,
-      isError: false,
-      data: [],
-      refetch: vi.fn(),
-    } as unknown as ReturnType<typeof useActivityTaskInstances>)
-
-    render(<ActivityPlanningPage />)
-
-    expect(screen.getByText('אין מופעים להצגה עבור משימה זו.')).toBeDefined()
-  })
-
-  it('navigates back to activity details', () => {
-    useActivityByIdMock.mockReturnValue({
-      isPending: false,
-      isError: false,
-      data: {
-        id: 'activity-1',
-        companyId: 'company-1',
-        name: 'פעילות מבצעית',
-        startDate: '2026-08-10T00:00:00.000Z',
-        endDate: '2026-08-15T00:00:00.000Z',
-        status: 'ACTIVE',
-        createdAt: '2026-08-10T00:00:00.000Z',
-        updatedAt: '2026-08-10T00:00:00.000Z',
-      },
-    } as ReturnType<typeof useActivityById>)
-
-    useActivityTasksMock.mockReturnValue({
-      isPending: false,
-      isError: false,
-      data: [],
-      refetch: vi.fn(),
-    } as unknown as ReturnType<typeof useActivityTasks>)
-
-    useActivityTaskInstancesMock.mockReturnValue({
-      isPending: false,
-      isError: false,
-      data: [],
-      refetch: vi.fn(),
-    } as unknown as ReturnType<typeof useActivityTaskInstances>)
-
+  it('keeps existing planning navigation behavior to activity details route', () => {
     render(<ActivityPlanningPage />)
 
     fireEvent.click(screen.getByRole('button', { name: 'חזרה לפרטי הפעילות' }))

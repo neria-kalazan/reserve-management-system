@@ -1,26 +1,30 @@
-import { useMemo } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 
 import type { ApiError } from '@/api/client'
+import type { SchedulingDayTaskInstance } from '@/features/activities/api/scheduling-day'
 import { ContentContainer } from '@/app/layout/content-container'
 import { PageHeader } from '@/app/layout/page-header'
-import { useActivityAvailability, useActivityById } from '@/features/activities/queries/use-activities'
-import {
-  useActivityTaskInstances,
-  useActivityTasks,
-  useTaskInstanceValidation,
-  useTaskInstanceWorkspace,
-} from '@/features/activities/queries/use-activity-tasks'
+import { useActivityById } from '@/features/activities/queries/use-activities'
+import { useActivitySchedulingDay } from '@/features/activities/queries/use-activity-scheduling-day'
+import { EmptyState } from '@/shared/components/empty-state'
 import { ErrorState } from '@/shared/components/error-state'
 import { LoadingState } from '@/shared/components/loading-state'
 import { StatusBadge, ValidationBadge } from '@/shared/components/status-badge'
+import { Badge } from '@/shared/components/ui/badge'
 import { Button } from '@/shared/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/card'
+import { ScrollArea } from '@/shared/components/ui/scroll-area'
 
 const dateFormatter = new Intl.DateTimeFormat('he-IL', {
   day: '2-digit',
   month: '2-digit',
   year: 'numeric',
+  timeZone: 'UTC',
+})
+
+const weekdayFormatter = new Intl.DateTimeFormat('he-IL', {
+  weekday: 'long',
   timeZone: 'UTC',
 })
 
@@ -42,348 +46,264 @@ const isApiError = (value: unknown): value is ApiError => {
 const formatDate = (value: string) => dateFormatter.format(new Date(value))
 const formatTime = (value: string) => timeFormatter.format(new Date(value))
 
-const getValidationBadgeText = (validation: { requiredErrors: { message: string }[]; warnings: { message: string }[]; summary: { isValid: boolean } } | undefined) => {
-  if (!validation) {
-    return null
+const formatSelectedDay = (dateKey: string) => {
+  const date = new Date(`${dateKey}T00:00:00.000Z`)
+  return `${weekdayFormatter.format(date)} ${dateFormatter.format(date)}`
+}
+
+const toDateKey = (value: string) => {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) {
+    return undefined
   }
 
-  if (validation.requiredErrors.length > 0) {
-    return `${validation.requiredErrors.length} ${validation.requiredErrors.length === 1 ? 'בעיה' : 'בעיות'}`
+  const year = date.getUTCFullYear()
+  const month = String(date.getUTCMonth() + 1).padStart(2, '0')
+  const day = String(date.getUTCDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+const clampDateKeyToRange = (dateKey: string, startDateKey: string, endDateKey: string) => {
+  if (dateKey < startDateKey) {
+    return startDateKey
   }
 
-  if (validation.warnings.length > 0) {
-    return `${validation.warnings.length} ${validation.warnings.length === 1 ? 'אזהרה' : 'אזהרות'}`
+  if (dateKey > endDateKey) {
+    return endDateKey
+  }
+
+  return dateKey
+}
+
+const addUtcDays = (dateKey: string, amount: number) => {
+  const date = new Date(`${dateKey}T00:00:00.000Z`)
+  date.setUTCDate(date.getUTCDate() + amount)
+  const year = date.getUTCFullYear()
+  const month = String(date.getUTCMonth() + 1).padStart(2, '0')
+  const day = String(date.getUTCDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+const requirementBadgeClassName = (required: boolean) =>
+  required
+    ? 'border-danger/30 bg-danger-soft text-danger'
+    : 'border-info/30 bg-info-soft text-info'
+
+const getValidationBadgeText = (taskInstance: SchedulingDayTaskInstance) => {
+  if (taskInstance.validation.requiredErrors.length > 0) {
+    return `${taskInstance.validation.requiredErrors.length} בעיות חובה`
+  }
+
+  if (taskInstance.validation.warnings.length > 0) {
+    return `${taskInstance.validation.warnings.length} אזהרות`
   }
 
   return 'תקין'
 }
 
-const getCoverageState = (requiredManpower: number | undefined, assignedManpower: number) => {
-  if (typeof requiredManpower !== 'number' || !Number.isFinite(requiredManpower) || requiredManpower < 0) {
-    return 'unknown' as const
+const getEvaluationBadgeClassName = (severity: 'NORMAL' | 'WARNING' | 'CRITICAL') => {
+  if (severity === 'CRITICAL') {
+    return 'border-danger/30 bg-danger-soft text-danger'
   }
 
-  if (assignedManpower < requiredManpower) {
-    return 'under' as const
+  if (severity === 'WARNING') {
+    return 'border-warning/30 bg-warning-soft text-warning'
   }
 
-  return 'full' as const
+  return 'border-success/30 bg-success-soft text-success'
 }
 
-function TaskInstancePlanningRow({
-  activityId,
-  taskId,
+function AssignmentSlotCard({
   taskInstance,
-  taskName,
+  slotIndex,
 }: {
-  activityId: string
-  taskId: string
-  taskInstance: {
-    id: string
-    title: string
-    startTime: string
-    endTime: string
-  }
-  taskName: string
+  taskInstance: SchedulingDayTaskInstance
+  slotIndex: number
 }) {
-  const navigate = useNavigate()
-  const workspaceQuery = useTaskInstanceWorkspace(taskInstance.id)
-  const validationQuery = useTaskInstanceValidation(taskInstance.id)
+  const assignment = taskInstance.assignments[slotIndex]
 
-  const requirements = workspaceQuery.data?.requirements
-  const currentAssignments = workspaceQuery.data?.currentAssignments ?? []
-  const validation = validationQuery.data
-
-  const requiredManpower = requirements?.manpower?.required ? requirements.manpower.quantity : undefined
-  const assignedManpower = currentAssignments.length
-  const assignedUsers = currentAssignments
-    .map(({ user }) => {
-      const name = [user?.firstName, user?.lastName].filter(Boolean).join(' ').trim()
-      return name.length > 0 ? name : null
-    })
-    .filter((value): value is string => Boolean(value))
-  const coverageState = getCoverageState(requiredManpower, assignedManpower)
-  const coverageClasses = {
-    full: 'border-success/30 bg-success-soft text-success',
-    under: 'border-warning/30 bg-warning-soft text-warning',
-    unknown: 'border-border bg-surface-elevated text-muted',
-  }
-  const coverageText = {
-    full: 'כיסוי מלא',
-    under: 'מחסור בכוח אדם',
-    unknown: 'כוח אדם לא זמין',
-  }
-
-  if (workspaceQuery.isPending || validationQuery.isPending) {
+  if (!assignment) {
     return (
-      <div className="rounded-md border border-border bg-surface px-3 py-4">
-        <LoadingState title="טוען תכנון מופע" description="נתוני המופע נטענים כעת." />
+      <div className="rounded-md border border-dashed border-border bg-surface px-3 py-3 text-right">
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-sm font-medium text-foreground">מקום {slotIndex + 1}</p>
+          <Badge className="border-border-strong bg-border text-muted-foreground">פנוי</Badge>
+        </div>
+        <p className="mt-2 text-xs text-muted">לא שובץ חייל במיקום זה.</p>
       </div>
     )
   }
 
-  if (workspaceQuery.isError || validationQuery.isError) {
-    return (
-      <div className="rounded-md border border-border bg-surface px-3 py-4">
-        <ErrorState
-          title="טעינת המופע נכשלה"
-          description="לא הצלחנו לטעון את נתוני המופע. אפשר לנסות שוב."
-          action={
-            <Button type="button" variant="secondary" onClick={() => {
-              void workspaceQuery.refetch()
-              void validationQuery.refetch()
-            }}>
-              ניסיון חוזר
-            </Button>
-          }
-        />
-      </div>
-    )
-  }
+  const userName = `${assignment.user.firstName} ${assignment.user.lastName}`.trim()
 
   return (
-    <div className="overflow-hidden rounded-md border border-border bg-surface px-3 py-3">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0 flex-1">
-          <p className="break-words text-sm font-semibold text-foreground">{taskInstance.title || taskName}</p>
-          <p className="mt-1 break-words text-xs text-muted">
-            {taskName} · {formatTime(taskInstance.startTime)}–{formatTime(taskInstance.endTime)}
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center justify-start gap-2 sm:justify-end">
-          {validation ? (
-            validation.requiredErrors.length > 0 ? (
-              <ValidationBadge state="error" text={getValidationBadgeText(validation) ?? 'בעיה'} />
-            ) : validation.warnings.length > 0 ? (
-              <ValidationBadge state="warning" text={getValidationBadgeText(validation) ?? 'אזהרה'} />
-            ) : (
-              <ValidationBadge state="valid" text={getValidationBadgeText(validation) ?? 'תקין'} />
-            )
-          ) : null}
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            className="w-full sm:w-auto"
-            onClick={() => navigate(`/activities/${activityId}/tasks/${taskId}/task-instances`)}
-          >
-            שיבוץ
-          </Button>
-        </div>
+    <div className="rounded-md border border-border bg-surface px-3 py-3 text-right">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-sm font-medium text-foreground">מקום {slotIndex + 1}</p>
+        <Badge className="border-success/30 bg-success-soft text-success">מאויש</Badge>
       </div>
 
-      <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <div className="rounded-md border border-border bg-surface-elevated p-3">
-          <p className="text-[11px] uppercase tracking-wide text-muted">תאריך</p>
-          <p className="mt-1 break-words text-sm font-medium text-foreground">{formatDate(taskInstance.startTime)}</p>
-        </div>
-        <div className="rounded-md border border-border bg-surface-elevated p-3">
-          <p className="text-[11px] uppercase tracking-wide text-muted">התחלה</p>
-          <p className="mt-1 break-words text-sm font-medium text-foreground">{formatTime(taskInstance.startTime)}</p>
-        </div>
-        <div className="rounded-md border border-border bg-surface-elevated p-3">
-          <p className="text-[11px] uppercase tracking-wide text-muted">סיום</p>
-          <p className="mt-1 break-words text-sm font-medium text-foreground">{formatTime(taskInstance.endTime)}</p>
-        </div>
-        <div className="rounded-md border border-border bg-surface-elevated p-3">
-          <p className="text-[11px] uppercase tracking-wide text-muted">כוח אדם</p>
-          <div className="mt-1 flex flex-wrap items-center gap-2 text-sm font-medium text-foreground">
-            <span>{typeof requiredManpower === 'number' ? `דרוש: ${requiredManpower}` : 'דרוש: לא ידוע'}</span>
-            <span className="text-muted">·</span>
-            <span>מוקצים: {assignedManpower}</span>
-          </div>
-        </div>
+      <div className="mt-2 space-y-1 text-sm text-foreground">
+        <p className="font-medium">{userName}</p>
+        <p className="text-xs text-muted">מספר אישי: {assignment.user.personalNumber}</p>
+        {assignment.user.unit ? <p className="text-xs text-muted">מסגרת: {assignment.user.unit.name}</p> : null}
       </div>
 
-      <div className="mt-3 rounded-md border border-border bg-surface-elevated px-3 py-2">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex flex-wrap items-center gap-2 text-xs text-muted">
-            <span>משובצים:</span>
-            <span className="font-medium text-foreground">{assignedManpower}</span>
-            {typeof requiredManpower === 'number' ? (
-              <>
-                <span className="text-muted">/</span>
-                <span className="font-medium text-foreground">{requiredManpower}</span>
-              </>
-            ) : null}
-          </div>
-          <span className={`inline-flex items-center rounded-full border px-2 py-1 text-[11px] font-semibold ${coverageClasses[coverageState]}`}>
-            {coverageText[coverageState]} · {assignedManpower} / {typeof requiredManpower === 'number' ? requiredManpower : '—'}
-          </span>
-        </div>
-        {assignedUsers.length > 0 ? (
-          <ul className="mt-2 flex flex-wrap gap-1.5">
-            {assignedUsers.map((name) => (
-              <li key={name} className="max-w-full rounded-full border border-border bg-surface px-2 py-1 text-[11px] text-foreground break-all">
-                {name}
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="mt-2 text-xs text-muted">אין משתמשים משובצים עדיין.</p>
-        )}
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <Badge className={assignment.user.isActive ? 'border-success/30 bg-success-soft text-success' : 'border-border-strong bg-border text-muted-foreground'}>
+          {assignment.user.isActive ? 'פעיל' : 'לא פעיל'}
+        </Badge>
+        <Badge className={getEvaluationBadgeClassName(assignment.evaluation.severity)}>
+          {assignment.evaluation.severity === 'CRITICAL'
+            ? 'קריטי'
+            : assignment.evaluation.severity === 'WARNING'
+              ? 'אזהרה'
+              : 'תקין'}
+        </Badge>
+        {assignment.availability ? (
+          <>
+            <StatusBadge value={assignment.availability.status} />
+            <StatusBadge value={assignment.availability.availability} />
+          </>
+        ) : null}
       </div>
 
-      {validation && validation.requiredErrors.length > 0 ? (
-        <div className="mt-3 rounded-md border border-danger/20 bg-danger-soft/20 p-3 text-xs text-danger">
-          {validation.requiredErrors.map((issue, index) => (
-            <div key={`${issue.type}-${issue.message}-${index}`}>{issue.message}</div>
+      {assignment.evaluation.reasonMessages.length > 0 ? (
+        <ul className="mt-2 space-y-1 text-xs text-muted">
+          {assignment.evaluation.reasonMessages.map((reason, index) => (
+            <li key={`${assignment.id}-reason-${index}`} className="rounded-sm bg-surface-elevated px-2 py-1">
+              {reason}
+            </li>
           ))}
-        </div>
-      ) : null}
-
-      {validation && validation.warnings.length > 0 ? (
-        <div className="mt-2 rounded-md border border-warning/20 bg-warning-soft/20 p-3 text-xs text-warning">
-          {validation.warnings.map((issue, index) => (
-            <div key={`${issue.type}-${issue.message}-${index}`}>{issue.message}</div>
-          ))}
-        </div>
+        </ul>
       ) : null}
     </div>
   )
 }
 
-function ActivityAvailabilitySection({ activityId }: { activityId: string }) {
-  const availabilityQuery = useActivityAvailability(activityId)
-
-  if (availabilityQuery.isPending) {
-    return (
-      <Card>
-        <CardHeader className="px-4 py-4 sm:px-5">
-          <CardTitle className="text-base">זמינות פעילות</CardTitle>
-        </CardHeader>
-        <CardContent className="px-4 pb-4 sm:px-5 sm:pb-5">
-          <LoadingState title="טוען זמינות פעילות" description="נתוני הזמינות של הפעילות נטענים כעת." />
-        </CardContent>
-      </Card>
-    )
-  }
-
-  if (availabilityQuery.isError) {
-    return (
-      <Card>
-        <CardHeader className="px-4 py-4 sm:px-5">
-          <CardTitle className="text-base">זמינות פעילות</CardTitle>
-        </CardHeader>
-        <CardContent className="px-4 pb-4 sm:px-5 sm:pb-5">
-          <ErrorState
-            title="טעינת זמינות הפעילות נכשלה"
-            description="לא הצלחנו לטעון את מצב הזמינות של המשתמשים. אפשר לנסות שוב."
-            action={
-              <Button type="button" variant="secondary" onClick={() => void availabilityQuery.refetch()}>
-                ניסיון חוזר
-              </Button>
-            }
-          />
-        </CardContent>
-      </Card>
-    )
-  }
-
-  const availabilityItems = availabilityQuery.data ?? []
+function SchedulingTaskCard({ taskInstance }: { taskInstance: SchedulingDayTaskInstance }) {
+  const slotCount = Math.max(taskInstance.assignmentSlots.total, 0)
+  const slots = Array.from({ length: slotCount }, (_, index) => index)
 
   return (
-    <Card>
-      <CardHeader className="px-4 py-4 sm:px-5">
-        <CardTitle className="text-base">זמינות פעילות</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-3 px-4 pb-4 sm:px-5 sm:pb-5">
-        {availabilityItems.length === 0 ? (
-          <div className="rounded-md border border-dashed border-border bg-surface px-3 py-6 text-center text-sm text-muted">
-            אין נתוני זמינות להצגה
+    <div className="w-[22rem] shrink-0 rounded-lg border border-border bg-surface p-4">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0 text-right">
+          <p className="text-sm font-semibold text-foreground">{taskInstance.title}</p>
+          <p className="mt-1 text-xs text-muted">{taskInstance.activityTask.name}</p>
+        </div>
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          {taskInstance.isOvernight ? (
+            <Badge className="border-warning/30 bg-warning-soft text-warning">לילה</Badge>
+          ) : null}
+          {taskInstance.validation.requiredErrors.length > 0 ? (
+            <ValidationBadge state="error" text={getValidationBadgeText(taskInstance)} />
+          ) : taskInstance.validation.warnings.length > 0 ? (
+            <ValidationBadge state="warning" text={getValidationBadgeText(taskInstance)} />
+          ) : (
+            <ValidationBadge state="valid" text={getValidationBadgeText(taskInstance)} />
+          )}
+        </div>
+      </div>
+
+      <div className="mt-3 grid grid-cols-2 gap-2 rounded-md border border-border bg-surface-elevated p-2 text-xs">
+        <div className="text-right">
+          <p className="text-muted">התחלה</p>
+          <p className="font-medium text-foreground">{formatTime(taskInstance.startTime)}</p>
+        </div>
+        <div className="text-right">
+          <p className="text-muted">סיום</p>
+          <p className="font-medium text-foreground">{formatTime(taskInstance.endTime)}</p>
+        </div>
+      </div>
+
+      <div className="mt-3 rounded-md border border-border bg-surface-elevated p-2 text-right">
+        <p className="text-xs text-muted">סיכום כוח אדם</p>
+        <p className="mt-1 text-sm font-medium text-foreground">
+          {taskInstance.assignmentSlots.filled} מאוישים / {taskInstance.assignmentSlots.total} תקנים
+        </p>
+        <p className="mt-1 text-xs text-muted">פנויים: {taskInstance.assignmentSlots.unfilled}</p>
+      </div>
+
+      <div className="mt-3 space-y-2 text-right">
+        <p className="text-sm font-medium text-foreground">דרישות</p>
+        {taskInstance.requirements.manpower ? (
+          <div className="rounded-md border border-border bg-surface-elevated px-2 py-2 text-xs">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-foreground">כוח אדם</span>
+              <Badge className={requirementBadgeClassName(taskInstance.requirements.manpower.required)}>
+                {taskInstance.requirements.manpower.required ? 'חובה' : 'אופציונלי'}
+              </Badge>
+            </div>
+            <p className="mt-1 text-muted">כמות: {taskInstance.requirements.manpower.quantity}</p>
+          </div>
+        ) : null}
+
+        {taskInstance.requirements.roles.length > 0 ? (
+          <div className="rounded-md border border-border bg-surface-elevated px-2 py-2 text-xs">
+            <p className="font-medium text-foreground">תפקידים</p>
+            <ul className="mt-1 space-y-1">
+              {taskInstance.requirements.roles.map((role, index) => (
+                <li key={`${taskInstance.id}-role-${role.roleId}-${index}`} className="flex items-center justify-between gap-2">
+                  <span className="text-muted">{role.roleName ?? role.roleId} · {role.quantity}</span>
+                  <Badge className={requirementBadgeClassName(role.required)}>{role.required ? 'חובה' : 'אופציונלי'}</Badge>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+
+        {taskInstance.requirements.qualifications.length > 0 ? (
+          <div className="rounded-md border border-border bg-surface-elevated px-2 py-2 text-xs">
+            <p className="font-medium text-foreground">הסמכות</p>
+            <ul className="mt-1 space-y-1">
+              {taskInstance.requirements.qualifications.map((qualification, index) => (
+                <li key={`${taskInstance.id}-qualification-${qualification.qualificationId}-${index}`} className="flex items-center justify-between gap-2">
+                  <span className="text-muted">{qualification.qualificationName ?? qualification.qualificationId} · {qualification.quantity}</span>
+                  <Badge className={requirementBadgeClassName(qualification.required)}>{qualification.required ? 'חובה' : 'אופציונלי'}</Badge>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+      </div>
+
+      {taskInstance.validation.requiredErrors.length > 0 ? (
+        <div className="mt-3 rounded-md border border-danger/30 bg-danger-soft/20 px-2 py-2 text-xs text-danger">
+          <p className="font-medium">בעיות חובה</p>
+          <ul className="mt-1 space-y-1">
+            {taskInstance.validation.requiredErrors.map((issue, index) => (
+              <li key={`${taskInstance.id}-required-${index}`}>{issue.message}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
+      {taskInstance.validation.warnings.length > 0 ? (
+        <div className="mt-2 rounded-md border border-warning/30 bg-warning-soft/20 px-2 py-2 text-xs text-warning">
+          <p className="font-medium">אזהרות</p>
+          <ul className="mt-1 space-y-1">
+            {taskInstance.validation.warnings.map((issue, index) => (
+              <li key={`${taskInstance.id}-warning-${index}`}>{issue.message}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
+      <div className="mt-3 space-y-2">
+        <p className="text-sm font-medium text-foreground text-right">שיבוץ תקנים</p>
+        {slots.length === 0 ? (
+          <div className="rounded-md border border-dashed border-border bg-surface px-3 py-3 text-center text-xs text-muted">
+            אין תקנים מוגדרים למופע זה.
           </div>
         ) : (
           <div className="space-y-2">
-            {availabilityItems.map((item) => {
-              const userName = item.user
-                ? [item.user.firstName, item.user.lastName].filter(Boolean).join(' ').trim() || item.user.email || item.user.id
-                : item.userId
-
-              return (
-                <div key={`${item.userId}-${item.date}`} className="rounded-md border border-border bg-surface-elevated px-3 py-3">
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-foreground">{userName}</p>
-                      <p className="mt-1 text-xs text-muted">{formatDate(item.date)}</p>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <StatusBadge value={item.status} />
-                      <StatusBadge value={item.availability} />
-                    </div>
-                  </div>
-                </div>
-              )
-            })}
+            {slots.map((slotIndex) => (
+              <AssignmentSlotCard key={`${taskInstance.id}-slot-${slotIndex}`} taskInstance={taskInstance} slotIndex={slotIndex} />
+            ))}
           </div>
         )}
-      </CardContent>
-    </Card>
-  )
-}
-
-function TaskPlanningCard({
-  activityId,
-  task,
-}: {
-  activityId: string
-  task: { id: string; name: string; description: string | null }
-}) {
-  const taskInstancesQuery = useActivityTaskInstances(task.id)
-  const instances = taskInstancesQuery.data ?? []
-
-  if (taskInstancesQuery.isPending) {
-    return (
-      <div className="space-y-3 rounded-lg border border-border bg-surface px-3 py-3">
-        <LoadingState title="טוען מופעי משימה" description="מופעי המשימה נטענים כעת." />
       </div>
-    )
-  }
-
-  if (taskInstancesQuery.isError) {
-    return (
-      <div className="space-y-3 rounded-lg border border-border bg-surface px-3 py-3">
-        <ErrorState
-          title="טעינת מופעי המשימה נכשלה"
-          description="לא הצלחנו לטעון את מופעי המשימה. אפשר לנסות שוב."
-          action={
-            <Button type="button" variant="secondary" onClick={() => void taskInstancesQuery.refetch()}>
-              ניסיון חוזר
-            </Button>
-          }
-        />
-      </div>
-    )
-  }
-
-  return (
-    <div className="space-y-3 rounded-lg border border-border bg-surface px-3 py-3">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0 flex-1">
-          <p className="break-words text-base font-semibold text-foreground">{task.name}</p>
-          {task.description ? <p className="mt-1 break-words text-xs text-muted">{task.description}</p> : null}
-        </div>
-        <span className="self-start rounded-full border border-border bg-surface-elevated px-2 py-1 text-xs text-muted">
-          {instances.length} מופעים
-        </span>
-      </div>
-
-      {instances.length === 0 ? (
-        <div className="rounded-md border border-dashed border-border bg-surface px-3 py-6 text-center text-sm text-muted">
-          אין מופעים להצגה עבור משימה זו.
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {instances.map((instance) => (
-            <TaskInstancePlanningRow
-              key={instance.id}
-              activityId={activityId}
-              taskId={task.id}
-              taskInstance={instance}
-              taskName={task.name}
-            />
-          ))}
-        </div>
-      )}
     </div>
   )
 }
@@ -392,12 +312,62 @@ export function ActivityPlanningPage() {
   const navigate = useNavigate()
   const { activityId } = useParams<{ activityId: string }>()
   const activityQuery = useActivityById(activityId)
-  const tasksQuery = useActivityTasks(activityId)
+  const [selectedDate, setSelectedDate] = useState<string | undefined>(undefined)
 
-  const hasAnyTaskInstances = useMemo(
-    () => tasksQuery.data?.some((task) => (task.id ? true : false)) ?? false,
-    [tasksQuery.data],
-  )
+  useEffect(() => {
+    const activity = activityQuery.data
+    if (!activity) {
+      return
+    }
+
+    const startDateKey = toDateKey(activity.startDate)
+    const endDateKey = toDateKey(activity.endDate)
+    if (!startDateKey || !endDateKey) {
+      return
+    }
+
+    const nextSelectedDate =
+      typeof selectedDate === 'string' && selectedDate.length > 0
+        ? clampDateKeyToRange(selectedDate, startDateKey, endDateKey)
+        : startDateKey
+
+    if (nextSelectedDate !== selectedDate) {
+      setSelectedDate(nextSelectedDate)
+    }
+  }, [activityQuery.data, selectedDate])
+
+  const schedulingDayQuery = useActivitySchedulingDay(activityId, selectedDate)
+
+  const activityStartDateKey = activityQuery.data ? toDateKey(activityQuery.data.startDate) : undefined
+  const activityEndDateKey = activityQuery.data ? toDateKey(activityQuery.data.endDate) : undefined
+
+  const canGoToPreviousDay =
+    typeof selectedDate === 'string' &&
+    selectedDate.length > 0 &&
+    typeof activityStartDateKey === 'string' &&
+    selectedDate > activityStartDateKey
+
+  const canGoToNextDay =
+    typeof selectedDate === 'string' &&
+    selectedDate.length > 0 &&
+    typeof activityEndDateKey === 'string' &&
+    selectedDate < activityEndDateKey
+
+  const goToPreviousDay = () => {
+    if (!canGoToPreviousDay || !selectedDate) {
+      return
+    }
+
+    setSelectedDate(addUtcDays(selectedDate, -1))
+  }
+
+  const goToNextDay = () => {
+    if (!canGoToNextDay || !selectedDate) {
+      return
+    }
+
+    setSelectedDate(addUtcDays(selectedDate, 1))
+  }
 
   if (!activityId) {
     return (
@@ -418,12 +388,12 @@ export function ActivityPlanningPage() {
     )
   }
 
-  if (activityQuery.isPending || tasksQuery.isPending) {
+  if (activityQuery.isPending || !selectedDate || schedulingDayQuery.isPending) {
     return (
       <>
         <PageHeader title="תכנון תפעולי" description="סקירת תכנון התפעול של הפעילות." />
         <ContentContainer className="pb-10">
-          <LoadingState title="טוען תכנון תפעולי" description="נתוני הפעילות והמופעים נטענים כעת." />
+          <LoadingState title="טוען תכנון תפעולי" description="נתוני הפעילות ויום השיבוץ נטענים כעת." />
         </ContentContainer>
       </>
     )
@@ -455,16 +425,16 @@ export function ActivityPlanningPage() {
     )
   }
 
-  if (tasksQuery.isError) {
+  if (schedulingDayQuery.isError) {
     return (
       <>
         <PageHeader title="תכנון תפעולי" description="סקירת תכנון התפעול של הפעילות." />
         <ContentContainer className="pb-10">
           <ErrorState
-            title="טעינת משימות הפעילות נכשלה"
-            description="לא הצלחנו לטעון את המשימות של הפעילות. אפשר לנסות שוב."
+            title="טעינת יום השיבוץ נכשלה"
+            description="לא הצלחנו לטעון את נתוני יום השיבוץ. אפשר לנסות שוב."
             action={
-              <Button type="button" variant="secondary" onClick={() => void tasksQuery.refetch()}>
+              <Button type="button" variant="secondary" onClick={() => void schedulingDayQuery.refetch()}>
                 ניסיון חוזר
               </Button>
             }
@@ -478,7 +448,7 @@ export function ActivityPlanningPage() {
     <>
       <PageHeader
         title={activityQuery.data?.name ?? 'תכנון תפעולי'}
-        description="תצוגת תכנון תפעולי של הפעילות, לפי משימות ומופעים."
+        description="תצוגת שיבוץ יומית של הפעילות."
         actions={
           <div className="flex flex-wrap items-center justify-end gap-2">
             <Button type="button" variant="secondary" onClick={() => navigate(`/activities/${activityId}`)}>
@@ -491,9 +461,35 @@ export function ActivityPlanningPage() {
       <ContentContainer className="space-y-5 pb-10">
         <Card>
           <CardHeader className="px-4 py-4 sm:px-5">
-            <CardTitle className="text-base">תכנון תפעולי</CardTitle>
+            <CardTitle className="text-base">פרטי יום שיבוץ</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3 px-4 pb-4 sm:px-5 sm:pb-5">
+            <div className="flex flex-col-reverse gap-3 rounded-lg border border-border bg-surface-elevated p-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0">
+                <p className="text-[11px] uppercase tracking-wide text-muted">יום שיבוץ נבחר</p>
+                <p className="mt-1 text-base font-semibold text-foreground" data-testid="planning-selected-day-title">
+                  שיבוץ — {formatSelectedDay(selectedDate)}
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={goToPreviousDay}
+                  disabled={!canGoToPreviousDay}
+                >
+                  יום קודם
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={goToNextDay}
+                  disabled={!canGoToNextDay}
+                >
+                  יום הבא
+                </Button>
+              </div>
+            </div>
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
               <div className="rounded-lg border border-border bg-surface-elevated p-3">
                 <p className="text-[11px] uppercase tracking-wide text-muted">שם הפעילות</p>
@@ -508,8 +504,16 @@ export function ActivityPlanningPage() {
                 <p className="mt-1 text-sm font-semibold text-foreground">{activityQuery.data ? formatDate(activityQuery.data.endDate) : '-'}</p>
               </div>
               <div className="rounded-lg border border-border bg-surface-elevated p-3">
-                <p className="text-[11px] uppercase tracking-wide text-muted">סטטוס</p>
-                <p className="mt-1 text-sm font-semibold text-foreground">{activityQuery.data?.status ?? '-'}</p>
+                <p className="text-[11px] uppercase tracking-wide text-muted">תאריך נבחר</p>
+                <p className="mt-1 text-sm font-semibold text-foreground" data-testid="planning-selected-date">
+                  {formatDate(selectedDate)}
+                </p>
+              </div>
+              <div className="rounded-lg border border-border bg-surface-elevated p-3">
+                <p className="text-[11px] uppercase tracking-wide text-muted">סטטוס יום</p>
+                <p className="mt-1 text-sm font-semibold text-foreground">
+                  {schedulingDayQuery.data?.isDayOpened ? 'היום פתוח' : 'היום סגור'}
+                </p>
               </div>
             </div>
           </CardContent>
@@ -517,32 +521,30 @@ export function ActivityPlanningPage() {
 
         <Card>
           <CardHeader className="px-4 py-4 sm:px-5">
-            <CardTitle className="text-base">מופעי משימות</CardTitle>
+            <CardTitle className="text-base">לוח שיבוץ יומי</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4 px-4 pb-5 sm:px-5">
-            {tasksQuery.data && tasksQuery.data.length === 0 ? (
-              <div className="rounded-md border border-dashed border-border bg-surface px-3 py-8 text-center text-sm text-muted">
-                אין משימות להצגה עבור פעילות זו.
-              </div>
-            ) : null}
-
-            {tasksQuery.data && tasksQuery.data.length > 0 ? (
-              <div className="space-y-4">
-                {tasksQuery.data.map((task) => (
-                  <TaskPlanningCard key={task.id} activityId={activityId} task={task} />
-                ))}
-              </div>
-            ) : null}
-
-            {!tasksQuery.data || !hasAnyTaskInstances ? (
-              <div className="rounded-md border border-dashed border-border bg-surface px-3 py-8 text-center text-sm text-muted">
-                אין מופעים להצגה עבור משימה זו.
-              </div>
-            ) : null}
+            {!schedulingDayQuery.data?.isDayOpened ? (
+              <EmptyState
+                title="היום עדיין לא נפתח"
+                description="לא קיימים מופעי משימות ליום זה. אפשר לפתוח את היום בשלב הבא של הפיתוח."
+              />
+            ) : schedulingDayQuery.data.taskInstances.length === 0 ? (
+              <EmptyState
+                title="אין מופעי משימה ליום פתוח זה"
+                description="היום פתוח, אבל עדיין לא הוגדרו מופעי משימה לשיבוץ."
+              />
+            ) : (
+              <ScrollArea className="w-full" dir="rtl">
+                <div className="flex min-w-max gap-3 pb-2">
+                  {schedulingDayQuery.data.taskInstances.map((taskInstance) => (
+                    <SchedulingTaskCard key={taskInstance.id} taskInstance={taskInstance} />
+                  ))}
+                </div>
+              </ScrollArea>
+            )}
           </CardContent>
         </Card>
-
-        <ActivityAvailabilitySection activityId={activityId} />
       </ContentContainer>
     </>
   )
