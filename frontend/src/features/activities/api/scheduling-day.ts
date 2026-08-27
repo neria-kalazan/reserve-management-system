@@ -79,6 +79,23 @@ export interface SchedulingDayCandidateEvaluation {
   severity: CandidateSeverity
   reasonCodes: string[]
   reasonMessages: string[]
+  reasons: SchedulingDayCandidateEvaluationReason[]
+}
+
+export interface SchedulingDayCandidateEvaluationReason {
+  code:
+    | 'MISSING_REQUIRED_ROLE'
+    | 'MISSING_OPTIONAL_ROLE'
+    | 'MISSING_REQUIRED_QUALIFICATION'
+    | 'MISSING_OPTIONAL_QUALIFICATION'
+    | 'USER_STATUS_NOT_ACTIVE'
+    | 'UNAVAILABLE_FOR_TIME_WINDOW'
+  severity: 'WARNING' | 'CRITICAL'
+  message: string
+  roleId?: string
+  roleName?: string
+  qualificationId?: string
+  qualificationName?: string
 }
 
 export interface SchedulingDayAssignment {

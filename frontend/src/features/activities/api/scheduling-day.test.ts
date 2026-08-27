@@ -104,6 +104,7 @@ describe('scheduling day API', () => {
                 severity: 'NORMAL',
                 reasonCodes: [],
                 reasonMessages: [],
+                reasons: [],
               },
             },
           ],

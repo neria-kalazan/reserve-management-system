@@ -2,7 +2,10 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 
 import type { ApiError } from '@/api/client'
-import type { SchedulingDayTaskInstance } from '@/features/activities/api/scheduling-day'
+import type {
+  SchedulingDayCandidateEvaluationReason,
+  SchedulingDayTaskInstance,
+} from '@/features/activities/api/scheduling-day'
 import { ContentContainer } from '@/app/layout/content-container'
 import { PageHeader } from '@/app/layout/page-header'
 import { useActivityById } from '@/features/activities/queries/use-activities'
@@ -21,6 +24,7 @@ import { EmptyState } from '@/shared/components/empty-state'
 import { ErrorState } from '@/shared/components/error-state'
 import { LoadingState } from '@/shared/components/loading-state'
 import { StatusBadge, ValidationBadge } from '@/shared/components/status-badge'
+import { Alert, AlertDescription, AlertTitle } from '@/shared/components/ui/alert'
 import { Badge } from '@/shared/components/ui/badge'
 import { Button } from '@/shared/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/card'
@@ -177,6 +181,42 @@ const getEvaluationBadgeClassName = (severity: 'NORMAL' | 'WARNING' | 'CRITICAL'
   }
 
   return 'border-success/30 bg-success-soft text-success'
+}
+
+const getEvaluationBadgeText = (severity: 'NORMAL' | 'WARNING' | 'CRITICAL') => {
+  if (severity === 'CRITICAL') {
+    return 'קריטי'
+  }
+
+  if (severity === 'WARNING') {
+    return 'אזהרה'
+  }
+
+  return 'תקין'
+}
+
+const getEvaluationState = (severity: 'NORMAL' | 'WARNING' | 'CRITICAL') => {
+  if (severity === 'CRITICAL') {
+    return 'error'
+  }
+
+  if (severity === 'WARNING') {
+    return 'warning'
+  }
+
+  return 'valid'
+}
+
+const formatEvaluationReason = (reason: SchedulingDayCandidateEvaluationReason) => {
+  if (reason.roleName) {
+    return `${reason.message}: ${reason.roleName}`
+  }
+
+  if (reason.qualificationName) {
+    return `${reason.message}: ${reason.qualificationName}`
+  }
+
+  return reason.message
 }
 
 function AssignmentSlotCard({
@@ -366,13 +406,10 @@ function AssignmentSlotCard({
         <Badge className={assignment.user.isActive ? 'border-success/30 bg-success-soft text-success' : 'border-border-strong bg-border text-muted-foreground'}>
           {assignment.user.isActive ? 'פעיל' : 'לא פעיל'}
         </Badge>
-        <Badge className={getEvaluationBadgeClassName(assignment.evaluation.severity)}>
-          {assignment.evaluation.severity === 'CRITICAL'
-            ? 'קריטי'
-            : assignment.evaluation.severity === 'WARNING'
-              ? 'אזהרה'
-              : 'תקין'}
-        </Badge>
+        <ValidationBadge
+          state={getEvaluationState(assignment.evaluation.severity)}
+          text={getEvaluationBadgeText(assignment.evaluation.severity)}
+        />
         {assignment.availability ? (
           <>
             <StatusBadge value={assignment.availability.status} />
@@ -381,14 +418,53 @@ function AssignmentSlotCard({
         ) : null}
       </div>
 
-      {assignment.evaluation.reasonMessages.length > 0 ? (
-        <ul className="mt-2 space-y-1 text-xs text-muted">
-          {assignment.evaluation.reasonMessages.map((reason, index) => (
-            <li key={`${assignment.id}-reason-${index}`} className="rounded-sm bg-surface-elevated px-2 py-1">
-              {reason}
-            </li>
-          ))}
-        </ul>
+      {assignment.evaluation.reasons.length > 0 ? (
+        <Alert
+          className={
+            assignment.evaluation.severity === 'CRITICAL'
+              ? 'mt-3 border-danger/30 bg-danger-soft/20 px-3 py-3'
+              : 'mt-3 border-warning/30 bg-warning-soft/20 px-3 py-3'
+          }
+          data-testid={`planning-assignment-evaluation-${assignment.id}`}
+        >
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0 text-right">
+              <AlertTitle className={assignment.evaluation.severity === 'CRITICAL' ? 'text-danger' : 'text-warning'}>
+                {assignment.evaluation.severity === 'CRITICAL' ? 'התראת שיבוץ קריטית' : 'אזהרת שיבוץ'}
+              </AlertTitle>
+              <AlertDescription className={assignment.evaluation.severity === 'CRITICAL' ? 'text-danger/80' : 'text-warning/80'}>
+                {assignment.evaluation.severity === 'CRITICAL'
+                  ? 'השיבוץ נשמר, אך קיימת חריגה מהותית בדרישות או בסטטוס החייל.'
+                  : 'השיבוץ נשמר, אך קיימות חריגות שכדאי לבדוק.'}
+              </AlertDescription>
+            </div>
+            <ValidationBadge
+              state={getEvaluationState(assignment.evaluation.severity)}
+              text={getEvaluationBadgeText(assignment.evaluation.severity)}
+            />
+          </div>
+
+          <ul className="mt-3 space-y-2 text-right text-xs">
+            {assignment.evaluation.reasons.map((reason, index) => (
+              <li
+                key={`${assignment.id}-reason-${reason.code}-${index}`}
+                className={
+                  reason.severity === 'CRITICAL'
+                    ? 'rounded-md border border-danger/20 bg-danger-soft/20 px-2 py-2 text-danger'
+                    : 'rounded-md border border-warning/20 bg-warning-soft/20 px-2 py-2 text-warning'
+                }
+              >
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <ValidationBadge
+                    state={getEvaluationState(reason.severity)}
+                    text={reason.severity === 'CRITICAL' ? 'קריטי' : 'אזהרה'}
+                  />
+                  <span className="font-medium">{formatEvaluationReason(reason)}</span>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </Alert>
       ) : null}
 
       <div className="mt-3 space-y-2 rounded-md border border-border bg-surface-elevated px-3 py-3">

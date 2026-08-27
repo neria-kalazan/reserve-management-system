@@ -136,9 +136,38 @@ const baseTaskInstance = {
       },
       evaluation: {
         userId: 'user-1',
-        severity: 'WARNING',
-        reasonCodes: ['MISSING_REQUIRED_QUALIFICATION'],
-        reasonMessages: ['חסרה הסמכה נדרשת'],
+        severity: 'CRITICAL',
+        reasonCodes: [
+          'MISSING_REQUIRED_ROLE',
+          'MISSING_OPTIONAL_QUALIFICATION',
+          'UNAVAILABLE_FOR_TIME_WINDOW',
+        ],
+        reasonMessages: [
+          'חסר תפקיד חובה',
+          'חסרה הסמכה אופציונלית',
+          'החייל לא זמין למשבצת הזמן הזאת',
+        ],
+        reasons: [
+          {
+            code: 'MISSING_REQUIRED_ROLE',
+            severity: 'CRITICAL',
+            message: 'חסר תפקיד חובה',
+            roleId: 'role-1',
+            roleName: 'חובש',
+          },
+          {
+            code: 'MISSING_OPTIONAL_QUALIFICATION',
+            severity: 'WARNING',
+            message: 'חסרה הסמכה אופציונלית',
+            qualificationId: 'qual-1',
+            qualificationName: 'ירי',
+          },
+          {
+            code: 'UNAVAILABLE_FOR_TIME_WINDOW',
+            severity: 'WARNING',
+            message: 'החייל לא זמין למשבצת הזמן הזאת',
+          },
+        ],
       },
     },
   ],
@@ -147,6 +176,95 @@ const baseTaskInstance = {
     warnings: [{ type: 'AVAILABILITY', message: 'זמינות חלקית' }],
     summary: { isValid: false },
   },
+}
+
+const warningOnlyTaskInstance = {
+  ...baseTaskInstance,
+  id: 'instance-3',
+  activityTaskId: 'task-3',
+  activityTask: {
+    id: 'task-3',
+    name: 'לוגיסטיקה',
+    description: 'סיוע לוגיסטי',
+  },
+  title: 'משמרת ערב',
+  startTime: '2026-08-11T16:00:00.000Z',
+  endTime: '2026-08-11T20:00:00.000Z',
+  assignmentSlots: {
+    total: 1,
+    filled: 1,
+    unfilled: 0,
+  },
+  assignments: [
+    {
+      ...baseTaskInstance.assignments[0],
+      id: 'assignment-3',
+      taskInstanceId: 'instance-3',
+      userId: 'user-2',
+      user: {
+        id: 'user-2',
+        firstName: 'רונית',
+        lastName: 'לוי',
+        personalNumber: '654321',
+        phone: '0500000001',
+        email: 'r@example.com',
+        isActive: true,
+        unit: { id: 'unit-1', name: 'א׳' },
+      },
+      availability: {
+        status: 'ACTIVE',
+        availability: 'MORNING',
+      },
+      evaluation: {
+        userId: 'user-2',
+        severity: 'WARNING',
+        reasonCodes: ['MISSING_OPTIONAL_ROLE'],
+        reasonMessages: ['חסר תפקיד אופציונלי'],
+        reasons: [
+          {
+            code: 'MISSING_OPTIONAL_ROLE',
+            severity: 'WARNING',
+            message: 'חסר תפקיד אופציונלי',
+            roleId: 'role-2',
+            roleName: 'נהג',
+          },
+        ],
+      },
+    },
+  ],
+}
+
+const normalTaskInstance = {
+  ...baseTaskInstance,
+  id: 'instance-4',
+  activityTaskId: 'task-4',
+  activityTask: {
+    id: 'task-4',
+    name: 'שמירה',
+    description: 'שמירת היקף',
+  },
+  title: 'שמירה שקטה',
+  startTime: '2026-08-11T12:00:00.000Z',
+  endTime: '2026-08-11T14:00:00.000Z',
+  assignmentSlots: {
+    total: 1,
+    filled: 1,
+    unfilled: 0,
+  },
+  assignments: [
+    {
+      ...baseTaskInstance.assignments[0],
+      id: 'assignment-4',
+      taskInstanceId: 'instance-4',
+      evaluation: {
+        userId: 'user-1',
+        severity: 'NORMAL',
+        reasonCodes: [],
+        reasonMessages: [],
+        reasons: [],
+      },
+    },
+  ],
 }
 
 const buildSchedulingDayData = (
@@ -320,6 +438,8 @@ describe('ActivityPlanningPage', () => {
                 summary: { isValid: true },
               },
             },
+            warningOnlyTaskInstance,
+            normalTaskInstance,
           ]),
         }) as ReturnType<typeof useActivitySchedulingDay>
       }
@@ -373,8 +493,8 @@ describe('ActivityPlanningPage', () => {
       expect(screen.getAllByText('התחלה').length).toBeGreaterThan(0)
     })
 
-    expect(screen.getByText('08:00')).toBeDefined()
-    expect(screen.getByText('12:00')).toBeDefined()
+    expect(screen.getAllByText('08:00').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('12:00').length).toBeGreaterThan(0)
   })
 
   it('marks overnight task instances', async () => {
@@ -449,11 +569,55 @@ describe('ActivityPlanningPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'יום הבא' }))
 
     await waitFor(() => {
-      expect(screen.getByText('איילה כהן')).toBeDefined()
+      expect(screen.getAllByText('איילה כהן').length).toBeGreaterThan(0)
     })
 
-    expect(screen.getByText('מספר אישי: 123456')).toBeDefined()
-    expect(screen.getByText('מסגרת: א׳')).toBeDefined()
+    expect(screen.getAllByText('מספר אישי: 123456').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('מסגרת: א׳').length).toBeGreaterThan(0)
+  })
+
+  it('renders a clear critical state for a filled assignment and keeps warning details visible', async () => {
+    render(<ActivityPlanningPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'יום הבא' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('planning-assignment-evaluation-assignment-1')).toBeDefined()
+    })
+
+    const evaluationPanel = screen.getByTestId('planning-assignment-evaluation-assignment-1')
+    expect(within(evaluationPanel).getAllByText('קריטי').length).toBeGreaterThan(0)
+    expect(within(evaluationPanel).getAllByText('אזהרה').length).toBeGreaterThan(0)
+    expect(within(evaluationPanel).getByText('חסר תפקיד חובה: חובש')).toBeDefined()
+    expect(within(evaluationPanel).getByText('חסרה הסמכה אופציונלית: ירי')).toBeDefined()
+    expect(within(evaluationPanel).getByText('החייל לא זמין למשבצת הזמן הזאת')).toBeDefined()
+  })
+
+  it('renders a warning state for warning-only evaluation reasons', async () => {
+    render(<ActivityPlanningPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'יום הבא' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('planning-assignment-evaluation-assignment-3')).toBeDefined()
+    })
+
+    const evaluationPanel = screen.getByTestId('planning-assignment-evaluation-assignment-3')
+    expect(within(evaluationPanel).getAllByText('אזהרה').length).toBeGreaterThan(0)
+    expect(within(evaluationPanel).queryByText('קריטי')).toBeNull()
+    expect(within(evaluationPanel).getByText('חסר תפקיד אופציונלי: נהג')).toBeDefined()
+  })
+
+  it('does not show a warning panel for a normal assignment', async () => {
+    render(<ActivityPlanningPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'יום הבא' }))
+
+    await waitFor(() => {
+      expect(screen.getByText('שמירה שקטה')).toBeDefined()
+    })
+
+    expect(screen.queryByTestId('planning-assignment-evaluation-assignment-4')).toBeNull()
   })
 
   it('removing a filled assignment calls delete with scheduling scope and keeps existing task rendering intact', async () => {
@@ -462,10 +626,11 @@ describe('ActivityPlanningPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'יום הבא' }))
 
     await waitFor(() => {
-      expect(screen.getByText('איילה כהן')).toBeDefined()
+      expect(screen.getAllByText('איילה כהן').length).toBeGreaterThan(0)
     })
 
-    fireEvent.click(screen.getByRole('button', { name: 'הסרת שיבוץ' }))
+    const filledSlot = screen.getByTestId('planning-slot-instance-1-0')
+    fireEvent.click(within(filledSlot).getByRole('button', { name: 'הסרת שיבוץ' }))
 
     await waitFor(() => {
       expect(deleteAssignmentMutateAsyncMock).toHaveBeenCalledWith('assignment-1')
@@ -509,16 +674,17 @@ describe('ActivityPlanningPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'יום הבא' }))
 
     await waitFor(() => {
-      expect(screen.getByText('איילה כהן')).toBeDefined()
+      expect(screen.getAllByText('איילה כהן').length).toBeGreaterThan(0)
     })
 
-    fireEvent.click(screen.getByRole('button', { name: 'הסרת שיבוץ' }))
+    const filledSlot = screen.getByTestId('planning-slot-instance-1-0')
+    fireEvent.click(within(filledSlot).getByRole('button', { name: 'הסרת שיבוץ' }))
 
     await waitFor(() => {
-      expect(screen.getByRole('alert')).toBeDefined()
+      expect(within(filledSlot).getByText('מחיקת השיבוץ נכשלה. אפשר לנסות שוב.')).toBeDefined()
     })
 
-    expect(screen.getByText('איילה כהן')).toBeDefined()
+    expect(screen.getAllByText('איילה כהן').length).toBeGreaterThan(0)
   })
 
   it('prevents duplicate assignment submissions while an assignment request is pending', async () => {
@@ -566,12 +732,12 @@ describe('ActivityPlanningPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'יום הבא' }))
 
     await waitFor(() => {
-      expect(screen.getByText('בעיות חובה')).toBeDefined()
+      expect(screen.getAllByText('בעיות חובה').length).toBeGreaterThan(0)
     })
 
-    expect(screen.getByText('חסר כוח אדם')).toBeDefined()
-    expect(screen.getByText('אזהרות')).toBeDefined()
-    expect(screen.getByText('זמינות חלקית')).toBeDefined()
+    expect(screen.getAllByText('חסר כוח אדם').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('אזהרות').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('זמינות חלקית').length).toBeGreaterThan(0)
   })
 
   it('shows empty state for opened day with zero task instances', async () => {
