@@ -1,17 +1,22 @@
-import { Controller, Get, Patch, Post, Param, Body, UseGuards, UsePipes, ValidationPipe } from '@nestjs/common';
+import { Controller, Get, Patch, Post, Param, Body, Query, UseGuards, UsePipes, ValidationPipe } from '@nestjs/common';
 import { AuthGuard } from '../auth/auth.guard';
 import { PermissionGuard } from '../auth/permission.guard';
 import { RequirePermission } from '../auth/permission.decorator';
 import { ActivitiesService } from './activities.service';
 import { CreateActivityDto } from './dto/create-activity.dto';
 import { UpdateActivityDto } from './dto/update-activity.dto';
+import { ActivitySchedulingDayService } from './activity-scheduling-day.service';
+import { GetSchedulingDayQueryDto } from './dto/get-scheduling-day-query.dto';
 
 @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
 @UseGuards(AuthGuard, PermissionGuard)
 @RequirePermission('MANAGE_COMPANIES')
 @Controller()
 export class ActivitiesController {
-  constructor(private readonly activitiesService: ActivitiesService) {}
+  constructor(
+    private readonly activitiesService: ActivitiesService,
+    private readonly activitySchedulingDayService: ActivitySchedulingDayService,
+  ) {}
 
   @Post('companies/:companyId/activities')
   create(@Param('companyId') companyId: string, @Body() dto: CreateActivityDto) {
@@ -26,6 +31,11 @@ export class ActivitiesController {
   @Get('activities/:id')
   findOne(@Param('id') id: string) {
     return this.activitiesService.findOne(id);
+  }
+
+  @Get('activities/:activityId/scheduling/day')
+  getSchedulingDay(@Param('activityId') activityId: string, @Query() query: GetSchedulingDayQueryDto) {
+    return this.activitySchedulingDayService.getSchedulingDay(activityId, query.date);
   }
 
   @Patch('activities/:id')

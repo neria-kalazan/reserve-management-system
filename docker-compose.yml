@@ -1,11 +1,16 @@
 services:
   postgres:
     image: postgres:16
-    container_name: reserve-postgres
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: reserve_management
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d reserve_management"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 5s
     ports:
       - "5432:5432"
     volumes:

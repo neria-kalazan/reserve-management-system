@@ -25,7 +25,7 @@ Seeded Demo User
 
 ## 1. Prerequisites
 
-- PostgreSQL must be running.
+- PostgreSQL must be available through Docker Compose.
 - Backend dependencies must be installed.
 - Frontend dependencies must be installed.
 - Google OAuth local credentials must be configured.
@@ -60,10 +60,10 @@ Set:
 
 ## 3. Start PostgreSQL
 
-From repository root:
+From repository root, start the repository's Docker infrastructure and wait for PostgreSQL readiness:
 
 ```bash
-docker compose up -d postgres
+docker compose up -d --wait postgres
 ```
 
 ## 4. Install Dependencies and Initialize DB
