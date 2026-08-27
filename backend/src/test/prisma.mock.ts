@@ -76,6 +76,11 @@ export function createPrismaMock() {
       findUnique: jest.fn(),
       update: jest.fn(),
     },
+    activitySchedulingDay: {
+      create: jest.fn(),
+      findUnique: jest.fn(),
+      upsert: jest.fn(),
+    },
     activityTaskManpowerRequirement: {
       create: jest.fn(),
       findUnique: jest.fn(),

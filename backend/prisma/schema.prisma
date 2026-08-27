@@ -71,13 +71,33 @@ model Activity {
 
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
-  activityTasks       ActivityTask[]
+  activityTasks        ActivityTask[]
+  schedulingDays       ActivitySchedulingDay[]
   activityUserStatuses ActivityUserStatus[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([companyId])
+}
+
+model ActivitySchedulingDay {
+  id String @id @default(uuid()) @db.Uuid
+
+  activityId String @db.Uuid
+  date       DateTime
+
+  openedAt       DateTime @default(now())
+  openedByUserId String?  @db.Uuid
+
+  activity     Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  openedByUser User?    @relation("ActivitySchedulingDayOpenedBy", fields: [openedByUserId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([activityId, date])
+  @@index([activityId])
 }
 
 model ActivityTask {
@@ -227,6 +247,7 @@ model User {
   userQualifications   UserQualification[]
   userPermissions      UserPermission[]
   activityUserStatuses ActivityUserStatus[]
+  openedSchedulingDays ActivitySchedulingDay[] @relation("ActivitySchedulingDayOpenedBy")
   assignments          Assignment[]          @relation("AssignmentAssignedUser")
   assignmentsCreated   Assignment[]          @relation("AssignmentCreatedBy")
 

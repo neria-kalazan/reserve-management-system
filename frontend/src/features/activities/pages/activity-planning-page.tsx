@@ -11,7 +11,9 @@ import { PageHeader } from '@/app/layout/page-header'
 import { useActivityById } from '@/features/activities/queries/use-activities'
 import { useActivitySchedulingDay } from '@/features/activities/queries/use-activity-scheduling-day'
 import {
+  type CandidateEvaluation,
   useActivityTasks,
+  useCandidateEvaluation,
   useCreateActivityTaskInstance,
   useCreateTaskInstanceAssignment,
   useDeleteActivityTaskInstance,
@@ -142,6 +144,8 @@ interface TaskInstanceEditorState {
   endTime: string
 }
 
+type SchedulingBoardFilter = 'ALL' | 'NEEDS_ATTENTION' | 'UNFILLED_SLOTS' | 'CRITICAL_ISSUES' | 'WARNINGS'
+
 const createDefaultTaskInstanceState = (
   selectedDate: string,
   activityTaskId: string,
@@ -219,6 +223,174 @@ const formatEvaluationReason = (reason: SchedulingDayCandidateEvaluationReason) 
   return reason.message
 }
 
+const formatCandidateEvaluationReason = (reason: CandidateEvaluation['reasons'][number]) => {
+  if (reason.roleName) {
+    return `${reason.message}: ${reason.roleName}`
+  }
+
+  if (reason.qualificationName) {
+    return `${reason.message}: ${reason.qualificationName}`
+  }
+
+  return reason.message
+}
+
+const boardFilterOptions: Array<{ value: SchedulingBoardFilter; label: string }> = [
+  { value: 'ALL', label: 'הכל' },
+  { value: 'NEEDS_ATTENTION', label: 'דורש טיפול' },
+  { value: 'UNFILLED_SLOTS', label: 'משבצות פנויות' },
+  { value: 'CRITICAL_ISSUES', label: 'בעיות קריטיות' },
+  { value: 'WARNINGS', label: 'אזהרות' },
+]
+
+const getTaskInstanceHasCriticalIssues = (taskInstance: SchedulingDayTaskInstance) =>
+  taskInstance.assignments.some((assignment) => assignment.evaluation.severity === 'CRITICAL')
+
+const getTaskInstanceHasWarningIssues = (taskInstance: SchedulingDayTaskInstance) =>
+  taskInstance.assignments.some((assignment) => assignment.evaluation.severity === 'WARNING')
+
+const getTaskInstanceHasUnfilledSlots = (taskInstance: SchedulingDayTaskInstance) => taskInstance.assignmentSlots.unfilled > 0
+
+const matchesBoardFilter = (taskInstance: SchedulingDayTaskInstance, filter: SchedulingBoardFilter) => {
+  if (filter === 'ALL') {
+    return true
+  }
+
+  if (filter === 'NEEDS_ATTENTION') {
+    return getTaskInstanceHasUnfilledSlots(taskInstance) || getTaskInstanceHasCriticalIssues(taskInstance)
+  }
+
+  if (filter === 'UNFILLED_SLOTS') {
+    return getTaskInstanceHasUnfilledSlots(taskInstance)
+  }
+
+  if (filter === 'CRITICAL_ISSUES') {
+    return getTaskInstanceHasCriticalIssues(taskInstance)
+  }
+
+  return getTaskInstanceHasWarningIssues(taskInstance)
+}
+
+const getBoardFilterEmptyState = (filter: SchedulingBoardFilter) => {
+  if (filter === 'NEEDS_ATTENTION') {
+    return {
+      title: 'אין מופעי משימה הדורשים טיפול',
+      description: 'לא נמצאו מופעי משימה עם משבצות פנויות או בעיות קריטיות ביום שנבחר.',
+    }
+  }
+
+  if (filter === 'UNFILLED_SLOTS') {
+    return {
+      title: 'אין משבצות פנויות',
+      description: 'לא נמצאו מופעי משימה עם תקנים פנויים ביום שנבחר.',
+    }
+  }
+
+  if (filter === 'CRITICAL_ISSUES') {
+    return {
+      title: 'אין בעיות קריטיות',
+      description: 'לא נמצאו מופעי משימה עם שיבוצים בעלי בעיות קריטיות ביום שנבחר.',
+    }
+  }
+
+  if (filter === 'WARNINGS') {
+    return {
+      title: 'אין אזהרות פעילות',
+      description: 'לא נמצאו מופעי משימה עם שיבוצים ברמת אזהרה ביום שנבחר.',
+    }
+  }
+
+  return {
+    title: 'אין מופעי משימה להצגה',
+    description: 'לא נמצאו מופעי משימה התואמים למסנן שנבחר.',
+  }
+}
+
+function CandidateEvaluationPreview({
+  evaluation,
+  isPending,
+  isError,
+  onRetry,
+}: {
+  evaluation: CandidateEvaluation | undefined
+  isPending: boolean
+  isError: boolean
+  onRetry: () => void
+}) {
+  if (isPending) {
+    return <p className="text-xs text-muted">בודק הערכת מועמד…</p>
+  }
+
+  if (isError) {
+    return (
+      <div className="rounded-md border border-danger/30 bg-danger-soft/20 px-3 py-2 text-xs text-danger">
+        <p>הערכת המועמד נכשלה.</p>
+        <Button type="button" variant="secondary" size="sm" className="mt-2" onClick={onRetry}>
+          ניסיון חוזר
+        </Button>
+      </div>
+    )
+  }
+
+  if (!evaluation) {
+    return null
+  }
+
+  if (evaluation.severity === 'NORMAL') {
+    return (
+      <Alert className="border-success/30 bg-success-soft/20 px-3 py-3" data-testid="planning-candidate-evaluation-normal">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <AlertTitle className="text-success">ללא חריגות ידועות</AlertTitle>
+          <ValidationBadge state="valid" text="תקין" />
+        </div>
+      </Alert>
+    )
+  }
+
+  return (
+    <Alert
+      className={
+        evaluation.severity === 'CRITICAL'
+          ? 'border-danger/30 bg-danger-soft/20 px-3 py-3'
+          : 'border-warning/30 bg-warning-soft/20 px-3 py-3'
+      }
+      data-testid="planning-candidate-evaluation-preview"
+    >
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="text-right">
+          <AlertTitle className={evaluation.severity === 'CRITICAL' ? 'text-danger' : 'text-warning'}>
+            {evaluation.severity === 'CRITICAL' ? 'התראת מועמד קריטית' : 'אזהרת מועמד'}
+          </AlertTitle>
+          <AlertDescription className={evaluation.severity === 'CRITICAL' ? 'text-danger/80' : 'text-warning/80'}>
+            {evaluation.severity === 'CRITICAL'
+              ? 'אפשר להמשיך בשיבוץ, אך קיימת חריגה מהותית לפי בדיקת השרת.'
+              : 'אפשר להמשיך בשיבוץ, אך קיימות הערות שכדאי לבדוק.'}
+          </AlertDescription>
+        </div>
+        <ValidationBadge state={getEvaluationState(evaluation.severity)} text={getEvaluationBadgeText(evaluation.severity)} />
+      </div>
+
+      <ul className="mt-3 space-y-2 text-right text-xs">
+        {evaluation.reasons.map((reason, index) => (
+          <li
+            key={`${reason.code}-${index}`}
+            className={
+              reason.severity === 'CRITICAL'
+                ? 'rounded-md border border-danger/20 bg-danger-soft/20 px-2 py-2 text-danger'
+                : 'rounded-md border border-warning/20 bg-warning-soft/20 px-2 py-2 text-warning'
+            }
+          >
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <ValidationBadge state={getEvaluationState(reason.severity)} text={getEvaluationBadgeText(reason.severity)} />
+              <span className="font-medium">{formatCandidateEvaluationReason(reason)}</span>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </Alert>
+  )
+}
+
 function AssignmentSlotCard({
   taskInstance,
   slotIndex,
@@ -242,12 +414,14 @@ function AssignmentSlotCard({
 }) {
   const assignment = taskInstance.assignments[slotIndex]
   const [searchText, setSearchText] = useState('')
+  const [selectedCandidateUserId, setSelectedCandidateUserId] = useState<string | null>(null)
   const [assignmentError, setAssignmentError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const schedulingScope = { activityId, date: selectedDate }
   const createAssignmentMutation = useCreateTaskInstanceAssignment(taskInstance.id, schedulingScope)
   const deleteAssignmentMutation = useDeleteAssignment(schedulingScope)
   const replaceDeleteAssignmentMutation = useDeleteAssignment()
+  const candidateEvaluationQuery = useCandidateEvaluation(taskInstance.id, selectedCandidateUserId ?? undefined)
 
   const matchingUsers = useMemo(() => {
     const normalizedSearch = searchText.trim().toLocaleLowerCase()
@@ -269,14 +443,15 @@ function AssignmentSlotCard({
   }, [assignment?.userId, companyUsers, searchText])
 
   const hasSearchText = searchText.trim().length > 0
+  const selectedCandidate = companyUsers.find((user) => user.id === selectedCandidateUserId) ?? null
   const isBusy =
     isSubmitting ||
     createAssignmentMutation.isPending ||
     deleteAssignmentMutation.isPending ||
     replaceDeleteAssignmentMutation.isPending
 
-  const assignUser = async (userId: string) => {
-    if (isBusy) {
+  const assignUser = async () => {
+    if (isBusy || !selectedCandidateUserId) {
       return
     }
 
@@ -291,8 +466,9 @@ function AssignmentSlotCard({
         removedExistingAssignment = true
       }
 
-      await createAssignmentMutation.mutateAsync({ userId })
+      await createAssignmentMutation.mutateAsync({ userId: selectedCandidateUserId })
       setSearchText('')
+      setSelectedCandidateUserId(null)
     } catch (error) {
       if (removedExistingAssignment) {
         await onRefreshDay()
@@ -366,7 +542,10 @@ function AssignmentSlotCard({
                 type="button"
                 className="flex w-full items-center justify-between rounded-md border border-border bg-surface-elevated px-3 py-2 text-right text-sm text-foreground hover:bg-surface disabled:cursor-not-allowed disabled:opacity-60"
                 disabled={isBusy}
-                onClick={() => void assignUser(user.id)}
+                onClick={() => {
+                  setSelectedCandidateUserId(user.id)
+                  setAssignmentError(null)
+                }}
               >
                 <span className="min-w-0">
                   <span className="block font-medium">{formatUserName(user)}</span>
@@ -375,6 +554,46 @@ function AssignmentSlotCard({
                 <span className="text-xs text-muted">בחר</span>
               </button>
             ))}
+          </div>
+        ) : null}
+
+        {selectedCandidate ? (
+          <div className="mt-3 space-y-3 rounded-md border border-border bg-surface-elevated px-3 py-3">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div className="text-right">
+                <p className="text-sm font-medium text-foreground">מועמד נבחר</p>
+                <p className="text-sm text-muted">{formatUserName(selectedCandidate)}</p>
+              </div>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={() => setSelectedCandidateUserId(null)}
+                disabled={isBusy}
+              >
+                סילוק בחירה
+              </Button>
+            </div>
+
+            <CandidateEvaluationPreview
+              evaluation={candidateEvaluationQuery.data}
+              isPending={candidateEvaluationQuery.isPending}
+              isError={candidateEvaluationQuery.isError}
+              onRetry={() => {
+                void candidateEvaluationQuery.refetch()
+              }}
+            />
+
+            <Button
+              type="button"
+              variant="primary"
+              size="sm"
+              onClick={() => void assignUser()}
+              disabled={isBusy || candidateEvaluationQuery.isPending || candidateEvaluationQuery.isError}
+              aria-busy={isBusy}
+            >
+              שבץ חייל
+            </Button>
           </div>
         ) : null}
 
@@ -508,7 +727,10 @@ function AssignmentSlotCard({
                 type="button"
                 className="flex w-full items-center justify-between rounded-md border border-border bg-surface px-3 py-2 text-right text-sm text-foreground hover:bg-surface disabled:cursor-not-allowed disabled:opacity-60"
                 disabled={isBusy}
-                onClick={() => void assignUser(user.id)}
+                onClick={() => {
+                  setSelectedCandidateUserId(user.id)
+                  setAssignmentError(null)
+                }}
               >
                 <span className="min-w-0">
                   <span className="block font-medium">{formatUserName(user)}</span>
@@ -517,6 +739,46 @@ function AssignmentSlotCard({
                 <span className="text-xs text-muted">החלף</span>
               </button>
             ))}
+          </div>
+        ) : null}
+
+        {selectedCandidate ? (
+          <div className="space-y-3 rounded-md border border-border bg-surface px-3 py-3">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div className="text-right">
+                <p className="text-sm font-medium text-foreground">מועמד חלופי נבחר</p>
+                <p className="text-sm text-muted">{formatUserName(selectedCandidate)}</p>
+              </div>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={() => setSelectedCandidateUserId(null)}
+                disabled={isBusy}
+              >
+                סילוק בחירה
+              </Button>
+            </div>
+
+            <CandidateEvaluationPreview
+              evaluation={candidateEvaluationQuery.data}
+              isPending={candidateEvaluationQuery.isPending}
+              isError={candidateEvaluationQuery.isError}
+              onRetry={() => {
+                void candidateEvaluationQuery.refetch()
+              }}
+            />
+
+            <Button
+              type="button"
+              variant="primary"
+              size="sm"
+              onClick={() => void assignUser()}
+              disabled={isBusy || candidateEvaluationQuery.isPending || candidateEvaluationQuery.isError}
+              aria-busy={isBusy}
+            >
+              החלף חייל
+            </Button>
           </div>
         ) : null}
 
@@ -553,7 +815,7 @@ function SchedulingTaskCard({
   const slots = Array.from({ length: slotCount }, (_, index) => index)
 
   return (
-    <div className="w-[22rem] shrink-0 rounded-lg border border-border bg-surface p-4">
+    <div data-testid={`planning-task-card-${taskInstance.id}`} className="w-[22rem] shrink-0 rounded-lg border border-border bg-surface p-4">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 text-right">
           <p className="text-sm font-semibold text-foreground">{taskInstance.title}</p>
@@ -692,6 +954,7 @@ export function ActivityPlanningPage() {
   const activityQuery = useActivityById(activityId)
   const activityTasksQuery = useActivityTasks(activityId)
   const [selectedDate, setSelectedDate] = useState<string | undefined>(undefined)
+  const [boardFilter, setBoardFilter] = useState<SchedulingBoardFilter>('ALL')
   const [taskInstanceEditor, setTaskInstanceEditor] = useState<TaskInstanceEditorState | null>(null)
   const [taskInstanceEditorError, setTaskInstanceEditorError] = useState<string | null>(null)
 
@@ -732,6 +995,45 @@ export function ActivityPlanningPage() {
   const activityStartDateKey = activityQuery.data ? toDateKey(activityQuery.data.startDate) : undefined
   const activityEndDateKey = activityQuery.data ? toDateKey(activityQuery.data.endDate) : undefined
   const companyUsers = companyUsersQuery.data?.items ?? []
+  const schedulingDayTaskInstances = schedulingDayQuery.data?.taskInstances ?? []
+
+  const boardSummary = useMemo(() => {
+    return schedulingDayTaskInstances.reduce(
+      (summary, taskInstance) => {
+        summary.totalSlots += taskInstance.assignmentSlots.total
+        summary.filledSlots += taskInstance.assignmentSlots.filled
+        summary.unfilledSlots += taskInstance.assignmentSlots.unfilled
+        summary.criticalAssignments += taskInstance.assignments.filter(
+          (assignment) => assignment.evaluation.severity === 'CRITICAL',
+        ).length
+        summary.warningAssignments += taskInstance.assignments.filter(
+          (assignment) => assignment.evaluation.severity === 'WARNING',
+        ).length
+        summary.unfilledTaskInstances += getTaskInstanceHasUnfilledSlots(taskInstance) ? 1 : 0
+        summary.criticalTaskInstances += getTaskInstanceHasCriticalIssues(taskInstance) ? 1 : 0
+        summary.warningTaskInstances += getTaskInstanceHasWarningIssues(taskInstance) ? 1 : 0
+        summary.needsAttentionTaskInstances +=
+          getTaskInstanceHasUnfilledSlots(taskInstance) || getTaskInstanceHasCriticalIssues(taskInstance) ? 1 : 0
+        return summary
+      },
+      {
+        totalSlots: 0,
+        filledSlots: 0,
+        unfilledSlots: 0,
+        criticalAssignments: 0,
+        warningAssignments: 0,
+        unfilledTaskInstances: 0,
+        criticalTaskInstances: 0,
+        warningTaskInstances: 0,
+        needsAttentionTaskInstances: 0,
+      },
+    )
+  }, [schedulingDayTaskInstances])
+
+  const filteredTaskInstances = useMemo(
+    () => schedulingDayTaskInstances.filter((taskInstance) => matchesBoardFilter(taskInstance, boardFilter)),
+    [boardFilter, schedulingDayTaskInstances],
+  )
 
   const canGoToPreviousDay =
     typeof selectedDate === 'string' &&
@@ -1052,6 +1354,49 @@ export function ActivityPlanningPage() {
             </div>
           </CardHeader>
           <CardContent className="space-y-4 px-4 pb-5 sm:px-5">
+            {schedulingDayQuery.data?.isDayOpened ? (
+              <>
+                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                  <div className="rounded-lg border border-border bg-surface-elevated p-3" data-testid="planning-summary-coverage">
+                    <p className="text-[11px] uppercase tracking-wide text-muted">כיסוי משבצות</p>
+                    <p className="mt-1 text-sm font-semibold text-foreground">
+                      {boardSummary.filledSlots} / {boardSummary.totalSlots} מאוישות
+                    </p>
+                    <p className="mt-1 text-xs text-muted">פנויות: {boardSummary.unfilledSlots}</p>
+                  </div>
+                  <div className="rounded-lg border border-border bg-surface-elevated p-3" data-testid="planning-summary-problems">
+                    <p className="text-[11px] uppercase tracking-wide text-muted">סיכום בעיות שיבוץ</p>
+                    <p className="mt-1 text-sm font-semibold text-foreground">קריטיות: {boardSummary.criticalAssignments}</p>
+                    <p className="mt-1 text-xs text-muted">אזהרות: {boardSummary.warningAssignments}</p>
+                  </div>
+                  <div className="rounded-lg border border-border bg-surface-elevated p-3" data-testid="planning-summary-task-attention">
+                    <p className="text-[11px] uppercase tracking-wide text-muted">מופעים הדורשים טיפול</p>
+                    <p className="mt-1 text-sm font-semibold text-foreground">{boardSummary.needsAttentionTaskInstances}</p>
+                    <p className="mt-1 text-xs text-muted">עם משבצות פנויות או חריגה קריטית</p>
+                  </div>
+                  <div className="rounded-lg border border-border bg-surface-elevated p-3" data-testid="planning-summary-task-problems">
+                    <p className="text-[11px] uppercase tracking-wide text-muted">מצב מופעי משימה</p>
+                    <p className="mt-1 text-sm font-semibold text-foreground">פנויות: {boardSummary.unfilledTaskInstances}</p>
+                    <p className="mt-1 text-xs text-muted">קריטיות: {boardSummary.criticalTaskInstances} · אזהרות: {boardSummary.warningTaskInstances}</p>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center justify-end gap-2" data-testid="planning-board-filters">
+                  {boardFilterOptions.map((option) => (
+                    <Button
+                      key={option.value}
+                      type="button"
+                      variant={boardFilter === option.value ? 'primary' : 'secondary'}
+                      size="sm"
+                      onClick={() => setBoardFilter(option.value)}
+                    >
+                      {option.label}
+                    </Button>
+                  ))}
+                </div>
+              </>
+            ) : null}
+
             {taskInstanceEditorError ? (
               <div className="rounded-md border border-danger/30 bg-danger-soft/20 px-3 py-2 text-sm text-danger" role="alert">
                 {taskInstanceEditorError}
@@ -1067,10 +1412,15 @@ export function ActivityPlanningPage() {
                 title="אין מופעי משימה ליום פתוח זה"
                 description="היום פתוח, אבל עדיין לא הוגדרו מופעי משימה לשיבוץ."
               />
+            ) : filteredTaskInstances.length === 0 ? (
+              <EmptyState
+                title={getBoardFilterEmptyState(boardFilter).title}
+                description={getBoardFilterEmptyState(boardFilter).description}
+              />
             ) : (
               <ScrollArea className="w-full" dir="rtl">
                 <div className="flex min-w-max gap-3 pb-2">
-                  {schedulingDayQuery.data.taskInstances.map((taskInstance) => (
+                  {filteredTaskInstances.map((taskInstance) => (
                     <div key={taskInstance.id} className="space-y-2">
                       <div className="flex items-center justify-end gap-2">
                         <Button type="button" variant="secondary" size="sm" onClick={() => openEditTaskInstanceDialog(taskInstance)}>

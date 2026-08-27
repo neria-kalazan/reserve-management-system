@@ -11,11 +11,12 @@ import { PERMISSION_METADATA_KEY } from '../auth/permission.decorator';
 
 describe('ActivitiesController', () => {
   let app: INestApplication;
-  let schedulingDayService: { getSchedulingDay: jest.Mock };
+  let schedulingDayService: { getSchedulingDay: jest.Mock; openSchedulingDay: jest.Mock };
 
   beforeEach(async () => {
     schedulingDayService = {
       getSchedulingDay: jest.fn(),
+      openSchedulingDay: jest.fn(),
     };
 
     const moduleRef = await Test.createTestingModule({
@@ -37,7 +38,12 @@ describe('ActivitiesController', () => {
       ],
     })
       .overrideGuard(AuthGuard)
-      .useValue({ canActivate: () => true })
+      .useValue({
+        canActivate: (context: { switchToHttp: () => { getRequest: () => { user?: { id: string } } } }) => {
+          context.switchToHttp().getRequest().user = { id: 'user-1' };
+          return true;
+        },
+      })
       .overrideGuard(PermissionGuard)
       .useValue({ canActivate: () => true })
       .compile();
@@ -85,6 +91,33 @@ describe('ActivitiesController', () => {
     expect(schedulingDayService.getSchedulingDay).not.toHaveBeenCalled();
   });
 
+  it('delegates POST scheduling day open requests to the scheduling service and returns the result unchanged', async () => {
+    const responsePayload = {
+      activityId: 'activity-1',
+      date: '2026-08-15',
+      isDayOpened: true,
+    };
+
+    schedulingDayService.openSchedulingDay.mockResolvedValue(responsePayload);
+
+    const res = await request(app.getHttpServer())
+      .post('/activities/activity-1/scheduling/day/open')
+      .send({ date: '2026-08-15' })
+      .expect(201);
+
+    expect(schedulingDayService.openSchedulingDay).toHaveBeenCalledWith('activity-1', '2026-08-15', 'user-1');
+    expect(res.body).toEqual(responsePayload);
+  });
+
+  it('rejects invalid open-day request body values using controller validation pipes', async () => {
+    await request(app.getHttpServer())
+      .post('/activities/activity-1/scheduling/day/open')
+      .send({ date: '15-08-2026' })
+      .expect(400);
+
+    expect(schedulingDayService.openSchedulingDay).not.toHaveBeenCalled();
+  });
+
   it('keeps authorization guards and permission metadata applied to the scheduling endpoint', () => {
     const classGuards = Reflect.getMetadata(GUARDS_METADATA, ActivitiesController) as Function[];
     const requiredPermission = Reflect.getMetadata(PERMISSION_METADATA_KEY, ActivitiesController) as string;
@@ -94,8 +127,12 @@ describe('ActivitiesController', () => {
 
     const methodPath = Reflect.getMetadata(PATH_METADATA, ActivitiesController.prototype.getSchedulingDay) as string;
     const methodType = Reflect.getMetadata(METHOD_METADATA, ActivitiesController.prototype.getSchedulingDay) as RequestMethod;
+    const openMethodPath = Reflect.getMetadata(PATH_METADATA, ActivitiesController.prototype.openSchedulingDay) as string;
+    const openMethodType = Reflect.getMetadata(METHOD_METADATA, ActivitiesController.prototype.openSchedulingDay) as RequestMethod;
 
     expect(methodPath).toBe('activities/:activityId/scheduling/day');
     expect(methodType).toBe(RequestMethod.GET);
+    expect(openMethodPath).toBe('activities/:activityId/scheduling/day/open');
+    expect(openMethodType).toBe(RequestMethod.POST);
   });
 });

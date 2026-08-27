@@ -17,6 +17,65 @@ export class ActivitySchedulingDayService {
     private readonly taskInstancesService: TaskInstancesService,
   ) {}
 
+  async openSchedulingDay(activityId: string, dateString: string, openedByUserId: string) {
+    const dayStart = this.normalizeDate(dateString);
+    const dateKey = this.formatDateKey(dayStart);
+
+    const [activity, opener] = await Promise.all([
+      this.prisma.activity.findUnique({
+        where: { id: activityId },
+        select: {
+          id: true,
+          companyId: true,
+          startDate: true,
+          endDate: true,
+        },
+      }),
+      this.prisma.user.findUnique({
+        where: { id: openedByUserId },
+        select: {
+          id: true,
+          companyId: true,
+        },
+      }),
+    ]);
+
+    if (!activity) {
+      throw new NotFoundException('Activity not found');
+    }
+
+    if (!opener || opener.companyId !== activity.companyId) {
+      throw new NotFoundException('User not found');
+    }
+
+    const startDateKey = this.formatDateKey(activity.startDate);
+    const endDateKey = this.formatDateKey(activity.endDate);
+    if (dateKey < startDateKey || dateKey > endDateKey) {
+      throw new BadRequestException('Date is outside activity boundaries');
+    }
+
+    await this.prisma.activitySchedulingDay.upsert({
+      where: {
+        activityId_date: {
+          activityId,
+          date: dayStart,
+        },
+      },
+      update: {},
+      create: {
+        activityId,
+        date: dayStart,
+        openedByUserId: opener.id,
+      },
+    });
+
+    return {
+      activityId,
+      date: dateKey,
+      isDayOpened: true,
+    };
+  }
+
   async getSchedulingDay(activityId: string, dateString: string): Promise<SchedulingDayResponseDto> {
     const dayStart = this.normalizeDate(dateString);
     const dayEnd = new Date(dayStart);
@@ -38,6 +97,22 @@ export class ActivitySchedulingDayService {
     if (!activity) {
       throw new NotFoundException('Activity not found');
     }
+
+    const startDateKey = this.formatDateKey(activity.startDate);
+    const endDateKey = this.formatDateKey(activity.endDate);
+    if (selectedDate < startDateKey || selectedDate > endDateKey) {
+      throw new BadRequestException('Date is outside activity boundaries');
+    }
+
+    const openedSchedulingDay = await this.prisma.activitySchedulingDay.findUnique({
+      where: {
+        activityId_date: {
+          activityId,
+          date: dayStart,
+        },
+      },
+      select: { id: true },
+    });
 
     const taskInstancesRaw = await this.prisma.taskInstance.findMany({
       where: {
@@ -301,7 +376,7 @@ export class ActivitySchedulingDayService {
         endDate: activity.endDate,
       },
       date: selectedDate,
-      isDayOpened: schedulingTaskInstances.length > 0,
+      isDayOpened: Boolean(openedSchedulingDay),
       taskInstances: schedulingTaskInstances,
     };
   }

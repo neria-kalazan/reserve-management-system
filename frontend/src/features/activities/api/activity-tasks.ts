@@ -108,11 +108,28 @@ export interface CompanyUser extends AvailableUser {
 
 export type CandidateSeverity = 'NORMAL' | 'WARNING' | 'CRITICAL'
 
+export interface CandidateEvaluationReason {
+  code:
+    | 'MISSING_REQUIRED_ROLE'
+    | 'MISSING_OPTIONAL_ROLE'
+    | 'MISSING_REQUIRED_QUALIFICATION'
+    | 'MISSING_OPTIONAL_QUALIFICATION'
+    | 'USER_STATUS_NOT_ACTIVE'
+    | 'UNAVAILABLE_FOR_TIME_WINDOW'
+  severity: 'WARNING' | 'CRITICAL'
+  message: string
+  roleId?: string
+  roleName?: string
+  qualificationId?: string
+  qualificationName?: string
+}
+
 export interface CandidateEvaluation {
   userId: string
   severity: CandidateSeverity
   reasonCodes: string[]
   reasonMessages: string[]
+  reasons: CandidateEvaluationReason[]
 }
 
 export interface AssignmentUser {
