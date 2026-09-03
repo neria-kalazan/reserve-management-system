@@ -26,6 +26,23 @@ describe('TaskInstancesService', () => {
     expect(prisma.taskInstance.create).toHaveBeenCalled();
   });
 
+  it('create: allows missing title and persists empty title', async () => {
+    prisma.activityTask.findUnique.mockResolvedValue({ id: 'task-1' });
+    prisma.taskInstance.create.mockResolvedValue({ id: 'instance-1', activityTaskId: 'task-1', title: '' });
+
+    const res = await service.create('task-1', {
+      startTime: '2026-01-01T09:00:00.000Z',
+      endTime: '2026-01-01T17:00:00.000Z',
+    } as any);
+
+    expect(res).toBeDefined();
+    expect(prisma.taskInstance.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ title: '' }),
+      }),
+    );
+  });
+
   it('create: rejects a missing activity task', async () => {
     prisma.activityTask.findUnique.mockResolvedValue(null);
 
@@ -89,6 +106,31 @@ describe('TaskInstancesService', () => {
     prisma.taskInstance.findUnique.mockResolvedValue({ id: 'instance-1', title: 'Setup', startTime: new Date('2026-01-01T09:00:00.000Z'), endTime: new Date('2026-01-01T17:00:00.000Z') });
 
     await expect(service.update('instance-1', { startTime: '2026-01-01T20:00:00.000Z', endTime: '2026-01-01T18:00:00.000Z' } as any)).rejects.toThrow(BadRequestException);
+  });
+
+  it('update: allows clearing title to empty string', async () => {
+    prisma.taskInstance.findUnique.mockResolvedValue({
+      id: 'instance-1',
+      title: 'Setup',
+      startTime: new Date('2026-01-01T09:00:00.000Z'),
+      endTime: new Date('2026-01-01T17:00:00.000Z'),
+    });
+    prisma.taskInstance.update.mockResolvedValue({
+      id: 'instance-1',
+      title: '',
+      startTime: new Date('2026-01-01T09:00:00.000Z'),
+      endTime: new Date('2026-01-01T17:00:00.000Z'),
+    });
+
+    const res = await service.update('instance-1', { title: '' } as any);
+
+    expect(res.title).toBe('');
+    expect(prisma.taskInstance.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'instance-1' },
+        data: expect.objectContaining({ title: '' }),
+      }),
+    );
   });
 
   it('delete: removes the existing task instance', async () => {

@@ -1,17 +1,25 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+vi.mock('@/app/auth/use-permissions', () => ({
+  usePermissions: vi.fn(),
+}))
+
 vi.mock('@/features/activities/queries/use-activities', () => ({
   useActivityById: vi.fn(),
 }))
 
 vi.mock('@/features/activities/queries/use-activity-scheduling-day', () => ({
+  useApproveActivitySchedulingDay: vi.fn(),
   useActivitySchedulingDay: vi.fn(),
+  useOpenActivitySchedulingDay: vi.fn(),
+  useReturnActivitySchedulingDayToDraft: vi.fn(),
+  useSubmitActivitySchedulingDayForApproval: vi.fn(),
 }))
 
 vi.mock('@/features/activities/queries/use-activity-tasks', () => ({
   useActivityTasks: vi.fn(),
-  useCandidateEvaluation: vi.fn(),
+  useAvailableUsers: vi.fn(),
   useCreateActivityTaskInstance: vi.fn(),
   useCreateTaskInstanceAssignment: vi.fn(),
   useUpdateActivityTaskInstance: vi.fn(),
@@ -28,23 +36,33 @@ const {
   useParamsMock,
   schedulingRefetchMock,
   companyUsersRefetchMock,
+  openSchedulingDayMutateAsyncMock,
+  submitSchedulingDayForApprovalMutateAsyncMock,
+  approveSchedulingDayMutateAsyncMock,
+  returnSchedulingDayToDraftMutateAsyncMock,
   createTaskInstanceMutateAsyncMock,
   updateTaskInstanceMutateAsyncMock,
   deleteTaskInstanceMutateAsyncMock,
   createAssignmentMutateAsyncMock,
   deleteAssignmentMutateAsyncMock,
   replaceDeleteAssignmentMutateAsyncMock,
+  hasPermissionMock,
 } = vi.hoisted(() => ({
   navigateMock: vi.fn(),
   useParamsMock: vi.fn(),
   schedulingRefetchMock: vi.fn(),
   companyUsersRefetchMock: vi.fn(),
+  openSchedulingDayMutateAsyncMock: vi.fn(),
+  submitSchedulingDayForApprovalMutateAsyncMock: vi.fn(),
+  approveSchedulingDayMutateAsyncMock: vi.fn(),
+  returnSchedulingDayToDraftMutateAsyncMock: vi.fn(),
   createTaskInstanceMutateAsyncMock: vi.fn(),
   updateTaskInstanceMutateAsyncMock: vi.fn(),
   deleteTaskInstanceMutateAsyncMock: vi.fn(),
   createAssignmentMutateAsyncMock: vi.fn(),
   deleteAssignmentMutateAsyncMock: vi.fn(),
   replaceDeleteAssignmentMutateAsyncMock: vi.fn(),
+  hasPermissionMock: vi.fn(),
 }))
 
 vi.mock('react-router-dom', async () => {
@@ -57,11 +75,19 @@ vi.mock('react-router-dom', async () => {
   }
 })
 
+import { usePermissions } from '@/app/auth/use-permissions'
+import { ActivityPlanningPage } from '@/features/activities/pages/activity-planning-page'
 import { useActivityById } from '@/features/activities/queries/use-activities'
-import { useActivitySchedulingDay } from '@/features/activities/queries/use-activity-scheduling-day'
+import {
+  useApproveActivitySchedulingDay,
+  useActivitySchedulingDay,
+  useOpenActivitySchedulingDay,
+  useReturnActivitySchedulingDayToDraft,
+  useSubmitActivitySchedulingDayForApproval,
+} from '@/features/activities/queries/use-activity-scheduling-day'
 import {
   useActivityTasks,
-  useCandidateEvaluation,
+  useAvailableUsers,
   useCreateActivityTaskInstance,
   useCreateTaskInstanceAssignment,
   useDeleteActivityTaskInstance,
@@ -69,12 +95,16 @@ import {
   useUpdateActivityTaskInstance,
 } from '@/features/activities/queries/use-activity-tasks'
 import { useCompanyUsers } from '@/features/users/queries/use-users'
-import { ActivityPlanningPage } from '@/features/activities/pages/activity-planning-page'
 
+const usePermissionsMock = vi.mocked(usePermissions)
 const useActivityByIdMock = vi.mocked(useActivityById)
+const useApproveActivitySchedulingDayMock = vi.mocked(useApproveActivitySchedulingDay)
 const useActivitySchedulingDayMock = vi.mocked(useActivitySchedulingDay)
+const useOpenActivitySchedulingDayMock = vi.mocked(useOpenActivitySchedulingDay)
+const useReturnActivitySchedulingDayToDraftMock = vi.mocked(useReturnActivitySchedulingDayToDraft)
+const useSubmitActivitySchedulingDayForApprovalMock = vi.mocked(useSubmitActivitySchedulingDayForApproval)
 const useActivityTasksMock = vi.mocked(useActivityTasks)
-const useCandidateEvaluationMock = vi.mocked(useCandidateEvaluation)
+const useAvailableUsersMock = vi.mocked(useAvailableUsers)
 const useCreateActivityTaskInstanceMock = vi.mocked(useCreateActivityTaskInstance)
 const useCreateTaskInstanceAssignmentMock = vi.mocked(useCreateTaskInstanceAssignment)
 const useUpdateActivityTaskInstanceMock = vi.mocked(useUpdateActivityTaskInstance)
@@ -140,16 +170,8 @@ const baseTaskInstance = {
       evaluation: {
         userId: 'user-1',
         severity: 'CRITICAL',
-        reasonCodes: [
-          'MISSING_REQUIRED_ROLE',
-          'MISSING_OPTIONAL_QUALIFICATION',
-          'UNAVAILABLE_FOR_TIME_WINDOW',
-        ],
-        reasonMessages: [
-          'חסר תפקיד חובה',
-          'חסרה הסמכה אופציונלית',
-          'החייל לא זמין למשבצת הזמן הזאת',
-        ],
+        reasonCodes: ['MISSING_REQUIRED_ROLE', 'MISSING_OPTIONAL_QUALIFICATION', 'UNAVAILABLE_FOR_TIME_WINDOW'],
+        reasonMessages: ['חסר תפקיד חובה', 'חסרה הסמכה אופציונלית', 'החייל לא זמין למשבצת הזמן הזאת'],
         reasons: [
           {
             code: 'MISSING_REQUIRED_ROLE',
@@ -177,6 +199,22 @@ const baseTaskInstance = {
   validation: {
     requiredErrors: [{ type: 'MANPOWER', message: 'חסר כוח אדם' }],
     warnings: [{ type: 'AVAILABILITY', message: 'זמינות חלקית' }],
+    summary: { isValid: false },
+  },
+}
+
+const overnightTaskInstance = {
+  ...baseTaskInstance,
+  id: 'instance-2',
+  title: 'משמרת לילה',
+  startTime: '2026-08-11T22:00:00.000Z',
+  endTime: '2026-08-12T04:00:00.000Z',
+  isOvernight: true,
+  assignmentSlots: { total: 1, filled: 0, unfilled: 1 },
+  assignments: [],
+  validation: {
+    requiredErrors: [{ type: 'MANPOWER', message: 'חסר כוח אדם' }],
+    warnings: [],
     summary: { isValid: false },
   },
 }
@@ -268,12 +306,18 @@ const normalTaskInstance = {
       },
     },
   ],
+  validation: {
+    requiredErrors: [],
+    warnings: [],
+    summary: { isValid: true },
+  },
 }
 
 const buildSchedulingDayData = (
   date: string,
   isDayOpened: boolean,
   taskInstances: any[] = [],
+  schedulingStatus: 'DRAFT' | 'PENDING_APPROVAL' | 'APPROVED' = 'DRAFT',
 ) => ({
   activity: {
     id: 'activity-1',
@@ -285,6 +329,7 @@ const buildSchedulingDayData = (
   },
   date,
   isDayOpened,
+  schedulingStatus,
   taskInstances,
 })
 
@@ -296,12 +341,42 @@ const makeSchedulingQuery = (overrides: Record<string, unknown> = {}) => ({
   ...overrides,
 })
 
+const makeOpenSchedulingDayMutation = (overrides: Record<string, unknown> = {}) => ({
+  mutateAsync: openSchedulingDayMutateAsyncMock,
+  isPending: false,
+  ...overrides,
+})
+
+const makeApprovalTransitionMutation = (
+  mutateAsync: typeof submitSchedulingDayForApprovalMutateAsyncMock,
+  overrides: Record<string, unknown> = {},
+) => ({
+  mutateAsync,
+  isPending: false,
+  ...overrides,
+})
+
+const renderOpenedDay = async () => {
+  render(<ActivityPlanningPage />)
+  fireEvent.click(screen.getByRole('button', { name: /הבא/ }))
+  await waitFor(() => {
+    expect(screen.getByTestId('planning-scheduling-grid')).toBeDefined()
+  })
+}
+
 describe('ActivityPlanningPage', () => {
+  let selectedClosedDayOpened = false
+
   beforeEach(() => {
+    usePermissionsMock.mockReset()
     useActivityByIdMock.mockReset()
+    useApproveActivitySchedulingDayMock.mockReset()
     useActivitySchedulingDayMock.mockReset()
+    useOpenActivitySchedulingDayMock.mockReset()
+    useReturnActivitySchedulingDayToDraftMock.mockReset()
+    useSubmitActivitySchedulingDayForApprovalMock.mockReset()
     useActivityTasksMock.mockReset()
-    useCandidateEvaluationMock.mockReset()
+    useAvailableUsersMock.mockReset()
     useCreateActivityTaskInstanceMock.mockReset()
     useCreateTaskInstanceAssignmentMock.mockReset()
     useUpdateActivityTaskInstanceMock.mockReset()
@@ -312,12 +387,19 @@ describe('ActivityPlanningPage', () => {
     useParamsMock.mockReset()
     schedulingRefetchMock.mockReset()
     companyUsersRefetchMock.mockReset()
+    openSchedulingDayMutateAsyncMock.mockReset()
+    submitSchedulingDayForApprovalMutateAsyncMock.mockReset()
+    approveSchedulingDayMutateAsyncMock.mockReset()
+    returnSchedulingDayToDraftMutateAsyncMock.mockReset()
     createTaskInstanceMutateAsyncMock.mockReset()
     updateTaskInstanceMutateAsyncMock.mockReset()
     deleteTaskInstanceMutateAsyncMock.mockReset()
     createAssignmentMutateAsyncMock.mockReset()
     deleteAssignmentMutateAsyncMock.mockReset()
     replaceDeleteAssignmentMutateAsyncMock.mockReset()
+    hasPermissionMock.mockReset()
+
+    selectedClosedDayOpened = false
 
     createTaskInstanceMutateAsyncMock.mockResolvedValue({ id: 'instance-created' })
     updateTaskInstanceMutateAsyncMock.mockResolvedValue({ id: 'instance-1', activityTaskId: 'task-1' })
@@ -325,6 +407,40 @@ describe('ActivityPlanningPage', () => {
     createAssignmentMutateAsyncMock.mockResolvedValue({ id: 'assignment-created' })
     deleteAssignmentMutateAsyncMock.mockResolvedValue({ id: 'assignment-1', taskInstanceId: 'instance-1' })
     replaceDeleteAssignmentMutateAsyncMock.mockResolvedValue({ id: 'assignment-1', taskInstanceId: 'instance-1' })
+    openSchedulingDayMutateAsyncMock.mockImplementation(async () => {
+      selectedClosedDayOpened = true
+      return {
+        activityId: 'activity-1',
+        date: '2026-08-10',
+        isDayOpened: true,
+      }
+    })
+    submitSchedulingDayForApprovalMutateAsyncMock.mockResolvedValue({
+      activityId: 'activity-1',
+      date: '2026-08-10',
+      isDayOpened: true,
+      schedulingStatus: 'PENDING_APPROVAL',
+    })
+    approveSchedulingDayMutateAsyncMock.mockResolvedValue({
+      activityId: 'activity-1',
+      date: '2026-08-10',
+      isDayOpened: true,
+      schedulingStatus: 'APPROVED',
+    })
+    returnSchedulingDayToDraftMutateAsyncMock.mockResolvedValue({
+      activityId: 'activity-1',
+      date: '2026-08-10',
+      isDayOpened: true,
+      schedulingStatus: 'DRAFT',
+    })
+
+    hasPermissionMock.mockImplementation((permission: string) => permission === 'MANAGE_COMPANIES')
+    usePermissionsMock.mockReturnValue({
+      hasPermission: hasPermissionMock,
+      permissions: [],
+      isInitializing: false,
+      isAuthenticated: true,
+    })
 
     useParamsMock.mockReturnValue({ activityId: 'activity-1' })
     useActivityByIdMock.mockReturnValue({
@@ -348,7 +464,7 @@ describe('ActivityPlanningPage', () => {
         {
           id: 'task-2',
           activityId: 'activity-1',
-          name: 'לוגיסטיקה',
+          name: 'תצפית',
           description: 'desc',
           createdAt: '2026-08-10T00:00:00.000Z',
           updatedAt: '2026-08-10T00:00:00.000Z',
@@ -356,80 +472,36 @@ describe('ActivityPlanningPage', () => {
       ],
     } as unknown as ReturnType<typeof useActivityTasks>)
 
+    useAvailableUsersMock.mockReturnValue({
+      isPending: false,
+      isError: false,
+      data: [
+        {
+          id: 'user-2',
+          firstName: 'רונית',
+          lastName: 'לוי',
+          phone: '0500000001',
+          email: 'r@example.com',
+          personalNumber: '654321',
+          isActive: true,
+        },
+        {
+          id: 'user-3',
+          firstName: 'דנה',
+          lastName: 'מזרחי',
+          phone: '0500000002',
+          email: 'd@example.com',
+          personalNumber: '777777',
+          isActive: true,
+        },
+      ],
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useAvailableUsers>)
+
     useCreateActivityTaskInstanceMock.mockReturnValue({
       mutateAsync: createTaskInstanceMutateAsyncMock,
       isPending: false,
     } as unknown as ReturnType<typeof useCreateActivityTaskInstance>)
-
-    useCandidateEvaluationMock.mockImplementation((_taskInstanceId, userId) => {
-      if (!userId) {
-        return {
-          isPending: false,
-          isError: false,
-          data: undefined,
-          refetch: vi.fn(),
-        } as unknown as ReturnType<typeof useCandidateEvaluation>
-      }
-
-      if (userId === 'user-2') {
-        return {
-          isPending: false,
-          isError: false,
-          data: {
-            userId: 'user-2',
-            severity: 'WARNING',
-            reasonCodes: ['MISSING_OPTIONAL_ROLE'],
-            reasonMessages: ['חסר תפקיד אופציונלי'],
-            reasons: [
-              {
-                code: 'MISSING_OPTIONAL_ROLE',
-                severity: 'WARNING',
-                message: 'חסר תפקיד אופציונלי',
-                roleId: 'role-2',
-                roleName: 'נהג',
-              },
-            ],
-          },
-          refetch: vi.fn(),
-        } as unknown as ReturnType<typeof useCandidateEvaluation>
-      }
-
-      if (userId === 'user-3') {
-        return {
-          isPending: false,
-          isError: false,
-          data: {
-            userId: 'user-3',
-            severity: 'CRITICAL',
-            reasonCodes: ['MISSING_REQUIRED_QUALIFICATION'],
-            reasonMessages: ['חסרה הסמכת חובה'],
-            reasons: [
-              {
-                code: 'MISSING_REQUIRED_QUALIFICATION',
-                severity: 'CRITICAL',
-                message: 'חסרה הסמכת חובה',
-                qualificationId: 'qual-9',
-                qualificationName: 'חובש',
-              },
-            ],
-          },
-          refetch: vi.fn(),
-        } as unknown as ReturnType<typeof useCandidateEvaluation>
-      }
-
-      return {
-        isPending: false,
-        isError: false,
-        data: {
-          userId: userId,
-          severity: 'NORMAL',
-          reasonCodes: [],
-          reasonMessages: [],
-          reasons: [],
-        },
-        refetch: vi.fn(),
-      } as unknown as ReturnType<typeof useCandidateEvaluation>
-    })
 
     useCreateTaskInstanceAssignmentMock.mockReturnValue({
       mutateAsync: createAssignmentMutateAsyncMock,
@@ -450,6 +522,25 @@ describe('ActivityPlanningPage', () => {
       mutateAsync: scope ? deleteAssignmentMutateAsyncMock : replaceDeleteAssignmentMutateAsyncMock,
       isPending: false,
     }) as unknown as ReturnType<typeof useDeleteAssignment>)
+
+    useOpenActivitySchedulingDayMock.mockImplementation(() =>
+      makeOpenSchedulingDayMutation() as unknown as ReturnType<typeof useOpenActivitySchedulingDay>,
+    )
+    useSubmitActivitySchedulingDayForApprovalMock.mockImplementation(() =>
+      makeApprovalTransitionMutation(
+        submitSchedulingDayForApprovalMutateAsyncMock,
+      ) as unknown as ReturnType<typeof useSubmitActivitySchedulingDayForApproval>,
+    )
+    useApproveActivitySchedulingDayMock.mockImplementation(() =>
+      makeApprovalTransitionMutation(
+        approveSchedulingDayMutateAsyncMock,
+      ) as unknown as ReturnType<typeof useApproveActivitySchedulingDay>,
+    )
+    useReturnActivitySchedulingDayToDraftMock.mockImplementation(() =>
+      makeApprovalTransitionMutation(
+        returnSchedulingDayToDraftMutateAsyncMock,
+      ) as unknown as ReturnType<typeof useReturnActivitySchedulingDayToDraft>,
+    )
 
     useCompanyUsersMock.mockReturnValue({
       isPending: false,
@@ -505,7 +596,7 @@ describe('ActivityPlanningPage', () => {
             qualifications: [],
           },
         ],
-        total: 2,
+        total: 4,
         page: 1,
         pageSize: 100,
       },
@@ -521,21 +612,7 @@ describe('ActivityPlanningPage', () => {
         return makeSchedulingQuery({
           data: buildSchedulingDayData(date, true, [
             baseTaskInstance,
-            {
-              ...baseTaskInstance,
-              id: 'instance-2',
-              title: 'משמרת לילה',
-              startTime: '2026-08-11T22:00:00.000Z',
-              endTime: '2026-08-12T04:00:00.000Z',
-              isOvernight: true,
-              assignmentSlots: { total: 1, filled: 0, unfilled: 1 },
-              assignments: [],
-              validation: {
-                requiredErrors: [],
-                warnings: [],
-                summary: { isValid: true },
-              },
-            },
+            overnightTaskInstance,
             warningOnlyTaskInstance,
             normalTaskInstance,
           ]),
@@ -543,13 +620,11 @@ describe('ActivityPlanningPage', () => {
       }
 
       if (date === '2026-08-12') {
-        return makeSchedulingQuery({
-          data: buildSchedulingDayData(date, true, []),
-        }) as ReturnType<typeof useActivitySchedulingDay>
+        return makeSchedulingQuery({ data: buildSchedulingDayData(date, true, []) }) as ReturnType<typeof useActivitySchedulingDay>
       }
 
       return makeSchedulingQuery({
-        data: buildSchedulingDayData(date, false, []),
+        data: buildSchedulingDayData(date, date === '2026-08-10' ? selectedClosedDayOpened : false, []),
       }) as ReturnType<typeof useActivitySchedulingDay>
     })
   })
@@ -561,189 +636,208 @@ describe('ActivityPlanningPage', () => {
       expect(useActivitySchedulingDayMock).toHaveBeenLastCalledWith('activity-1', '2026-08-10')
     })
 
-    expect(screen.getByTestId('planning-selected-date').textContent).toBe('10.08.2026')
+    expect(screen.getByTestId('planning-selected-day-title').textContent).toContain('10.08.2026')
   })
 
-  it('keeps unopened-day state for closed day', () => {
+  it('removes the scheduling details section and keeps board header as primary', () => {
+    render(<ActivityPlanningPage />)
+
+    expect(screen.queryByText('פרטי יום שיבוץ')).toBeNull()
+    expect(screen.getByTestId('planning-board-primary-header')).toBeDefined()
+  })
+
+  it('keeps unopened-day state and open-day action for a closed day', () => {
     render(<ActivityPlanningPage />)
 
     expect(screen.getByText('היום עדיין לא נפתח')).toBeDefined()
+    expect(screen.getByRole('button', { name: 'פתח יום שיבוץ' })).toBeDefined()
   })
 
-  it('renders opened day task instances as scheduling board cards', async () => {
-    render(<ActivityPlanningPage />)
+  it('opens a closed day through the existing mutation flow', async () => {
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true)
+    const { rerender } = render(<ActivityPlanningPage />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'יום הבא' }))
+    fireEvent.click(screen.getByRole('button', { name: 'פתח יום שיבוץ' }))
 
     await waitFor(() => {
-      expect(screen.getByText('משמרת בוקר')).toBeDefined()
+      expect(openSchedulingDayMutateAsyncMock).toHaveBeenCalledTimes(1)
     })
 
-    expect(screen.getByText('משמרת לילה')).toBeDefined()
-  })
-
-  it('displays task title and time range for opened day instances', async () => {
-    render(<ActivityPlanningPage />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'יום הבא' }))
+    rerender(<ActivityPlanningPage />)
 
     await waitFor(() => {
-      expect(screen.getAllByText('התחלה').length).toBeGreaterThan(0)
+      expect(screen.getByText('אין מופעי משימה ליום פתוח זה')).toBeDefined()
     })
 
-    expect(screen.getAllByText('08:00').length).toBeGreaterThan(0)
-    expect(screen.getAllByText('12:00').length).toBeGreaterThan(0)
+    confirmSpy.mockRestore()
   })
 
-  it('marks overnight task instances', async () => {
+  it('renders scheduling status and submit action in draft state', () => {
     render(<ActivityPlanningPage />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'יום הבא' }))
-
-    await waitFor(() => {
-      expect(screen.getByText('לילה')).toBeDefined()
-    })
+    expect(within(screen.getByTestId('planning-scheduling-status')).getByText('טיוטה')).toBeDefined()
+    expect(screen.getByRole('button', { name: 'שלח לאישור' })).toBeDefined()
   })
 
-  it('shows filled and unfilled assignment slots', async () => {
+  it('shows approver actions in pending-approval status and keeps editing controls visible', async () => {
+    hasPermissionMock.mockImplementation((permission: string) => permission === 'APPROVE_SCHEDULING')
+    useActivitySchedulingDayMock.mockImplementation((requestedActivityId, date) => {
+      if (requestedActivityId !== 'activity-1' || !date) {
+        return makeSchedulingQuery({ isPending: true, data: undefined }) as ReturnType<typeof useActivitySchedulingDay>
+      }
+
+      if (date === '2026-08-11') {
+        return makeSchedulingQuery({
+          data: buildSchedulingDayData(date, true, [baseTaskInstance, warningOnlyTaskInstance, normalTaskInstance], 'PENDING_APPROVAL'),
+        }) as ReturnType<typeof useActivitySchedulingDay>
+      }
+
+      return makeSchedulingQuery({ data: buildSchedulingDayData(date, false, []) }) as ReturnType<typeof useActivitySchedulingDay>
+    })
+
+    await renderOpenedDay()
+
+    expect(screen.getByRole('button', { name: 'אשר שיבוץ' })).toBeDefined()
+    expect(screen.getByRole('button', { name: 'החזר לתיקון' })).toBeDefined()
+    expect(screen.getAllByRole('button', { name: 'עריכת מופע משימה' }).length).toBeGreaterThan(0)
+    expect(within(screen.getByTestId('planning-scheduling-status')).getByText('ממתין לאישור')).toBeDefined()
+  })
+
+  it('executes approve action directly without confirmation popup', async () => {
+    const confirmSpy = vi.spyOn(window, 'confirm')
+    hasPermissionMock.mockImplementation((permission: string) => permission === 'APPROVE_SCHEDULING')
+    useActivitySchedulingDayMock.mockImplementation((requestedActivityId, date) => {
+      if (requestedActivityId !== 'activity-1' || !date) {
+        return makeSchedulingQuery({ isPending: true, data: undefined }) as ReturnType<typeof useActivitySchedulingDay>
+      }
+
+      if (date === '2026-08-11') {
+        return makeSchedulingQuery({
+          data: buildSchedulingDayData(date, true, [baseTaskInstance], 'PENDING_APPROVAL'),
+        }) as ReturnType<typeof useActivitySchedulingDay>
+      }
+
+      return makeSchedulingQuery({ data: buildSchedulingDayData(date, false, []) }) as ReturnType<typeof useActivitySchedulingDay>
+    })
+
+    await renderOpenedDay()
+
+    fireEvent.click(screen.getByRole('button', { name: 'אשר שיבוץ' }))
+
+    await waitFor(() => {
+      expect(approveSchedulingDayMutateAsyncMock).toHaveBeenCalledTimes(1)
+    })
+    expect(confirmSpy).not.toHaveBeenCalledWith('האם לאשר את יום השיבוץ הנבחר?')
+
+    confirmSpy.mockRestore()
+  })
+
+  it('renders board header date/status centered with next on left and previous on right', () => {
     render(<ActivityPlanningPage />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'יום הבא' }))
-
-    await waitFor(() => {
-      expect(screen.getByText('1 מאוישים / 2 תקנים')).toBeDefined()
-    })
-
-    expect(screen.getAllByText('פנויים: 1').length).toBeGreaterThan(0)
-    expect(screen.getAllByText('פנוי').length).toBeGreaterThan(0)
-    expect(screen.getAllByText('מאויש').length).toBeGreaterThan(0)
+    const header = screen.getByTestId('planning-board-primary-header')
+    expect(header.firstElementChild).toBe(screen.getByTestId('planning-next-day-button'))
+    expect(header.lastElementChild).toBe(screen.getByTestId('planning-previous-day-button'))
+    expect(screen.getByTestId('planning-board-date-status')).toBeDefined()
+    expect(within(screen.getByTestId('planning-scheduling-status')).getByText('טיוטה')).toBeDefined()
   })
 
-  it('shows correct board-level assignment coverage and problem summary for the selected day', async () => {
-    render(<ActivityPlanningPage />)
+  it('renders task definitions as columns and places blocks inside the correct task column', async () => {
+    await renderOpenedDay()
 
-    fireEvent.click(screen.getByRole('button', { name: 'יום הבא' }))
+    expect(screen.getByTestId('planning-column-header-task-1')).toBeDefined()
+    expect(screen.getByTestId('planning-column-header-task-2')).toBeDefined()
+    expect(screen.getByTestId('planning-column-header-task-3')).toBeDefined()
+    expect(screen.getByTestId('planning-column-header-task-4')).toBeDefined()
 
-    await waitFor(() => {
-      expect(screen.getByTestId('planning-summary-coverage')).toBeDefined()
-    })
-
-    expect(within(screen.getByTestId('planning-summary-coverage')).getByText('3 / 5 מאוישות')).toBeDefined()
-    expect(within(screen.getByTestId('planning-summary-coverage')).getByText('פנויות: 2')).toBeDefined()
-    expect(within(screen.getByTestId('planning-summary-problems')).getByText('קריטיות: 1')).toBeDefined()
-    expect(within(screen.getByTestId('planning-summary-problems')).getByText('אזהרות: 1')).toBeDefined()
-    expect(within(screen.getByTestId('planning-summary-task-attention')).getByText('2')).toBeDefined()
-    expect(within(screen.getByTestId('planning-summary-task-problems')).getByText('פנויות: 2')).toBeDefined()
-    expect(within(screen.getByTestId('planning-summary-task-problems')).getByText('קריטיות: 1 · אזהרות: 1')).toBeDefined()
+    const taskOneColumn = screen.getByTestId('planning-task-column-task-1')
+    expect(within(taskOneColumn).getByTestId('planning-instance-block-instance-1')).toBeDefined()
+    expect(within(taskOneColumn).getByTestId('planning-instance-block-instance-2')).toBeDefined()
+    expect(within(taskOneColumn).queryByTestId('planning-instance-block-instance-3')).toBeNull()
   })
 
-  it('filters to task instances that require attention', async () => {
-    render(<ActivityPlanningPage />)
+  it('uses a 06:00-based operational placement for task blocks', async () => {
+    await renderOpenedDay()
 
-    fireEvent.click(screen.getByRole('button', { name: 'יום הבא' }))
+    const morningBlock = screen.getByTestId('planning-instance-block-instance-1')
+    const overnightBlock = screen.getByTestId('planning-instance-block-instance-2')
 
-    await waitFor(() => {
-      expect(screen.getByTestId('planning-board-filters')).toBeDefined()
-    })
-
-    fireEvent.click(screen.getByRole('button', { name: 'דורש טיפול' }))
-
-    expect(screen.getByTestId('planning-task-card-instance-1')).toBeDefined()
-    expect(screen.getByTestId('planning-task-card-instance-2')).toBeDefined()
-    expect(screen.queryByTestId('planning-task-card-instance-3')).toBeNull()
-    expect(screen.queryByTestId('planning-task-card-instance-4')).toBeNull()
+    expect(morningBlock.getAttribute('data-start-minute')).toBe('120')
+    expect(morningBlock.getAttribute('data-duration-minutes')).toBe('240')
+    expect(overnightBlock.getAttribute('data-start-minute')).toBe('960')
+    expect(overnightBlock.getAttribute('data-duration-minutes')).toBe('360')
   })
 
-  it('filters to task instances with unfilled slots', async () => {
-    render(<ActivityPlanningPage />)
+  it('renders a fixed operational timeline window from 06:00 to 06:00 next day', async () => {
+    await renderOpenedDay()
 
-    fireEvent.click(screen.getByRole('button', { name: 'יום הבא' }))
-
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'משבצות פנויות' })).toBeDefined()
-    })
-
-    fireEvent.click(screen.getByRole('button', { name: 'משבצות פנויות' }))
-
-    expect(screen.getByTestId('planning-task-card-instance-1')).toBeDefined()
-    expect(screen.getByTestId('planning-task-card-instance-2')).toBeDefined()
-    expect(screen.queryByTestId('planning-task-card-instance-3')).toBeNull()
-    expect(screen.queryByTestId('planning-task-card-instance-4')).toBeNull()
+    expect(screen.getByTestId('planning-time-axis-window').textContent).toContain('06:00 → 06:00 (+1)')
+    expect(screen.getByTestId('planning-time-axis-label-0').textContent).toBe('06:00')
+    expect(screen.getByTestId('planning-time-axis-label-17').textContent).toBe('23:00')
+    expect(screen.getByTestId('planning-time-axis-label-18').textContent).toBe('00:00')
+    expect(screen.getByTestId('planning-time-axis-label-24').textContent).toBe('06:00')
   })
 
-  it('filters to task instances with critical assignment issues', async () => {
-    render(<ActivityPlanningPage />)
+  it('renders the time axis on the right side of the board', async () => {
+    await renderOpenedDay()
 
-    fireEvent.click(screen.getByRole('button', { name: 'יום הבא' }))
+    const grid = screen.getByTestId('planning-scheduling-grid')
+    const boardRow = grid.querySelector(':scope > div')
 
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'בעיות קריטיות' })).toBeDefined()
-    })
-
-    fireEvent.click(screen.getByRole('button', { name: 'בעיות קריטיות' }))
-
-    expect(screen.getByTestId('planning-task-card-instance-1')).toBeDefined()
-    expect(screen.queryByTestId('planning-task-card-instance-2')).toBeNull()
-    expect(screen.queryByTestId('planning-task-card-instance-3')).toBeNull()
-    expect(screen.queryByTestId('planning-task-card-instance-4')).toBeNull()
+    expect(boardRow?.lastElementChild).toBe(screen.getByTestId('planning-time-axis'))
   })
 
-  it('filters to task instances with warning assignment issues', async () => {
-    render(<ActivityPlanningPage />)
+  it('does not create an internal vertical scroll container for the grid', async () => {
+    await renderOpenedDay()
 
-    fireEvent.click(screen.getByRole('button', { name: 'יום הבא' }))
+    const grid = screen.getByTestId('planning-scheduling-grid')
+    const verticalScrollContainers = grid.querySelectorAll('.overflow-y-auto, .overflow-y-scroll')
 
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'אזהרות' })).toBeDefined()
-    })
-
-    fireEvent.click(screen.getByRole('button', { name: 'אזהרות' }))
-
-    expect(screen.getByTestId('planning-task-card-instance-3')).toBeDefined()
-    expect(screen.queryByTestId('planning-task-card-instance-1')).toBeNull()
-    expect(screen.queryByTestId('planning-task-card-instance-2')).toBeNull()
-    expect(screen.queryByTestId('planning-task-card-instance-4')).toBeNull()
+    expect(verticalScrollContainers.length).toBe(0)
   })
 
-  it('restores all task instances when switching back to הכל', async () => {
-    render(<ActivityPlanningPage />)
+  it('uses horizontal overflow container without forcing vertical overflow', async () => {
+    await renderOpenedDay()
 
-    fireEvent.click(screen.getByRole('button', { name: 'יום הבא' }))
+    const grid = screen.getByTestId('planning-scheduling-grid')
+    const horizontalContainer = grid.querySelector('.overflow-x-auto') as HTMLElement | null
 
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'אזהרות' })).toBeDefined()
-    })
-
-    fireEvent.click(screen.getByRole('button', { name: 'אזהרות' }))
-    fireEvent.click(screen.getByRole('button', { name: 'הכל' }))
-
-    expect(screen.getByTestId('planning-task-card-instance-1')).toBeDefined()
-    expect(screen.getByTestId('planning-task-card-instance-2')).toBeDefined()
-    expect(screen.getByTestId('planning-task-card-instance-3')).toBeDefined()
-    expect(screen.getByTestId('planning-task-card-instance-4')).toBeDefined()
+    expect(horizontalContainer).toBeTruthy()
+    expect(horizontalContainer?.className.includes('overflow-y-auto')).toBe(false)
+    expect(horizontalContainer?.className.includes('overflow-y-scroll')).toBe(false)
   })
 
-  it('shows a clear empty state when no task instances match the active filter', async () => {
-    const noWarningDay = {
-      ...buildSchedulingDayData('2026-08-11', true, [
-        baseTaskInstance,
-        {
-          ...baseTaskInstance,
-          id: 'instance-2',
-          title: 'משמרת לילה',
-          startTime: '2026-08-11T22:00:00.000Z',
-          endTime: '2026-08-12T04:00:00.000Z',
-          isOvernight: true,
-          assignmentSlots: { total: 1, filled: 0, unfilled: 1 },
-          assignments: [],
-          validation: {
-            requiredErrors: [],
-            warnings: [],
-            summary: { isValid: true },
-          },
-        },
-        normalTaskInstance,
-      ]),
+  it('keeps task columns compact', async () => {
+    await renderOpenedDay()
+
+    const headerColumn = screen.getByTestId('planning-column-header-task-1') as HTMLElement
+    const bodyColumn = screen.getByTestId('planning-task-column-task-1') as HTMLElement
+
+    expect(headerColumn.style.width).toBe('240px')
+    expect(bodyColumn.style.width).toBe('240px')
+  })
+
+  it('keeps overnight instances on the board of their start day', async () => {
+    await renderOpenedDay()
+
+    expect(screen.getByTestId('planning-instance-block-instance-2')).toBeDefined()
+
+    fireEvent.click(screen.getByRole('button', { name: /הבא/ }))
+
+    await waitFor(() => {
+      expect(screen.getByText('אין מופעי משימה ליום פתוח זה')).toBeDefined()
+    })
+  })
+
+  it('does not extend task block duration beyond actual start and end time', async () => {
+    const shortTaskInstance = {
+      ...baseTaskInstance,
+      id: 'instance-short',
+      startTime: '2026-08-11T12:00:00.000Z',
+      endTime: '2026-08-11T12:30:00.000Z',
+      assignmentSlots: { total: 1, filled: 0, unfilled: 1 },
+      assignments: [],
+      validation: { requiredErrors: [], warnings: [], summary: { isValid: true } },
     }
 
     useActivitySchedulingDayMock.mockImplementation((requestedActivityId, date) => {
@@ -752,37 +846,42 @@ describe('ActivityPlanningPage', () => {
       }
 
       if (date === '2026-08-11') {
-        return makeSchedulingQuery({ data: noWarningDay }) as ReturnType<typeof useActivitySchedulingDay>
+        return makeSchedulingQuery({
+          data: buildSchedulingDayData(date, true, [shortTaskInstance]),
+        }) as ReturnType<typeof useActivitySchedulingDay>
       }
 
       return makeSchedulingQuery({ data: buildSchedulingDayData(date, false, []) }) as ReturnType<typeof useActivitySchedulingDay>
     })
 
-    render(<ActivityPlanningPage />)
+    await renderOpenedDay()
 
-    fireEvent.click(screen.getByRole('button', { name: 'יום הבא' }))
-
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'אזהרות' })).toBeDefined()
-    })
-
-    fireEvent.click(screen.getByRole('button', { name: 'אזהרות' }))
-
-    expect(screen.getByText('אין אזהרות פעילות')).toBeDefined()
-    expect(screen.getByText('לא נמצאו מופעי משימה עם שיבוצים ברמת אזהרה ביום שנבחר.')).toBeDefined()
+    const shortBlock = screen.getByTestId('planning-instance-block-instance-short')
+    expect(shortBlock.getAttribute('data-start-minute')).toBe('360')
+    expect(shortBlock.getAttribute('data-duration-minutes')).toBe('30')
   })
 
-  it('renders a soldier selector for an empty assignment slot using the paginated company users query', async () => {
-    render(<ActivityPlanningPage />)
+  it('renders assignment fields according to manpower slots and keeps requirement labels above fields', async () => {
+    await renderOpenedDay()
 
-    fireEvent.click(screen.getByRole('button', { name: 'יום הבא' }))
+    expect(screen.getByTestId('planning-slot-instance-1-0')).toBeDefined()
+    expect(screen.getByTestId('planning-slot-instance-1-1')).toBeDefined()
+    expect(screen.getByTestId('planning-slot-instance-2-0')).toBeDefined()
+    expect(screen.getAllByText(/חובש/).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/ירי/).length).toBeGreaterThan(0)
 
-    await waitFor(() => {
-      expect(screen.getByTestId('planning-slot-instance-2-0')).toBeDefined()
-    })
+    const slot = screen.getByTestId('planning-slot-instance-1-0')
+    const requirementText = within(slot).getByText('חובש · ירי')
+    const input = within(slot).getByLabelText('שיבוץ חייל')
+
+    expect(requirementText.compareDocumentPosition(input) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('keeps the paginated company users query and renders compact assignment selectors', async () => {
+    await renderOpenedDay()
 
     const emptySlot = screen.getByTestId('planning-slot-instance-2-0')
-    expect(within(emptySlot).getByLabelText('שיבוץ חייל למקום 1')).toBeDefined()
+    expect(within(emptySlot).getByLabelText('שיבוץ חייל')).toBeDefined()
     expect(useCompanyUsersMock).toHaveBeenCalledWith('company-1', {
       page: 1,
       pageSize: 100,
@@ -791,27 +890,22 @@ describe('ActivityPlanningPage', () => {
     })
   })
 
-  it('searching and selecting a soldier in an empty slot shows preview first and does not assign before confirmation', async () => {
-    render(<ActivityPlanningPage />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'יום הבא' }))
-
-    await waitFor(() => {
-      expect(screen.getByTestId('planning-slot-instance-2-0')).toBeDefined()
-    })
+  it('shows available soldiers immediately when opening an empty assignment field', async () => {
+    await renderOpenedDay()
 
     const emptySlot = screen.getByTestId('planning-slot-instance-2-0')
-    fireEvent.change(within(emptySlot).getByLabelText('שיבוץ חייל למקום 1'), { target: { value: 'רונית' } })
+    fireEvent.focus(within(emptySlot).getByLabelText('שיבוץ חייל'))
+
+    expect(within(emptySlot).getByRole('button', { name: /רונית לוי/i })).toBeDefined()
+    expect(within(emptySlot).getByRole('button', { name: /דנה מזרחי/i })).toBeDefined()
+  })
+
+  it('assigns a soldier from the selector without requiring a replace-action button', async () => {
+    await renderOpenedDay()
+
+    const emptySlot = screen.getByTestId('planning-slot-instance-2-0')
+    fireEvent.change(within(emptySlot).getByLabelText('שיבוץ חייל'), { target: { value: 'רונית' } })
     fireEvent.click(within(emptySlot).getByRole('button', { name: /רונית לוי/i }))
-
-    await waitFor(() => {
-      expect(within(emptySlot).getByText('מועמד נבחר')).toBeDefined()
-    })
-
-    expect(createAssignmentMutateAsyncMock).not.toHaveBeenCalled()
-    expect(within(emptySlot).getByTestId('planning-candidate-evaluation-preview')).toBeDefined()
-
-    fireEvent.click(within(emptySlot).getByRole('button', { name: 'שבץ חייל' }))
 
     await waitFor(() => {
       expect(createAssignmentMutateAsyncMock).toHaveBeenCalledWith({ userId: 'user-2' })
@@ -821,171 +915,77 @@ describe('ActivityPlanningPage', () => {
       activityId: 'activity-1',
       date: '2026-08-11',
     })
+    expect(screen.queryByRole('button', { name: 'החלף חייל' })).toBeNull()
   })
 
-  it('shows a normal candidate preview with no issues before assignment', async () => {
-    render(<ActivityPlanningPage />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'יום הבא' }))
-
-    await waitFor(() => {
-      expect(screen.getByTestId('planning-slot-instance-2-0')).toBeDefined()
-    })
+  it('supports searching and selecting unavailable users through the selector', async () => {
+    await renderOpenedDay()
 
     const emptySlot = screen.getByTestId('planning-slot-instance-2-0')
-    fireEvent.change(within(emptySlot).getByLabelText('שיבוץ חייל למקום 1'), { target: { value: 'נועם' } })
+    fireEvent.change(within(emptySlot).getByLabelText('שיבוץ חייל'), { target: { value: 'נועם' } })
     fireEvent.click(within(emptySlot).getByRole('button', { name: /נועם ברק/i }))
 
     await waitFor(() => {
-      expect(within(emptySlot).getByTestId('planning-candidate-evaluation-normal')).toBeDefined()
+      expect(createAssignmentMutateAsyncMock).toHaveBeenCalledWith({ userId: 'user-4' })
     })
-
-    expect(within(emptySlot).getByText('ללא חריגות ידועות')).toBeDefined()
-    expect(createAssignmentMutateAsyncMock).not.toHaveBeenCalled()
   })
 
-  it('shows warning candidate preview reasons before assignment', async () => {
-    render(<ActivityPlanningPage />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'יום הבא' }))
-
-    await waitFor(() => {
-      expect(screen.getByTestId('planning-slot-instance-2-0')).toBeDefined()
-    })
-
-    const emptySlot = screen.getByTestId('planning-slot-instance-2-0')
-    fireEvent.change(within(emptySlot).getByLabelText('שיבוץ חייל למקום 1'), { target: { value: 'רונית' } })
-    fireEvent.click(within(emptySlot).getByRole('button', { name: /רונית לוי/i }))
-
-    await waitFor(() => {
-      expect(within(emptySlot).getByTestId('planning-candidate-evaluation-preview')).toBeDefined()
-    })
-
-    expect(within(emptySlot).getAllByText('אזהרה').length).toBeGreaterThan(0)
-    expect(within(emptySlot).getByText('חסר תפקיד אופציונלי: נהג')).toBeDefined()
-  })
-
-  it('shows critical candidate preview reasons before assignment', async () => {
-    render(<ActivityPlanningPage />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'יום הבא' }))
-
-    await waitFor(() => {
-      expect(screen.getByTestId('planning-slot-instance-2-0')).toBeDefined()
-    })
-
-    const emptySlot = screen.getByTestId('planning-slot-instance-2-0')
-    fireEvent.change(within(emptySlot).getByLabelText('שיבוץ חייל למקום 1'), { target: { value: 'דנה' } })
-    fireEvent.click(within(emptySlot).getByRole('button', { name: /דנה מזרחי/i }))
-
-    await waitFor(() => {
-      expect(within(emptySlot).getByTestId('planning-candidate-evaluation-preview')).toBeDefined()
-    })
-
-    expect(within(emptySlot).getAllByText('קריטי').length).toBeGreaterThan(0)
-    expect(within(emptySlot).getByText('חסרה הסמכת חובה: חובש')).toBeDefined()
-  })
-
-  it('displays assigned soldiers from read model data', async () => {
-    render(<ActivityPlanningPage />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'יום הבא' }))
-
-    await waitFor(() => {
-      expect(screen.getAllByText('איילה כהן').length).toBeGreaterThan(0)
-    })
-
-    expect(screen.getAllByText('מספר אישי: 123456').length).toBeGreaterThan(0)
-    expect(screen.getAllByText('מסגרת: א׳').length).toBeGreaterThan(0)
-  })
-
-  it('renders a clear critical state for a filled assignment and keeps warning details visible', async () => {
-    render(<ActivityPlanningPage />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'יום הבא' }))
-
-    await waitFor(() => {
-      expect(screen.getByTestId('planning-assignment-evaluation-assignment-1')).toBeDefined()
-    })
-
-    const evaluationPanel = screen.getByTestId('planning-assignment-evaluation-assignment-1')
-    expect(within(evaluationPanel).getAllByText('קריטי').length).toBeGreaterThan(0)
-    expect(within(evaluationPanel).getAllByText('אזהרה').length).toBeGreaterThan(0)
-    expect(within(evaluationPanel).getByText('חסר תפקיד חובה: חובש')).toBeDefined()
-    expect(within(evaluationPanel).getByText('חסרה הסמכה אופציונלית: ירי')).toBeDefined()
-    expect(within(evaluationPanel).getByText('החייל לא זמין למשבצת הזמן הזאת')).toBeDefined()
-  })
-
-  it('renders a warning state for warning-only evaluation reasons', async () => {
-    render(<ActivityPlanningPage />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'יום הבא' }))
-
-    await waitFor(() => {
-      expect(screen.getByTestId('planning-assignment-evaluation-assignment-3')).toBeDefined()
-    })
-
-    const evaluationPanel = screen.getByTestId('planning-assignment-evaluation-assignment-3')
-    expect(within(evaluationPanel).getAllByText('אזהרה').length).toBeGreaterThan(0)
-    expect(within(evaluationPanel).queryByText('קריטי')).toBeNull()
-    expect(within(evaluationPanel).getByText('חסר תפקיד אופציונלי: נהג')).toBeDefined()
-  })
-
-  it('does not show a warning panel for a normal assignment', async () => {
-    render(<ActivityPlanningPage />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'יום הבא' }))
-
-    await waitFor(() => {
-      expect(screen.getByText('שמירה שקטה')).toBeDefined()
-    })
-
-    expect(screen.queryByTestId('planning-assignment-evaluation-assignment-4')).toBeNull()
-  })
-
-  it('removing a filled assignment calls delete with scheduling scope and keeps existing task rendering intact', async () => {
-    render(<ActivityPlanningPage />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'יום הבא' }))
-
-    await waitFor(() => {
-      expect(screen.getAllByText('איילה כהן').length).toBeGreaterThan(0)
-    })
+  it('displays assigned soldiers and local warning details from the read model', async () => {
+    await renderOpenedDay()
 
     const filledSlot = screen.getByTestId('planning-slot-instance-1-0')
-    fireEvent.click(within(filledSlot).getByRole('button', { name: 'הסרת שיבוץ' }))
-
-    await waitFor(() => {
-      expect(deleteAssignmentMutateAsyncMock).toHaveBeenCalledWith('assignment-1')
-    })
-
-    expect(useDeleteAssignmentMock).toHaveBeenCalledWith({
-      activityId: 'activity-1',
-      date: '2026-08-11',
-    })
-    expect(screen.getByText('משמרת בוקר')).toBeDefined()
+    expect((within(filledSlot).getByLabelText('שיבוץ חייל') as HTMLInputElement).value).toBe('איילה כהן')
+    expect(screen.getByText('החייל אינו חובש')).toBeDefined()
+    expect(screen.getByText('לחייל חסרה הסמכה: ירי')).toBeDefined()
+    expect(screen.queryByText('החייל אינו זמין למשבצת הזמן')).toBeNull()
+    expect(screen.getByText('החייל אינו נהג')).toBeDefined()
   })
 
-  it('changing a soldier performs delete current assignment followed by create new assignment', async () => {
-    render(<ActivityPlanningPage />)
+  it('renders assignment validation as compact field-level text without bordered error cards', async () => {
+    await renderOpenedDay()
 
-    fireEvent.click(screen.getByRole('button', { name: 'יום הבא' }))
+    const evaluation = screen.getByTestId('planning-assignment-evaluation-assignment-1')
+    expect(evaluation.className).toContain('text-danger')
+    expect(evaluation.className).not.toContain('rounded')
+    expect(evaluation.className).not.toContain('border')
+  })
 
-    await waitFor(() => {
-      expect(screen.getByTestId('planning-slot-instance-1-0')).toBeDefined()
-    })
+  it('shows empty assignment fields with error styling and no manpower text', async () => {
+    await renderOpenedDay()
+
+    expect(screen.queryByText('בעיות חובה')).toBeNull()
+    expect(screen.queryByText('זמינות חלקית')).toBeNull()
+    expect(screen.queryByText('חסר כוח אדם')).toBeNull()
+
+    const emptySlot = screen.getByTestId('planning-slot-instance-1-1')
+    const input = within(emptySlot).getByLabelText('שיבוץ חייל') as HTMLInputElement
+    expect(input.className).toContain('border-danger/50')
+  })
+
+  it('does not render board filter controls', async () => {
+    await renderOpenedDay()
+
+    expect(screen.queryByTestId('planning-board-filters')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'דורש טיפול' })).toBeNull()
+  })
+
+  it('keeps KPI section compact and secondary', async () => {
+    await renderOpenedDay()
+
+    const kpiGrid = screen.getByTestId('planning-kpi-grid')
+    expect(kpiGrid.className).toContain('gap-2')
+
+    const coverageCard = screen.getByTestId('planning-summary-coverage')
+    expect(coverageCard.className).toContain('p-2')
+    expect(coverageCard.className).toContain('bg-surface/50')
+  })
+
+  it('replaces a soldier through the selector by deleting then creating', async () => {
+    await renderOpenedDay()
 
     const filledSlot = screen.getByTestId('planning-slot-instance-1-0')
-    fireEvent.change(within(filledSlot).getByLabelText('החלפת חייל'), { target: { value: 'רונית' } })
+    fireEvent.change(within(filledSlot).getByLabelText('שיבוץ חייל'), { target: { value: 'רונית' } })
     fireEvent.click(within(filledSlot).getByRole('button', { name: /רונית לוי/i }))
-
-    await waitFor(() => {
-      expect(within(filledSlot).getByText('מועמד חלופי נבחר')).toBeDefined()
-    })
-
-    expect(replaceDeleteAssignmentMutateAsyncMock).not.toHaveBeenCalled()
-
-    fireEvent.click(within(filledSlot).getByRole('button', { name: 'החלף חייל' }))
 
     await waitFor(() => {
       expect(replaceDeleteAssignmentMutateAsyncMock).toHaveBeenCalledWith('assignment-1')
@@ -997,145 +997,59 @@ describe('ActivityPlanningPage', () => {
     )
   })
 
-  it('mutation failure does not incorrectly remove the displayed soldier', async () => {
-    deleteAssignmentMutateAsyncMock.mockRejectedValueOnce(new Error('delete failed'))
-
-    render(<ActivityPlanningPage />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'יום הבא' }))
-
-    await waitFor(() => {
-      expect(screen.getAllByText('איילה כהן').length).toBeGreaterThan(0)
-    })
+  it('clearing a filled selector removes the assignment with existing scheduling scope', async () => {
+    await renderOpenedDay()
 
     const filledSlot = screen.getByTestId('planning-slot-instance-1-0')
-    fireEvent.click(within(filledSlot).getByRole('button', { name: 'הסרת שיבוץ' }))
+    fireEvent.change(within(filledSlot).getByLabelText('שיבוץ חייל'), { target: { value: '' } })
+
+    await waitFor(() => {
+      expect(deleteAssignmentMutateAsyncMock).toHaveBeenCalledWith('assignment-1')
+    })
+
+    expect(useDeleteAssignmentMock).toHaveBeenCalledWith({
+      activityId: 'activity-1',
+      date: '2026-08-11',
+    })
+  })
+
+  it('preserves the displayed soldier when clearing fails', async () => {
+    deleteAssignmentMutateAsyncMock.mockRejectedValueOnce(new Error('delete failed'))
+
+    await renderOpenedDay()
+
+    const filledSlot = screen.getByTestId('planning-slot-instance-1-0')
+    const input = within(filledSlot).getByLabelText('שיבוץ חייל') as HTMLInputElement
+
+    fireEvent.change(input, { target: { value: '' } })
 
     await waitFor(() => {
       expect(within(filledSlot).getByText('מחיקת השיבוץ נכשלה. אפשר לנסות שוב.')).toBeDefined()
     })
 
-    expect(screen.getAllByText('איילה כהן').length).toBeGreaterThan(0)
+    expect(input.value).toBe('איילה כהן')
   })
 
-  it('prevents duplicate assignment submissions while an assignment request is pending', async () => {
-    createAssignmentMutateAsyncMock.mockImplementationOnce(
-      () => new Promise(() => {}),
-    )
+  it('prevents duplicate assignment submissions while a create request is pending', async () => {
+    createAssignmentMutateAsyncMock.mockImplementationOnce(() => new Promise(() => {}))
 
-    render(<ActivityPlanningPage />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'יום הבא' }))
-
-    await waitFor(() => {
-      expect(screen.getByTestId('planning-slot-instance-2-0')).toBeDefined()
-    })
+    await renderOpenedDay()
 
     const emptySlot = screen.getByTestId('planning-slot-instance-2-0')
-    fireEvent.change(within(emptySlot).getByLabelText('שיבוץ חייל למקום 1'), { target: { value: 'רונית' } })
-    const selectButton = within(emptySlot).getByRole('button', { name: /רונית לוי/i })
+    fireEvent.change(within(emptySlot).getByLabelText('שיבוץ חייל'), { target: { value: 'רונית' } })
+    const candidateButton = within(emptySlot).getByRole('button', { name: /רונית לוי/i })
 
-    fireEvent.click(selectButton)
-    const assignButton = await within(emptySlot).findByRole('button', { name: 'שבץ חייל' })
-    fireEvent.click(assignButton)
-    fireEvent.click(assignButton)
+    fireEvent.click(candidateButton)
+    fireEvent.click(candidateButton)
 
     expect(createAssignmentMutateAsyncMock).toHaveBeenCalledTimes(1)
   })
 
-  it('displays requirements with required vs optional semantics', async () => {
-    render(<ActivityPlanningPage />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'יום הבא' }))
-
-    await waitFor(() => {
-      expect(screen.getAllByText('דרישות').length).toBeGreaterThan(0)
-    })
-
-    expect(screen.getAllByText('כוח אדם').length).toBeGreaterThan(0)
-    expect(screen.getAllByText('תפקידים').length).toBeGreaterThan(0)
-    expect(screen.getAllByText('הסמכות').length).toBeGreaterThan(0)
-    expect(screen.getAllByText('חובה').length).toBeGreaterThan(0)
-    expect(screen.getAllByText('אופציונלי').length).toBeGreaterThan(0)
-  })
-
-  it('displays validation and warning information from response', async () => {
-    render(<ActivityPlanningPage />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'יום הבא' }))
-
-    await waitFor(() => {
-      expect(screen.getAllByText('בעיות חובה').length).toBeGreaterThan(0)
-    })
-
-    expect(screen.getAllByText('חסר כוח אדם').length).toBeGreaterThan(0)
-    expect(screen.getAllByText('אזהרות').length).toBeGreaterThan(0)
-    expect(screen.getAllByText('זמינות חלקית').length).toBeGreaterThan(0)
-  })
-
-  it('shows empty state for opened day with zero task instances', async () => {
-    render(<ActivityPlanningPage />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'יום הבא' }))
-    fireEvent.click(screen.getByRole('button', { name: 'יום הבא' }))
-
-    await waitFor(() => {
-      expect(screen.getByText('אין מופעי משימה ליום פתוח זה')).toBeDefined()
-    })
-  })
-
-  it('keeps existing day navigation behavior and refreshes query key args', async () => {
-    render(<ActivityPlanningPage />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'יום הבא' }))
-    await waitFor(() => {
-      expect(useActivitySchedulingDayMock).toHaveBeenLastCalledWith('activity-1', '2026-08-11')
-    })
-
-    fireEvent.click(screen.getByRole('button', { name: 'יום קודם' }))
-    await waitFor(() => {
-      expect(useActivitySchedulingDayMock).toHaveBeenLastCalledWith('activity-1', '2026-08-10')
-    })
-  })
-
-  it('creates a task instance from the opened day board and refetches day data', async () => {
-    render(<ActivityPlanningPage />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'יום הבא' }))
-
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'הוספת מופע משימה' })).toBeDefined()
-    })
-
-    fireEvent.click(screen.getByRole('button', { name: 'הוספת מופע משימה' }))
-    fireEvent.click(screen.getByRole('button', { name: 'יצירת מופע' }))
-
-    await waitFor(() => {
-      expect(createTaskInstanceMutateAsyncMock).toHaveBeenCalledTimes(1)
-    })
-
-    expect(createTaskInstanceMutateAsyncMock).toHaveBeenCalledWith({
-      title: 'הכנה',
-      startTime: expect.stringMatching(/Z$/),
-      endTime: expect.stringMatching(/Z$/),
-    })
-    expect(schedulingRefetchMock).toHaveBeenCalled()
-  })
-
   it('edits an existing task instance from the board and refetches day data', async () => {
-    render(<ActivityPlanningPage />)
+    await renderOpenedDay()
 
-    fireEvent.click(screen.getByRole('button', { name: 'יום הבא' }))
-
-    await waitFor(() => {
-      expect(screen.getByText('משמרת בוקר')).toBeDefined()
-    })
-
-    const editButtons = screen.getAllByRole('button', { name: 'עריכה' })
-    fireEvent.click(editButtons[0])
-
-    const titleInput = screen.getByLabelText('כותרת')
-    fireEvent.change(titleInput, { target: { value: 'משמרת בוקר מעודכנת' } })
+    fireEvent.click(screen.getAllByRole('button', { name: 'עריכת מופע משימה' })[0])
+    fireEvent.change(screen.getByLabelText('כותרת'), { target: { value: 'משמרת בוקר מעודכנת' } })
     fireEvent.click(screen.getByRole('button', { name: 'שמירת שינויים' }))
 
     await waitFor(() => {
@@ -1156,16 +1070,9 @@ describe('ActivityPlanningPage', () => {
   it('deletes a task instance from the board and refetches day data', async () => {
     const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true)
 
-    render(<ActivityPlanningPage />)
+    await renderOpenedDay()
 
-    fireEvent.click(screen.getByRole('button', { name: 'יום הבא' }))
-
-    await waitFor(() => {
-      expect(screen.getByText('משמרת בוקר')).toBeDefined()
-    })
-
-    const deleteButtons = screen.getAllByRole('button', { name: 'מחיקה' })
-    fireEvent.click(deleteButtons[0])
+    fireEvent.click(screen.getAllByRole('button', { name: 'מחיקת מופע משימה' })[0])
 
     await waitFor(() => {
       expect(deleteTaskInstanceMutateAsyncMock).toHaveBeenCalledWith('instance-1')
@@ -1175,14 +1082,83 @@ describe('ActivityPlanningPage', () => {
     confirmSpy.mockRestore()
   })
 
-  it('does not allow navigation outside activity date range', async () => {
+  it('renders without breaking when a task instance title is absent', async () => {
+    const noTitleTaskInstance = {
+      ...baseTaskInstance,
+      id: 'instance-6',
+      title: '',
+      assignmentSlots: {
+        total: 1,
+        filled: 0,
+        unfilled: 1,
+      },
+      assignments: [],
+      validation: {
+        requiredErrors: [{ type: 'MANPOWER', message: 'חסר כוח אדם' }],
+        warnings: [],
+        summary: { isValid: false },
+      },
+    }
+
+    useActivitySchedulingDayMock.mockImplementation((requestedActivityId, date) => {
+      if (requestedActivityId !== 'activity-1' || !date) {
+        return makeSchedulingQuery({ isPending: true, data: undefined }) as ReturnType<typeof useActivitySchedulingDay>
+      }
+
+      if (date === '2026-08-11') {
+        return makeSchedulingQuery({
+          data: buildSchedulingDayData(date, true, [noTitleTaskInstance]),
+        }) as ReturnType<typeof useActivitySchedulingDay>
+      }
+
+      return makeSchedulingQuery({ data: buildSchedulingDayData(date, false, []) }) as ReturnType<typeof useActivitySchedulingDay>
+    })
+
+    await renderOpenedDay()
+
+    expect(screen.getByTestId('planning-instance-block-instance-6')).toBeDefined()
+    expect(screen.getAllByText('הכנה').length).toBeGreaterThan(0)
+  })
+
+  it('uses icon-only task instance actions', async () => {
+    await renderOpenedDay()
+
+    expect(screen.getAllByRole('button', { name: 'עריכת מופע משימה' }).length).toBeGreaterThan(0)
+    expect(screen.getAllByRole('button', { name: 'מחיקת מופע משימה' }).length).toBeGreaterThan(0)
+    expect(screen.queryByRole('button', { name: 'עריכה' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'מחיקה' })).toBeNull()
+  })
+
+  it('does not render slot-number or manpower labels', async () => {
+    await renderOpenedDay()
+
+    expect(screen.queryByText(/תקן\s*1/i)).toBeNull()
+    expect(screen.queryByText(/תקן\s*2/i)).toBeNull()
+    expect(screen.queryByText('חובה')).toBeNull()
+  })
+
+  it('adds subtle positive state for correctly staffed instances', async () => {
+    await renderOpenedDay()
+
+    const readyBlock = screen.getByTestId('planning-instance-block-instance-4')
+    const attentionBlock = screen.getByTestId('planning-instance-block-instance-1')
+
+    expect(readyBlock.getAttribute('data-staffing-state')).toBe('ready')
+    expect(attentionBlock.getAttribute('data-staffing-state')).toBe('attention')
+  })
+
+  it('keeps existing day navigation behavior and boundaries', async () => {
     render(<ActivityPlanningPage />)
 
-    const previousButton = screen.getByRole('button', { name: 'יום קודם' })
-    expect((previousButton as HTMLButtonElement).disabled).toBe(true)
+    const previousButton = screen.getByRole('button', { name: /קודם/ }) as HTMLButtonElement
+    expect(previousButton.disabled).toBe(true)
 
-    const nextButton = screen.getByRole('button', { name: 'יום הבא' })
+    const nextButton = screen.getByRole('button', { name: /הבא/ }) as HTMLButtonElement
     fireEvent.click(nextButton)
+    await waitFor(() => {
+      expect(useActivitySchedulingDayMock).toHaveBeenLastCalledWith('activity-1', '2026-08-11')
+    })
+
     fireEvent.click(nextButton)
     fireEvent.click(nextButton)
     fireEvent.click(nextButton)
@@ -1192,32 +1168,10 @@ describe('ActivityPlanningPage', () => {
       expect(useActivitySchedulingDayMock).toHaveBeenLastCalledWith('activity-1', '2026-08-15')
     })
 
-    expect((nextButton as HTMLButtonElement).disabled).toBe(true)
-    fireEvent.click(nextButton)
-
-    await waitFor(() => {
-      expect(useActivitySchedulingDayMock).toHaveBeenLastCalledWith('activity-1', '2026-08-15')
-    })
+    expect(nextButton.disabled).toBe(true)
   })
 
-  it('renders scheduling-day error state with retry action', () => {
-    const refetch = vi.fn()
-    useActivitySchedulingDayMock.mockReturnValue(
-      makeSchedulingQuery({
-        isError: true,
-        error: { status: 500, message: 'failed' },
-        refetch,
-      }) as ReturnType<typeof useActivitySchedulingDay>,
-    )
-
-    render(<ActivityPlanningPage />)
-
-    expect(screen.getByText('טעינת יום השיבוץ נכשלה')).toBeDefined()
-    fireEvent.click(screen.getByRole('button', { name: 'ניסיון חוזר' }))
-    expect(refetch).toHaveBeenCalledTimes(1)
-  })
-
-  it('keeps existing planning navigation behavior to activity details route', () => {
+  it('keeps planning navigation to the activity details route', () => {
     render(<ActivityPlanningPage />)
 
     fireEvent.click(screen.getByRole('button', { name: 'חזרה לפרטי הפעילות' }))

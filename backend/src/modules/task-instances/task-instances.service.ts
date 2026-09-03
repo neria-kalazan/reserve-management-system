@@ -70,7 +70,7 @@ export class TaskInstancesService {
     return this.prisma.taskInstance.create({
       data: {
         activityTaskId,
-        title: dto.title,
+        title: dto.title ?? '',
         startTime,
         endTime,
       },

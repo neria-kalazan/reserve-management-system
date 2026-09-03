@@ -9,6 +9,7 @@ import { ActivityTasksController } from '../src/modules/activity-tasks/activity-
 import { ActivityTasksService } from '../src/modules/activity-tasks/activity-tasks.service';
 import { ActivitiesController } from '../src/modules/activities/activities.controller';
 import { ActivitiesService } from '../src/modules/activities/activities.service';
+import { ActivitySchedulingDayService } from '../src/modules/activities/activity-scheduling-day.service';
 import { CompaniesController } from '../src/modules/companies/companies.controller';
 import { CompaniesService } from '../src/modules/companies/companies.service';
 import { AuthService } from '../src/modules/auth/auth.service';
@@ -93,6 +94,16 @@ describe('Task instances e2e', () => {
       providers: [
         CompaniesService,
         ActivitiesService,
+        {
+          provide: ActivitySchedulingDayService,
+          useValue: {
+            getSchedulingDay: jest.fn(),
+            openSchedulingDay: jest.fn(),
+            submitSchedulingDayForApproval: jest.fn(),
+            approveSchedulingDay: jest.fn(),
+            returnSchedulingDayToDraft: jest.fn(),
+          },
+        },
         ActivityTasksService,
         TaskInstancesService,
         AuthGuard,
@@ -147,6 +158,34 @@ describe('Task instances e2e', () => {
 
     const deleteRes = await request(app.getHttpServer()).delete(`/task-instances/${taskInstanceId}`).expect(200);
     expect(deleteRes.body.id).toBe(taskInstanceId);
+  });
+
+  it('creates a task instance without title and allows clearing title via update', async () => {
+    const companyRes = await request(app.getHttpServer()).post('/companies').send({ name: 'Eta' }).expect(201);
+    const companyId = companyRes.body.id;
+
+    const activityRes = await request(app.getHttpServer())
+      .post(`/companies/${companyId}/activities`)
+      .send({ name: 'Ops', type: 'EMPLOYMENT', startDate: '2026-01-01', endDate: '2026-01-02' })
+      .expect(201);
+    const activityId = activityRes.body.id;
+
+    const taskRes = await request(app.getHttpServer()).post(`/activities/${activityId}/tasks`).send({ name: 'Setup' }).expect(201);
+    const activityTaskId = taskRes.body.id;
+
+    const createRes = await request(app.getHttpServer())
+      .post(`/activity-tasks/${activityTaskId}/task-instances`)
+      .send({ startTime: '2026-01-01T09:00:00.000Z', endTime: '2026-01-01T17:00:00.000Z' })
+      .expect(201);
+
+    expect(createRes.body.title).toBe('');
+
+    const updateRes = await request(app.getHttpServer())
+      .patch(`/task-instances/${createRes.body.id}`)
+      .send({ title: '' })
+      .expect(200);
+
+    expect(updateRes.body.title).toBe('');
   });
 
   it('rejects invalid date ranges', async () => {

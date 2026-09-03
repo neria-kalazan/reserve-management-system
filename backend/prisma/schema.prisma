@@ -38,6 +38,12 @@ enum ActivityUserAvailabilityEnum {
   UNAVAILABLE
 }
 
+enum SchedulingApprovalStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+}
+
 model Company {
   id     String        @id @default(uuid()) @db.Uuid
   name   String
@@ -89,6 +95,7 @@ model ActivitySchedulingDay {
 
   openedAt       DateTime @default(now())
   openedByUserId String?  @db.Uuid
+  approvalStatus SchedulingApprovalStatus @default(DRAFT)
 
   activity     Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
   openedByUser User?    @relation("ActivitySchedulingDayOpenedBy", fields: [openedByUserId], references: [id], onDelete: SetNull)

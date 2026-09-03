@@ -128,10 +128,54 @@ export interface SchedulingDayResponse {
   activity: SchedulingDayActivity
   date: string
   isDayOpened: boolean
+  schedulingStatus: SchedulingApprovalStatus
   taskInstances: SchedulingDayTaskInstance[]
+}
+
+export type SchedulingApprovalStatus = 'DRAFT' | 'PENDING_APPROVAL' | 'APPROVED'
+
+export interface OpenSchedulingDayInput {
+  date: string
+}
+
+export interface OpenSchedulingDayResponse {
+  activityId: string
+  date: string
+  isDayOpened: boolean
+}
+
+export interface SchedulingDayApprovalTransitionResponse {
+  activityId: string
+  date: string
+  isDayOpened: boolean
+  schedulingStatus: SchedulingApprovalStatus
 }
 
 export const getActivitySchedulingDay = (activityId: string, date: string) =>
   api.get<SchedulingDayResponse>(
     `/activities/${encodeURIComponent(activityId)}/scheduling/day?date=${encodeURIComponent(date)}`,
+  )
+
+export const openActivitySchedulingDay = (activityId: string, body: OpenSchedulingDayInput) =>
+  api.post<OpenSchedulingDayResponse>(
+    `/activities/${encodeURIComponent(activityId)}/scheduling/day/open`,
+    body,
+  )
+
+export const submitActivitySchedulingDayForApproval = (activityId: string, body: OpenSchedulingDayInput) =>
+  api.post<SchedulingDayApprovalTransitionResponse>(
+    `/activities/${encodeURIComponent(activityId)}/scheduling/day/submit`,
+    body,
+  )
+
+export const approveActivitySchedulingDay = (activityId: string, body: OpenSchedulingDayInput) =>
+  api.post<SchedulingDayApprovalTransitionResponse>(
+    `/activities/${encodeURIComponent(activityId)}/scheduling/day/approve`,
+    body,
+  )
+
+export const returnActivitySchedulingDayToDraft = (activityId: string, body: OpenSchedulingDayInput) =>
+  api.post<SchedulingDayApprovalTransitionResponse>(
+    `/activities/${encodeURIComponent(activityId)}/scheduling/day/return`,
+    body,
   )

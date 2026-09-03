@@ -49,6 +49,35 @@ export class ActivitiesController {
     return this.activitySchedulingDayService.openSchedulingDay(activityId, dto.date, user.id);
   }
 
+  @Post('activities/:activityId/scheduling/day/submit')
+  submitSchedulingDayForApproval(
+    @Param('activityId') activityId: string,
+    @CurrentUser() user: { id: string },
+    @Body() dto: OpenSchedulingDayDto,
+  ) {
+    return this.activitySchedulingDayService.submitSchedulingDayForApproval(activityId, dto.date, user.id);
+  }
+
+  @Post('activities/:activityId/scheduling/day/approve')
+  @RequirePermission('APPROVE_SCHEDULING')
+  approveSchedulingDay(
+    @Param('activityId') activityId: string,
+    @CurrentUser() user: { id: string },
+    @Body() dto: OpenSchedulingDayDto,
+  ) {
+    return this.activitySchedulingDayService.approveSchedulingDay(activityId, dto.date, user.id);
+  }
+
+  @Post('activities/:activityId/scheduling/day/return')
+  @RequirePermission('APPROVE_SCHEDULING')
+  returnSchedulingDayToDraft(
+    @Param('activityId') activityId: string,
+    @CurrentUser() user: { id: string },
+    @Body() dto: OpenSchedulingDayDto,
+  ) {
+    return this.activitySchedulingDayService.returnSchedulingDayToDraft(activityId, dto.date, user.id);
+  }
+
   @Patch('activities/:id')
   update(@Param('id') id: string, @Body() dto: UpdateActivityDto) {
     return this.activitiesService.update(id, dto);

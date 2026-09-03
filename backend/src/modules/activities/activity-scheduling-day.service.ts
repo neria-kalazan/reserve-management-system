@@ -1,4 +1,5 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
   SchedulingDayAssignmentDto,
@@ -16,6 +17,12 @@ export class ActivitySchedulingDayService {
     private readonly taskValidationService: TaskValidationService,
     private readonly taskInstancesService: TaskInstancesService,
   ) {}
+
+  private readonly schedulingApproverPermission = 'APPROVE_SCHEDULING';
+  private readonly schedulingEditorPermission = 'MANAGE_COMPANIES';
+  private readonly schedulingDraftStatus = 'DRAFT';
+  private readonly schedulingPendingApprovalStatus = 'PENDING_APPROVAL';
+  private readonly schedulingApprovedStatus = 'APPROVED';
 
   async openSchedulingDay(activityId: string, dateString: string, openedByUserId: string) {
     const dayStart = this.normalizeDate(dateString);
@@ -54,26 +61,110 @@ export class ActivitySchedulingDayService {
       throw new BadRequestException('Date is outside activity boundaries');
     }
 
-    await this.prisma.activitySchedulingDay.upsert({
-      where: {
-        activityId_date: {
+    const activityStartDay = this.toDayStart(activity.startDate);
+    const shouldCopyFromPreviousDay = dayStart.getTime() > activityStartDay.getTime();
+
+    try {
+      await this.prisma.$transaction(async (tx: PrismaService) => {
+        const existingSchedulingDay = await tx.activitySchedulingDay.findUnique({
+          where: {
+            activityId_date: {
+              activityId,
+              date: dayStart,
+            },
+          },
+          select: { id: true },
+        });
+
+        if (existingSchedulingDay) {
+          return;
+        }
+
+        await tx.activitySchedulingDay.create({
+          data: {
+            activityId,
+            date: dayStart,
+            openedByUserId: opener.id,
+          },
+        });
+
+        if (!shouldCopyFromPreviousDay) {
+          return;
+        }
+
+        const previousDayStart = new Date(dayStart);
+        previousDayStart.setUTCDate(previousDayStart.getUTCDate() - 1);
+        const previousDayEnd = new Date(dayStart);
+
+        const previousDayTaskInstances = await tx.taskInstance.findMany({
+          where: {
+            activityTask: {
+              activityId,
+            },
+            startTime: { lt: previousDayEnd },
+            endTime: { gt: previousDayStart },
+          },
+          select: {
+            id: true,
+            activityTaskId: true,
+            title: true,
+            startTime: true,
+            endTime: true,
+            activityTask: {
+              select: {
+                activityId: true,
+              },
+            },
+          },
+          orderBy: { startTime: 'asc' },
+        });
+
+        const dayOffsetMs = dayStart.getTime() - previousDayStart.getTime();
+
+        for (const previousTaskInstance of previousDayTaskInstances) {
+          if (previousTaskInstance.activityTask.activityId !== activityId) {
+            continue;
+          }
+
+          await tx.taskInstance.create({
+            data: {
+              activityTaskId: previousTaskInstance.activityTaskId,
+              title: previousTaskInstance.title,
+              startTime: new Date(previousTaskInstance.startTime.getTime() + dayOffsetMs),
+              endTime: new Date(previousTaskInstance.endTime.getTime() + dayOffsetMs),
+            },
+          });
+        }
+      });
+    } catch (error) {
+      if (this.isUniqueConstraintError(error)) {
+        return {
           activityId,
-          date: dayStart,
-        },
-      },
-      update: {},
-      create: {
-        activityId,
-        date: dayStart,
-        openedByUserId: opener.id,
-      },
-    });
+          date: dateKey,
+          isDayOpened: true,
+        };
+      }
+
+      throw error;
+    }
 
     return {
       activityId,
       date: dateKey,
       isDayOpened: true,
     };
+  }
+
+  async submitSchedulingDayForApproval(activityId: string, dateString: string, userId: string) {
+    return this.transitionSchedulingDayStatus(activityId, dateString, userId, this.schedulingPendingApprovalStatus);
+  }
+
+  async approveSchedulingDay(activityId: string, dateString: string, userId: string) {
+    return this.transitionSchedulingDayStatus(activityId, dateString, userId, this.schedulingApprovedStatus);
+  }
+
+  async returnSchedulingDayToDraft(activityId: string, dateString: string, userId: string) {
+    return this.transitionSchedulingDayStatus(activityId, dateString, userId, this.schedulingDraftStatus);
   }
 
   async getSchedulingDay(activityId: string, dateString: string): Promise<SchedulingDayResponseDto> {
@@ -111,7 +202,7 @@ export class ActivitySchedulingDayService {
           date: dayStart,
         },
       },
-      select: { id: true },
+      select: { id: true, approvalStatus: true },
     });
 
     const taskInstancesRaw = await this.prisma.taskInstance.findMany({
@@ -174,13 +265,29 @@ export class ActivitySchedulingDayService {
     const taskInstanceIds = taskInstancesForActivity.map((taskInstance) => taskInstance.id);
     const activityTaskIds = [...new Set(taskInstancesForActivity.map((taskInstance) => taskInstance.activityTaskId))];
 
+    type ManpowerRequirement = { activityTaskId: string; required: boolean; quantity: number };
+    type RoleRequirement = {
+      activityTaskId: string;
+      roleId: string;
+      required: boolean;
+      quantity: number;
+      role: { name: string } | null;
+    };
+    type QualificationRequirement = {
+      activityTaskId: string;
+      qualificationId: string;
+      required: boolean;
+      quantity: number;
+      qualification: { name: string } | null;
+    };
+
     const [manpowerRequirements, roleRequirements, qualificationRequirements, validations] = await Promise.all([
       activityTaskIds.length > 0
         ? this.prisma.activityTaskManpowerRequirement.findMany({
             where: { activityTaskId: { in: activityTaskIds } },
             select: { activityTaskId: true, required: true, quantity: true },
           })
-        : [],
+        : Promise.resolve<ManpowerRequirement[]>([]),
       activityTaskIds.length > 0
         ? this.prisma.activityTaskRoleRequirement.findMany({
             where: { activityTaskId: { in: activityTaskIds } },
@@ -193,7 +300,7 @@ export class ActivitySchedulingDayService {
             },
             orderBy: { createdAt: 'asc' },
           })
-        : [],
+        : Promise.resolve<RoleRequirement[]>([]),
       activityTaskIds.length > 0
         ? this.prisma.activityTaskQualificationRequirement.findMany({
             where: { activityTaskId: { in: activityTaskIds } },
@@ -206,7 +313,7 @@ export class ActivitySchedulingDayService {
             },
             orderBy: { createdAt: 'asc' },
           })
-        : [],
+        : Promise.resolve<QualificationRequirement[]>([]),
       Promise.all(taskInstanceIds.map((taskInstanceId) => this.taskValidationService.validate(taskInstanceId))),
     ]);
 
@@ -377,8 +484,129 @@ export class ActivitySchedulingDayService {
       },
       date: selectedDate,
       isDayOpened: Boolean(openedSchedulingDay),
+      schedulingStatus: openedSchedulingDay?.approvalStatus ?? this.schedulingDraftStatus,
       taskInstances: schedulingTaskInstances,
     };
+  }
+
+  private async transitionSchedulingDayStatus(
+    activityId: string,
+    dateString: string,
+    userId: string,
+    targetStatus: 'DRAFT' | 'PENDING_APPROVAL' | 'APPROVED',
+  ) {
+    const dayStart = this.normalizeDate(dateString);
+    const dateKey = this.formatDateKey(dayStart);
+
+    const [activity, actor] = await Promise.all([
+      this.prisma.activity.findUnique({
+        where: { id: activityId },
+        select: {
+          id: true,
+          companyId: true,
+          startDate: true,
+          endDate: true,
+        },
+      }),
+      this.prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+          id: true,
+          companyId: true,
+        },
+      }),
+    ]);
+
+    if (!activity) {
+      throw new NotFoundException('Activity not found');
+    }
+
+    if (!actor || actor.companyId !== activity.companyId) {
+      throw new NotFoundException('User not found');
+    }
+
+    const startDateKey = this.formatDateKey(activity.startDate);
+    const endDateKey = this.formatDateKey(activity.endDate);
+    if (dateKey < startDateKey || dateKey > endDateKey) {
+      throw new BadRequestException('Date is outside activity boundaries');
+    }
+
+    if (targetStatus === this.schedulingPendingApprovalStatus) {
+      await this.ensureUserHasPermission(actor.id, this.schedulingEditorPermission);
+    }
+
+    if (targetStatus === this.schedulingApprovedStatus || targetStatus === this.schedulingDraftStatus) {
+      await this.ensureUserHasPermission(actor.id, this.schedulingApproverPermission);
+    }
+
+    const schedulingDay = await this.prisma.activitySchedulingDay.findUnique({
+      where: {
+        activityId_date: {
+          activityId,
+          date: dayStart,
+        },
+      },
+      select: {
+        id: true,
+        approvalStatus: true,
+      },
+    });
+
+    if (!schedulingDay) {
+      throw new BadRequestException('Scheduling day is not opened');
+    }
+
+    if (schedulingDay.approvalStatus === targetStatus) {
+      return {
+        activityId,
+        date: dateKey,
+        isDayOpened: true,
+        schedulingStatus: targetStatus,
+      };
+    }
+
+    const isValidTransition =
+      (schedulingDay.approvalStatus === this.schedulingDraftStatus && targetStatus === this.schedulingPendingApprovalStatus) ||
+      (schedulingDay.approvalStatus === this.schedulingPendingApprovalStatus &&
+        (targetStatus === this.schedulingApprovedStatus || targetStatus === this.schedulingDraftStatus));
+
+    if (!isValidTransition) {
+      throw new BadRequestException('Invalid scheduling approval transition');
+    }
+
+    await this.prisma.activitySchedulingDay.update({
+      where: {
+        activityId_date: {
+          activityId,
+          date: dayStart,
+        },
+      },
+      data: {
+        approvalStatus: targetStatus,
+      },
+    });
+
+    return {
+      activityId,
+      date: dateKey,
+      isDayOpened: true,
+      schedulingStatus: targetStatus,
+    };
+  }
+
+  private async ensureUserHasPermission(userId: string, permissionKey: string) {
+    const permissions = await this.prisma.userPermission.findMany({
+      where: { userId },
+      select: { permission: { select: { key: true } } },
+    });
+
+    const hasPermission = permissions.some(
+      (entry: { permission?: { key?: string } }) => entry.permission?.key === permissionKey,
+    );
+
+    if (!hasPermission) {
+      throw new ForbiddenException('Insufficient permissions');
+    }
   }
 
   private normalizeDate(date: string): Date {
@@ -414,5 +642,9 @@ export class ActivitySchedulingDayService {
     const month = String(normalized.getUTCMonth() + 1).padStart(2, '0');
     const day = String(normalized.getUTCDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
+  }
+
+  private isUniqueConstraintError(error: unknown): boolean {
+    return error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002';
   }
 }

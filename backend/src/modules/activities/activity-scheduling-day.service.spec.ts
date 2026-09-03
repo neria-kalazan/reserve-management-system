@@ -1,4 +1,4 @@
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { ActivitySchedulingDayService } from './activity-scheduling-day.service';
 import { createPrismaMock } from '../../test/prisma.mock';
 
@@ -37,6 +37,7 @@ describe('ActivitySchedulingDayService', () => {
 
   beforeEach(() => {
     prisma = createPrismaMock();
+    prisma.$transaction.mockImplementation(async (callback: (tx: any) => Promise<unknown>) => callback(prisma));
     validationService = {
       validate: jest.fn().mockResolvedValue({
         requiredErrors: [],
@@ -61,7 +62,7 @@ describe('ActivitySchedulingDayService', () => {
     prisma.activityTaskQualificationRequirement.findMany.mockResolvedValue([]);
     prisma.activityUserStatus.findMany.mockResolvedValue([]);
     prisma.activitySchedulingDay.findUnique.mockResolvedValue(null);
-    prisma.activitySchedulingDay.upsert.mockResolvedValue({
+    prisma.activitySchedulingDay.create.mockResolvedValue({
       id: 'scheduling-day-1',
       activityId: 'activity-1',
       date: new Date('2026-08-15T00:00:00.000Z'),
@@ -70,7 +71,16 @@ describe('ActivitySchedulingDayService', () => {
       createdAt: new Date('2026-08-14T09:00:00.000Z'),
       updatedAt: new Date('2026-08-14T09:00:00.000Z'),
     });
+    prisma.taskInstance.findMany.mockResolvedValue([]);
+    prisma.taskInstance.create.mockImplementation(async ({ data }: { data: any }) => ({
+      id: `copied-${data.activityTaskId}-${new Date(data.startTime).toISOString()}`,
+      ...data,
+    }));
     prisma.user.findUnique.mockResolvedValue({ id: 'user-1', companyId: 'company-1' });
+    prisma.userPermission.findMany.mockResolvedValue([
+      { permission: { key: 'MANAGE_COMPANIES' } },
+      { permission: { key: 'APPROVE_SCHEDULING' } },
+    ]);
   });
 
   it('returns only requested activity/day instances and uses day intersection query', async () => {
@@ -114,16 +124,21 @@ describe('ActivitySchedulingDayService', () => {
     const result = await service.getSchedulingDay('activity-1', '2026-08-15');
 
     expect(result.isDayOpened).toBe(false);
+    expect(result.schedulingStatus).toBe('DRAFT');
     expect(result.taskInstances).toEqual([]);
   });
 
   it('returns isDayOpened=true for an opened day with zero task instances', async () => {
     prisma.taskInstance.findMany.mockResolvedValue([]);
-    prisma.activitySchedulingDay.findUnique.mockResolvedValue({ id: 'scheduling-day-1' });
+    prisma.activitySchedulingDay.findUnique.mockResolvedValue({
+      id: 'scheduling-day-1',
+      approvalStatus: 'PENDING_APPROVAL',
+    });
 
     const result = await service.getSchedulingDay('activity-1', '2026-08-15');
 
     expect(result.isDayOpened).toBe(true);
+    expect(result.schedulingStatus).toBe('PENDING_APPROVAL');
     expect(result.taskInstances).toEqual([]);
   });
 
@@ -134,6 +149,7 @@ describe('ActivitySchedulingDayService', () => {
     const result = await service.getSchedulingDay('activity-1', '2026-08-15');
 
     expect(result.isDayOpened).toBe(false);
+    expect(result.schedulingStatus).toBe('DRAFT');
     expect(result.taskInstances).toHaveLength(1);
   });
 
@@ -294,15 +310,8 @@ describe('ActivitySchedulingDayService', () => {
   it('opens a valid scheduling day and returns a minimal opened response', async () => {
     const result = await service.openSchedulingDay('activity-1', '2026-08-15', 'user-1');
 
-    expect(prisma.activitySchedulingDay.upsert).toHaveBeenCalledWith({
-      where: {
-        activityId_date: {
-          activityId: 'activity-1',
-          date: new Date('2026-08-15T00:00:00.000Z'),
-        },
-      },
-      update: {},
-      create: {
+    expect(prisma.activitySchedulingDay.create).toHaveBeenCalledWith({
+      data: {
         activityId: 'activity-1',
         date: new Date('2026-08-15T00:00:00.000Z'),
         openedByUserId: 'user-1',
@@ -318,14 +327,14 @@ describe('ActivitySchedulingDayService', () => {
   it('stores openedByUserId and openedAt through the persisted scheduling-day row', async () => {
     await service.openSchedulingDay('activity-1', '2026-08-15', 'user-1');
 
-    expect(prisma.activitySchedulingDay.upsert).toHaveBeenCalledWith(
+    expect(prisma.activitySchedulingDay.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        create: expect.objectContaining({
+        data: expect.objectContaining({
           openedByUserId: 'user-1',
         }),
       }),
     );
-    expect(prisma.activitySchedulingDay.upsert.mock.results[0]?.value).resolves.toEqual(
+    expect(prisma.activitySchedulingDay.create.mock.results[0]?.value).resolves.toEqual(
       expect.objectContaining({
         openedAt: new Date('2026-08-14T09:00:00.000Z'),
       }),
@@ -346,22 +355,119 @@ describe('ActivitySchedulingDayService', () => {
     await expect(service.openSchedulingDay('activity-1', '2026-08-15', 'user-9')).rejects.toThrow(NotFoundException);
   });
 
-  it('is idempotent when opening an already-opened day', async () => {
-    prisma.activitySchedulingDay.upsert.mockResolvedValue({
-      id: 'scheduling-day-1',
+  it('opens a non-first day by copying previous-day task instance configuration without assignments', async () => {
+    prisma.taskInstance.findMany.mockResolvedValue([
+      {
+        id: 'prev-instance-1',
+        activityTaskId: 'task-1',
+        title: 'Morning Shift',
+        startTime: new Date('2026-08-14T08:00:00.000Z'),
+        endTime: new Date('2026-08-14T16:00:00.000Z'),
+        activityTask: {
+          activityId: 'activity-1',
+        },
+      },
+      {
+        id: 'prev-instance-2',
+        activityTaskId: 'task-2',
+        title: 'Night Shift',
+        startTime: new Date('2026-08-14T22:00:00.000Z'),
+        endTime: new Date('2026-08-15T06:00:00.000Z'),
+        activityTask: {
+          activityId: 'activity-1',
+        },
+      },
+    ]);
+
+    await service.openSchedulingDay('activity-1', '2026-08-15', 'user-1');
+
+    expect(prisma.taskInstance.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          activityTask: { activityId: 'activity-1' },
+          startTime: { lt: new Date('2026-08-15T00:00:00.000Z') },
+          endTime: { gt: new Date('2026-08-14T00:00:00.000Z') },
+        }),
+      }),
+    );
+
+    expect(prisma.taskInstance.create).toHaveBeenCalledTimes(2);
+    expect(prisma.taskInstance.create).toHaveBeenNthCalledWith(1, {
+      data: {
+        activityTaskId: 'task-1',
+        title: 'Morning Shift',
+        startTime: new Date('2026-08-15T08:00:00.000Z'),
+        endTime: new Date('2026-08-15T16:00:00.000Z'),
+      },
+    });
+    expect(prisma.taskInstance.create).toHaveBeenNthCalledWith(2, {
+      data: {
+        activityTaskId: 'task-2',
+        title: 'Night Shift',
+        startTime: new Date('2026-08-15T22:00:00.000Z'),
+        endTime: new Date('2026-08-16T06:00:00.000Z'),
+      },
+    });
+    expect(prisma.assignment.create).not.toHaveBeenCalled();
+  });
+
+  it('creates independent task instances with new ids when copying from previous day', async () => {
+    prisma.taskInstance.findMany.mockResolvedValue([
+      {
+        id: 'prev-instance-1',
+        activityTaskId: 'task-1',
+        title: 'Morning Shift',
+        startTime: new Date('2026-08-14T08:00:00.000Z'),
+        endTime: new Date('2026-08-14T16:00:00.000Z'),
+        activityTask: {
+          activityId: 'activity-1',
+        },
+      },
+    ]);
+
+    await service.openSchedulingDay('activity-1', '2026-08-15', 'user-1');
+
+    const createdRows = await Promise.all(prisma.taskInstance.create.mock.results.map((result: { value: Promise<any> }) => result.value));
+
+    expect(createdRows).toHaveLength(1);
+    expect(createdRows[0].id).not.toBe('prev-instance-1');
+  });
+
+  it('opening a day whose previous day has no task instances succeeds and leaves the new day empty', async () => {
+    prisma.taskInstance.findMany.mockResolvedValue([]);
+
+    const result = await service.openSchedulingDay('activity-1', '2026-08-15', 'user-1');
+
+    expect(result).toEqual({
       activityId: 'activity-1',
-      date: new Date('2026-08-15T00:00:00.000Z'),
-      openedAt: new Date('2026-08-10T00:00:00.000Z'),
-      openedByUserId: 'user-7',
-      createdAt: new Date('2026-08-10T00:00:00.000Z'),
-      updatedAt: new Date('2026-08-11T00:00:00.000Z'),
+      date: '2026-08-15',
+      isDayOpened: true,
+    });
+    expect(prisma.taskInstance.create).not.toHaveBeenCalled();
+  });
+
+  it('opening the first activity day preserves behavior and does not attempt previous-day copy', async () => {
+    const result = await service.openSchedulingDay('activity-1', '2026-08-10', 'user-1');
+
+    expect(result).toEqual({
+      activityId: 'activity-1',
+      date: '2026-08-10',
+      isDayOpened: true,
+    });
+    expect(prisma.taskInstance.findMany).not.toHaveBeenCalled();
+    expect(prisma.taskInstance.create).not.toHaveBeenCalled();
+  });
+
+  it('is idempotent when opening an already-opened day and does not duplicate task instances', async () => {
+    prisma.activitySchedulingDay.findUnique.mockResolvedValue({
+      id: 'scheduling-day-1',
     });
 
     const result = await service.openSchedulingDay('activity-1', '2026-08-15', 'user-1');
 
-    expect(prisma.activitySchedulingDay.upsert).toHaveBeenCalledWith(
-      expect.objectContaining({ update: {} }),
-    );
+    expect(prisma.activitySchedulingDay.create).not.toHaveBeenCalled();
+    expect(prisma.taskInstance.findMany).not.toHaveBeenCalled();
+    expect(prisma.taskInstance.create).not.toHaveBeenCalled();
     expect(result).toEqual({
       activityId: 'activity-1',
       date: '2026-08-15',
@@ -369,14 +475,170 @@ describe('ActivitySchedulingDayService', () => {
     });
   });
 
-  it('does not overwrite openedAt or openedByUserId on repeated open', async () => {
+  it('opening the new day does not mutate previous-day assignments', async () => {
+    prisma.taskInstance.findMany.mockResolvedValue([
+      {
+        id: 'prev-instance-1',
+        activityTaskId: 'task-1',
+        title: 'Morning Shift',
+        startTime: new Date('2026-08-14T08:00:00.000Z'),
+        endTime: new Date('2026-08-14T16:00:00.000Z'),
+        activityTask: {
+          activityId: 'activity-1',
+        },
+      },
+    ]);
+
     await service.openSchedulingDay('activity-1', '2026-08-15', 'user-1');
 
-    expect(prisma.activitySchedulingDay.upsert).toHaveBeenCalledWith(
+    expect(prisma.assignment.create).not.toHaveBeenCalled();
+    expect(prisma.assignment.delete).not.toHaveBeenCalled();
+    expect(prisma.assignment.findMany).not.toHaveBeenCalled();
+  });
+
+  it('preserves activityTask linkage so requirements/configuration remain derived from existing model', async () => {
+    prisma.taskInstance.findMany.mockResolvedValue([
+      {
+        id: 'prev-instance-1',
+        activityTaskId: 'task-9',
+        title: 'Support Shift',
+        startTime: new Date('2026-08-14T10:00:00.000Z'),
+        endTime: new Date('2026-08-14T18:00:00.000Z'),
+        activityTask: {
+          activityId: 'activity-1',
+        },
+      },
+    ]);
+
+    await service.openSchedulingDay('activity-1', '2026-08-15', 'user-1');
+
+    expect(prisma.taskInstance.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        update: {},
+        data: expect.objectContaining({
+          activityTaskId: 'task-9',
+        }),
       }),
     );
+  });
+
+  it('submit: transitions DRAFT to PENDING_APPROVAL for an opened day', async () => {
+    prisma.activitySchedulingDay.findUnique.mockResolvedValue({
+      id: 'scheduling-day-1',
+      approvalStatus: 'DRAFT',
+    });
+
+    const result = await service.submitSchedulingDayForApproval('activity-1', '2026-08-15', 'user-1');
+
+    expect(prisma.activitySchedulingDay.update).toHaveBeenCalledWith({
+      where: {
+        activityId_date: {
+          activityId: 'activity-1',
+          date: new Date('2026-08-15T00:00:00.000Z'),
+        },
+      },
+      data: {
+        approvalStatus: 'PENDING_APPROVAL',
+      },
+    });
+    expect(result.schedulingStatus).toBe('PENDING_APPROVAL');
+  });
+
+  it('submit: rejects users without editor permission', async () => {
+    prisma.userPermission.findMany.mockResolvedValue([{ permission: { key: 'APPROVE_SCHEDULING' } }]);
+    prisma.activitySchedulingDay.findUnique.mockResolvedValue({
+      id: 'scheduling-day-1',
+      approvalStatus: 'DRAFT',
+    });
+
+    await expect(service.submitSchedulingDayForApproval('activity-1', '2026-08-15', 'user-1')).rejects.toThrow(ForbiddenException);
+  });
+
+  it('approve: transitions PENDING_APPROVAL to APPROVED for approvers', async () => {
+    prisma.activitySchedulingDay.findUnique.mockResolvedValue({
+      id: 'scheduling-day-1',
+      approvalStatus: 'PENDING_APPROVAL',
+    });
+
+    const result = await service.approveSchedulingDay('activity-1', '2026-08-15', 'user-1');
+
+    expect(prisma.activitySchedulingDay.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: { approvalStatus: 'APPROVED' },
+      }),
+    );
+    expect(result.schedulingStatus).toBe('APPROVED');
+  });
+
+  it('approve: rejects users without scheduling approval permission', async () => {
+    prisma.userPermission.findMany.mockResolvedValue([{ permission: { key: 'MANAGE_COMPANIES' } }]);
+    prisma.activitySchedulingDay.findUnique.mockResolvedValue({
+      id: 'scheduling-day-1',
+      approvalStatus: 'PENDING_APPROVAL',
+    });
+
+    await expect(service.approveSchedulingDay('activity-1', '2026-08-15', 'user-1')).rejects.toThrow(ForbiddenException);
+  });
+
+  it('return: transitions PENDING_APPROVAL to DRAFT for approvers', async () => {
+    prisma.activitySchedulingDay.findUnique.mockResolvedValue({
+      id: 'scheduling-day-1',
+      approvalStatus: 'PENDING_APPROVAL',
+    });
+
+    const result = await service.returnSchedulingDayToDraft('activity-1', '2026-08-15', 'user-1');
+
+    expect(prisma.activitySchedulingDay.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: { approvalStatus: 'DRAFT' },
+      }),
+    );
+    expect(result.schedulingStatus).toBe('DRAFT');
+  });
+
+  it('rejects invalid approval workflow transitions', async () => {
+    prisma.activitySchedulingDay.findUnique.mockResolvedValue({
+      id: 'scheduling-day-1',
+      approvalStatus: 'DRAFT',
+    });
+
+    await expect(service.approveSchedulingDay('activity-1', '2026-08-15', 'user-1')).rejects.toThrow(BadRequestException);
+  });
+
+  it('handles repeated transition requests safely without duplicate side effects', async () => {
+    prisma.activitySchedulingDay.findUnique.mockResolvedValue({
+      id: 'scheduling-day-1',
+      approvalStatus: 'APPROVED',
+    });
+
+    const result = await service.approveSchedulingDay('activity-1', '2026-08-15', 'user-1');
+
+    expect(prisma.activitySchedulingDay.update).not.toHaveBeenCalled();
+    expect(result).toEqual({
+      activityId: 'activity-1',
+      date: '2026-08-15',
+      isDayOpened: true,
+      schedulingStatus: 'APPROVED',
+    });
+  });
+
+  it('approval transitions do not alter task instances, assignments, personnel status, or availability records', async () => {
+    prisma.activitySchedulingDay.findUnique.mockResolvedValue({
+      id: 'scheduling-day-1',
+      approvalStatus: 'PENDING_APPROVAL',
+    });
+
+    await service.approveSchedulingDay('activity-1', '2026-08-15', 'user-1');
+
+    expect(prisma.taskInstance.create).not.toHaveBeenCalled();
+    expect(prisma.taskInstance.delete).not.toHaveBeenCalled();
+    expect(prisma.assignment.create).not.toHaveBeenCalled();
+    expect(prisma.assignment.delete).not.toHaveBeenCalled();
+    expect(prisma.activityUserStatus.create).not.toHaveBeenCalled();
+    expect(prisma.activityUserStatus.update).not.toHaveBeenCalled();
+    expect(prisma.activityUserStatus.delete).not.toHaveBeenCalled();
+    expect(prisma.activityUserAvailability.create).not.toHaveBeenCalled();
+    expect(prisma.activityUserAvailability.update).not.toHaveBeenCalled();
+    expect(prisma.activityUserAvailability.delete).not.toHaveBeenCalled();
   });
 
   it('does not leak opened rows from adjacent days', async () => {

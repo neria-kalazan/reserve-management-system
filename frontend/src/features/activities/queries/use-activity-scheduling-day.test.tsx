@@ -8,18 +8,36 @@ vi.mock('@/app/auth/use-auth-session', () => ({
 }))
 
 vi.mock('@/features/activities/api/scheduling-day', () => ({
+  approveActivitySchedulingDay: vi.fn(),
   getActivitySchedulingDay: vi.fn(),
+  openActivitySchedulingDay: vi.fn(),
+  returnActivitySchedulingDayToDraft: vi.fn(),
+  submitActivitySchedulingDayForApproval: vi.fn(),
 }))
 
 import { useAuthSession } from '@/app/auth/use-auth-session'
-import { getActivitySchedulingDay } from '@/features/activities/api/scheduling-day'
+import {
+  approveActivitySchedulingDay,
+  getActivitySchedulingDay,
+  openActivitySchedulingDay,
+  returnActivitySchedulingDayToDraft,
+  submitActivitySchedulingDayForApproval,
+} from '@/features/activities/api/scheduling-day'
 import {
   activitySchedulingDayQueryKey,
+  useApproveActivitySchedulingDay,
   useActivitySchedulingDay,
+  useOpenActivitySchedulingDay,
+  useReturnActivitySchedulingDayToDraft,
+  useSubmitActivitySchedulingDayForApproval,
 } from '@/features/activities/queries/use-activity-scheduling-day'
 
+const approveActivitySchedulingDayMock = vi.mocked(approveActivitySchedulingDay)
 const useAuthSessionMock = vi.mocked(useAuthSession)
 const getActivitySchedulingDayMock = vi.mocked(getActivitySchedulingDay)
+const openActivitySchedulingDayMock = vi.mocked(openActivitySchedulingDay)
+const returnActivitySchedulingDayToDraftMock = vi.mocked(returnActivitySchedulingDayToDraft)
+const submitActivitySchedulingDayForApprovalMock = vi.mocked(submitActivitySchedulingDayForApproval)
 
 const createQueryClient = () =>
   new QueryClient({
@@ -63,6 +81,7 @@ describe('useActivitySchedulingDay', () => {
       },
       date: '2026-08-15',
       isDayOpened: false,
+      schedulingStatus: 'DRAFT',
       taskInstances: [],
     })
 
@@ -114,5 +133,104 @@ describe('useActivitySchedulingDay', () => {
 
     await waitFor(() => expect(result.current.fetchStatus).not.toBe('fetching'))
     expect(getActivitySchedulingDayMock).not.toHaveBeenCalled()
+  })
+
+  it('opens scheduling day and invalidates the exact activity/day query key', async () => {
+    const queryClient = createQueryClient()
+    const invalidateQueriesSpy = vi.spyOn(queryClient, 'invalidateQueries')
+
+    openActivitySchedulingDayMock.mockResolvedValueOnce({
+      activityId: 'activity-1',
+      date: '2026-08-15',
+      isDayOpened: true,
+    })
+
+    const { result } = renderHook(() => useOpenActivitySchedulingDay('activity-1', '2026-08-15'), {
+      wrapper: createWrapper(queryClient),
+    })
+
+    await result.current.mutateAsync()
+
+    expect(openActivitySchedulingDayMock).toHaveBeenCalledWith('activity-1', {
+      date: '2026-08-15',
+    })
+    expect(invalidateQueriesSpy).toHaveBeenCalledWith({
+      queryKey: ['activities', 'activity-1', 'scheduling', 'day', '2026-08-15'],
+    })
+  })
+
+  it('submits scheduling day for approval and invalidates the exact activity/day query key', async () => {
+    const queryClient = createQueryClient()
+    const invalidateQueriesSpy = vi.spyOn(queryClient, 'invalidateQueries')
+
+    submitActivitySchedulingDayForApprovalMock.mockResolvedValueOnce({
+      activityId: 'activity-1',
+      date: '2026-08-15',
+      isDayOpened: true,
+      schedulingStatus: 'PENDING_APPROVAL',
+    })
+
+    const { result } = renderHook(() => useSubmitActivitySchedulingDayForApproval('activity-1', '2026-08-15'), {
+      wrapper: createWrapper(queryClient),
+    })
+
+    await result.current.mutateAsync()
+
+    expect(submitActivitySchedulingDayForApprovalMock).toHaveBeenCalledWith('activity-1', {
+      date: '2026-08-15',
+    })
+    expect(invalidateQueriesSpy).toHaveBeenCalledWith({
+      queryKey: ['activities', 'activity-1', 'scheduling', 'day', '2026-08-15'],
+    })
+  })
+
+  it('approves scheduling day and invalidates the exact activity/day query key', async () => {
+    const queryClient = createQueryClient()
+    const invalidateQueriesSpy = vi.spyOn(queryClient, 'invalidateQueries')
+
+    approveActivitySchedulingDayMock.mockResolvedValueOnce({
+      activityId: 'activity-1',
+      date: '2026-08-15',
+      isDayOpened: true,
+      schedulingStatus: 'APPROVED',
+    })
+
+    const { result } = renderHook(() => useApproveActivitySchedulingDay('activity-1', '2026-08-15'), {
+      wrapper: createWrapper(queryClient),
+    })
+
+    await result.current.mutateAsync()
+
+    expect(approveActivitySchedulingDayMock).toHaveBeenCalledWith('activity-1', {
+      date: '2026-08-15',
+    })
+    expect(invalidateQueriesSpy).toHaveBeenCalledWith({
+      queryKey: ['activities', 'activity-1', 'scheduling', 'day', '2026-08-15'],
+    })
+  })
+
+  it('returns scheduling day to draft and invalidates the exact activity/day query key', async () => {
+    const queryClient = createQueryClient()
+    const invalidateQueriesSpy = vi.spyOn(queryClient, 'invalidateQueries')
+
+    returnActivitySchedulingDayToDraftMock.mockResolvedValueOnce({
+      activityId: 'activity-1',
+      date: '2026-08-15',
+      isDayOpened: true,
+      schedulingStatus: 'DRAFT',
+    })
+
+    const { result } = renderHook(() => useReturnActivitySchedulingDayToDraft('activity-1', '2026-08-15'), {
+      wrapper: createWrapper(queryClient),
+    })
+
+    await result.current.mutateAsync()
+
+    expect(returnActivitySchedulingDayToDraftMock).toHaveBeenCalledWith('activity-1', {
+      date: '2026-08-15',
+    })
+    expect(invalidateQueriesSpy).toHaveBeenCalledWith({
+      queryKey: ['activities', 'activity-1', 'scheduling', 'day', '2026-08-15'],
+    })
   })
 })

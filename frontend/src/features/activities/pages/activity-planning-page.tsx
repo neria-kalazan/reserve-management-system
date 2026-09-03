@@ -2,18 +2,25 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 
 import type { ApiError } from '@/api/client'
+import { usePermissions } from '@/app/auth/use-permissions'
 import type {
+  SchedulingApprovalStatus,
   SchedulingDayCandidateEvaluationReason,
   SchedulingDayTaskInstance,
 } from '@/features/activities/api/scheduling-day'
 import { ContentContainer } from '@/app/layout/content-container'
 import { PageHeader } from '@/app/layout/page-header'
 import { useActivityById } from '@/features/activities/queries/use-activities'
-import { useActivitySchedulingDay } from '@/features/activities/queries/use-activity-scheduling-day'
 import {
-  type CandidateEvaluation,
+  useApproveActivitySchedulingDay,
+  useActivitySchedulingDay,
+  useOpenActivitySchedulingDay,
+  useReturnActivitySchedulingDayToDraft,
+  useSubmitActivitySchedulingDayForApproval,
+} from '@/features/activities/queries/use-activity-scheduling-day'
+import {
   useActivityTasks,
-  useCandidateEvaluation,
+  useAvailableUsers,
   useCreateActivityTaskInstance,
   useCreateTaskInstanceAssignment,
   useDeleteActivityTaskInstance,
@@ -25,8 +32,6 @@ import type { CompanyUser } from '@/features/users/api/users'
 import { EmptyState } from '@/shared/components/empty-state'
 import { ErrorState } from '@/shared/components/error-state'
 import { LoadingState } from '@/shared/components/loading-state'
-import { StatusBadge, ValidationBadge } from '@/shared/components/status-badge'
-import { Alert, AlertDescription, AlertTitle } from '@/shared/components/ui/alert'
 import { Badge } from '@/shared/components/ui/badge'
 import { Button } from '@/shared/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/card'
@@ -40,7 +45,6 @@ import {
 } from '@/shared/components/ui/dialog'
 import { Input } from '@/shared/components/ui/input'
 import { Label } from '@/shared/components/ui/label'
-import { ScrollArea } from '@/shared/components/ui/scroll-area'
 import {
   Select,
   SelectContent,
@@ -48,6 +52,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/shared/components/ui/select'
+import { Pencil, Trash2 } from 'lucide-react'
 
 const dateFormatter = new Intl.DateTimeFormat('he-IL', {
   day: '2-digit',
@@ -76,7 +81,6 @@ const isApiError = (value: unknown): value is ApiError => {
   )
 }
 
-const formatDate = (value: string) => dateFormatter.format(new Date(value))
 const formatTime = (value: string) => timeFormatter.format(new Date(value))
 const formatUserName = (user: Pick<CompanyUser, 'firstName' | 'lastName'>) => `${user.firstName} ${user.lastName}`.trim()
 const getMutationErrorMessage = (error: unknown, fallbackMessage: string) =>
@@ -144,8 +148,6 @@ interface TaskInstanceEditorState {
   endTime: string
 }
 
-type SchedulingBoardFilter = 'ALL' | 'NEEDS_ATTENTION' | 'UNFILLED_SLOTS' | 'CRITICAL_ISSUES' | 'WARNINGS'
-
 const createDefaultTaskInstanceState = (
   selectedDate: string,
   activityTaskId: string,
@@ -158,90 +160,39 @@ const createDefaultTaskInstanceState = (
   endTime: `${selectedDate}T16:00`,
 })
 
-const requirementBadgeClassName = (required: boolean) =>
-  required
-    ? 'border-danger/30 bg-danger-soft text-danger'
-    : 'border-info/30 bg-info-soft text-info'
-
-const getValidationBadgeText = (taskInstance: SchedulingDayTaskInstance) => {
-  if (taskInstance.validation.requiredErrors.length > 0) {
-    return `${taskInstance.validation.requiredErrors.length} בעיות חובה`
-  }
-
-  if (taskInstance.validation.warnings.length > 0) {
-    return `${taskInstance.validation.warnings.length} אזהרות`
-  }
-
-  return 'תקין'
-}
-
-const getEvaluationBadgeClassName = (severity: 'NORMAL' | 'WARNING' | 'CRITICAL') => {
-  if (severity === 'CRITICAL') {
-    return 'border-danger/30 bg-danger-soft text-danger'
-  }
-
-  if (severity === 'WARNING') {
-    return 'border-warning/30 bg-warning-soft text-warning'
-  }
-
-  return 'border-success/30 bg-success-soft text-success'
-}
-
-const getEvaluationBadgeText = (severity: 'NORMAL' | 'WARNING' | 'CRITICAL') => {
-  if (severity === 'CRITICAL') {
-    return 'קריטי'
-  }
-
-  if (severity === 'WARNING') {
-    return 'אזהרה'
-  }
-
-  return 'תקין'
-}
-
-const getEvaluationState = (severity: 'NORMAL' | 'WARNING' | 'CRITICAL') => {
-  if (severity === 'CRITICAL') {
-    return 'error'
-  }
-
-  if (severity === 'WARNING') {
-    return 'warning'
-  }
-
-  return 'valid'
-}
-
 const formatEvaluationReason = (reason: SchedulingDayCandidateEvaluationReason) => {
-  if (reason.roleName) {
-    return `${reason.message}: ${reason.roleName}`
+  if (reason.code === 'MISSING_REQUIRED_ROLE' || reason.code === 'MISSING_OPTIONAL_ROLE') {
+    if (reason.roleName) {
+      return `החייל אינו ${reason.roleName}`
+    }
+
+    return 'החייל אינו מתאים לתפקיד הנדרש'
   }
 
-  if (reason.qualificationName) {
-    return `${reason.message}: ${reason.qualificationName}`
+  if (reason.code === 'MISSING_REQUIRED_QUALIFICATION') {
+    if (reason.qualificationName) {
+      return `לחייל חסרה הסמכה נדרשת: ${reason.qualificationName}`
+    }
+
+    return 'לחייל חסרה הסמכה נדרשת'
+  }
+
+  if (reason.code === 'MISSING_OPTIONAL_QUALIFICATION') {
+    if (reason.qualificationName) {
+      return `לחייל חסרה הסמכה: ${reason.qualificationName}`
+    }
+
+    return 'לחייל חסרה הסמכה'
   }
 
   return reason.message
 }
 
-const formatCandidateEvaluationReason = (reason: CandidateEvaluation['reasons'][number]) => {
-  if (reason.roleName) {
-    return `${reason.message}: ${reason.roleName}`
-  }
-
-  if (reason.qualificationName) {
-    return `${reason.message}: ${reason.qualificationName}`
-  }
-
-  return reason.message
-}
-
-const boardFilterOptions: Array<{ value: SchedulingBoardFilter; label: string }> = [
-  { value: 'ALL', label: 'הכל' },
-  { value: 'NEEDS_ATTENTION', label: 'דורש טיפול' },
-  { value: 'UNFILLED_SLOTS', label: 'משבצות פנויות' },
-  { value: 'CRITICAL_ISSUES', label: 'בעיות קריטיות' },
-  { value: 'WARNINGS', label: 'אזהרות' },
-]
+const isRequirementEvaluationReason = (reason: SchedulingDayCandidateEvaluationReason) =>
+  reason.code === 'MISSING_REQUIRED_ROLE' ||
+  reason.code === 'MISSING_OPTIONAL_ROLE' ||
+  reason.code === 'MISSING_REQUIRED_QUALIFICATION' ||
+  reason.code === 'MISSING_OPTIONAL_QUALIFICATION'
 
 const getTaskInstanceHasCriticalIssues = (taskInstance: SchedulingDayTaskInstance) =>
   taskInstance.assignments.some((assignment) => assignment.evaluation.severity === 'CRITICAL')
@@ -251,148 +202,102 @@ const getTaskInstanceHasWarningIssues = (taskInstance: SchedulingDayTaskInstance
 
 const getTaskInstanceHasUnfilledSlots = (taskInstance: SchedulingDayTaskInstance) => taskInstance.assignmentSlots.unfilled > 0
 
-const matchesBoardFilter = (taskInstance: SchedulingDayTaskInstance, filter: SchedulingBoardFilter) => {
-  if (filter === 'ALL') {
-    return true
+
+const getSchedulingStatusLabel = (status: SchedulingApprovalStatus) => {
+  if (status === 'PENDING_APPROVAL') {
+    return 'ממתין לאישור'
   }
 
-  if (filter === 'NEEDS_ATTENTION') {
-    return getTaskInstanceHasUnfilledSlots(taskInstance) || getTaskInstanceHasCriticalIssues(taskInstance)
+  if (status === 'APPROVED') {
+    return 'מאושר'
   }
 
-  if (filter === 'UNFILLED_SLOTS') {
-    return getTaskInstanceHasUnfilledSlots(taskInstance)
-  }
-
-  if (filter === 'CRITICAL_ISSUES') {
-    return getTaskInstanceHasCriticalIssues(taskInstance)
-  }
-
-  return getTaskInstanceHasWarningIssues(taskInstance)
+  return 'טיוטה'
 }
 
-const getBoardFilterEmptyState = (filter: SchedulingBoardFilter) => {
-  if (filter === 'NEEDS_ATTENTION') {
-    return {
-      title: 'אין מופעי משימה הדורשים טיפול',
-      description: 'לא נמצאו מופעי משימה עם משבצות פנויות או בעיות קריטיות ביום שנבחר.',
-    }
+const getSchedulingStatusClassName = (status: SchedulingApprovalStatus) => {
+  if (status === 'PENDING_APPROVAL') {
+    return 'border-warning/30 bg-warning-soft text-warning'
   }
 
-  if (filter === 'UNFILLED_SLOTS') {
-    return {
-      title: 'אין משבצות פנויות',
-      description: 'לא נמצאו מופעי משימה עם תקנים פנויים ביום שנבחר.',
-    }
+  if (status === 'APPROVED') {
+    return 'border-success/30 bg-success-soft text-success'
   }
 
-  if (filter === 'CRITICAL_ISSUES') {
-    return {
-      title: 'אין בעיות קריטיות',
-      description: 'לא נמצאו מופעי משימה עם שיבוצים בעלי בעיות קריטיות ביום שנבחר.',
-    }
-  }
+  return 'border-info/30 bg-info-soft text-info'
+}
 
-  if (filter === 'WARNINGS') {
-    return {
-      title: 'אין אזהרות פעילות',
-      description: 'לא נמצאו מופעי משימה עם שיבוצים ברמת אזהרה ביום שנבחר.',
-    }
-  }
+const BOARD_TOTAL_HOURS = 24
+const BOARD_HOUR_HEIGHT_PX = 76
+const BOARD_TIME_AXIS_WIDTH_PX = 88
+const BOARD_TASK_COLUMN_WIDTH_PX = 240
+
+interface SlotRequirementTag {
+  text: string
+  required: boolean
+}
+
+const createBoardStart = (selectedDate: string) => new Date(`${selectedDate}T06:00:00.000Z`)
+
+const getBoardHourLabel = (hourIndex: number) => {
+  const normalizedHour = (((hourIndex + 6) % 24) + 24) % 24
+  return `${String(normalizedHour).padStart(2, '0')}:00`
+}
+
+const getBoardPlacement = (taskInstance: SchedulingDayTaskInstance, selectedDate: string) => {
+  const boardStart = createBoardStart(selectedDate)
+  const boardEnd = new Date(boardStart.getTime() + BOARD_TOTAL_HOURS * 60 * 60 * 1000)
+  const instanceStart = new Date(taskInstance.startTime)
+  const instanceEnd = new Date(taskInstance.endTime)
+  const visibleStart = new Date(Math.max(instanceStart.getTime(), boardStart.getTime()))
+  const visibleEnd = new Date(Math.min(instanceEnd.getTime(), boardEnd.getTime()))
+  const startMinutes = Math.max(0, Math.round((visibleStart.getTime() - boardStart.getTime()) / 60000))
+  const durationMinutes = Math.max(0, Math.round((visibleEnd.getTime() - visibleStart.getTime()) / 60000))
 
   return {
-    title: 'אין מופעי משימה להצגה',
-    description: 'לא נמצאו מופעי משימה התואמים למסנן שנבחר.',
+    startMinutes,
+    durationMinutes,
+    topPx: (startMinutes / 60) * BOARD_HOUR_HEIGHT_PX,
+    heightPx: (durationMinutes / 60) * BOARD_HOUR_HEIGHT_PX,
   }
 }
 
-function CandidateEvaluationPreview({
-  evaluation,
-  isPending,
-  isError,
-  onRetry,
-}: {
-  evaluation: CandidateEvaluation | undefined
-  isPending: boolean
-  isError: boolean
-  onRetry: () => void
-}) {
-  if (isPending) {
-    return <p className="text-xs text-muted">בודק הערכת מועמד…</p>
+const getSlotRequirementTags = (taskInstance: SchedulingDayTaskInstance) => {
+  const slotCount = Math.max(taskInstance.assignmentSlots.total, 0)
+  const tagsBySlot = Array.from({ length: slotCount }, () => [] as SlotRequirementTag[])
+
+  if (slotCount === 0) {
+    return tagsBySlot
   }
 
-  if (isError) {
-    return (
-      <div className="rounded-md border border-danger/30 bg-danger-soft/20 px-3 py-2 text-xs text-danger">
-        <p>הערכת המועמד נכשלה.</p>
-        <Button type="button" variant="secondary" size="sm" className="mt-2" onClick={onRetry}>
-          ניסיון חוזר
-        </Button>
-      </div>
-    )
-  }
-
-  if (!evaluation) {
-    return null
-  }
-
-  if (evaluation.severity === 'NORMAL') {
-    return (
-      <Alert className="border-success/30 bg-success-soft/20 px-3 py-3" data-testid="planning-candidate-evaluation-normal">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <AlertTitle className="text-success">ללא חריגות ידועות</AlertTitle>
-          <ValidationBadge state="valid" text="תקין" />
-        </div>
-      </Alert>
-    )
-  }
-
-  return (
-    <Alert
-      className={
-        evaluation.severity === 'CRITICAL'
-          ? 'border-danger/30 bg-danger-soft/20 px-3 py-3'
-          : 'border-warning/30 bg-warning-soft/20 px-3 py-3'
-      }
-      data-testid="planning-candidate-evaluation-preview"
-    >
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="text-right">
-          <AlertTitle className={evaluation.severity === 'CRITICAL' ? 'text-danger' : 'text-warning'}>
-            {evaluation.severity === 'CRITICAL' ? 'התראת מועמד קריטית' : 'אזהרת מועמד'}
-          </AlertTitle>
-          <AlertDescription className={evaluation.severity === 'CRITICAL' ? 'text-danger/80' : 'text-warning/80'}>
-            {evaluation.severity === 'CRITICAL'
-              ? 'אפשר להמשיך בשיבוץ, אך קיימת חריגה מהותית לפי בדיקת השרת.'
-              : 'אפשר להמשיך בשיבוץ, אך קיימות הערות שכדאי לבדוק.'}
-          </AlertDescription>
-        </div>
-        <ValidationBadge state={getEvaluationState(evaluation.severity)} text={getEvaluationBadgeText(evaluation.severity)} />
-      </div>
-
-      <ul className="mt-3 space-y-2 text-right text-xs">
-        {evaluation.reasons.map((reason, index) => (
-          <li
-            key={`${reason.code}-${index}`}
-            className={
-              reason.severity === 'CRITICAL'
-                ? 'rounded-md border border-danger/20 bg-danger-soft/20 px-2 py-2 text-danger'
-                : 'rounded-md border border-warning/20 bg-warning-soft/20 px-2 py-2 text-warning'
-            }
-          >
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <ValidationBadge state={getEvaluationState(reason.severity)} text={getEvaluationBadgeText(reason.severity)} />
-              <span className="font-medium">{formatCandidateEvaluationReason(reason)}</span>
-            </div>
-          </li>
-        ))}
-      </ul>
-    </Alert>
+  const roleTags = taskInstance.requirements.roles.flatMap((role) =>
+    Array.from({ length: Math.max(role.quantity, 1) }, () => ({
+      text: role.roleName ?? role.roleId,
+      required: role.required,
+    })),
   )
+
+  roleTags.forEach((tag, index) => {
+    tagsBySlot[index % slotCount]?.push(tag)
+  })
+
+  const qualificationTags = taskInstance.requirements.qualifications.flatMap((qualification) =>
+    Array.from({ length: Math.max(qualification.quantity, 1) }, () => ({
+      text: qualification.qualificationName ?? qualification.qualificationId,
+      required: qualification.required,
+    })),
+  )
+
+  qualificationTags.forEach((tag, index) => {
+    tagsBySlot[index % slotCount]?.push(tag)
+  })
+
+  return tagsBySlot
 }
 
-function AssignmentSlotCard({
+function SchedulingAssignmentField({
   taskInstance,
+  slotTags,
   slotIndex,
   activityId,
   selectedDate,
@@ -400,9 +305,14 @@ function AssignmentSlotCard({
   isUsersPending,
   isUsersError,
   onRetryUsers,
+  availableUsers,
+  isAvailableUsersPending,
+  isAvailableUsersError,
+  onRetryAvailableUsers,
   onRefreshDay,
 }: {
   taskInstance: SchedulingDayTaskInstance
+  slotTags: SlotRequirementTag[]
   slotIndex: number
   activityId: string
   selectedDate: string
@@ -410,23 +320,35 @@ function AssignmentSlotCard({
   isUsersPending: boolean
   isUsersError: boolean
   onRetryUsers: () => void
+  availableUsers: Array<Pick<CompanyUser, 'id' | 'firstName' | 'lastName' | 'email' | 'phone' | 'personalNumber' | 'isActive'>>
+  isAvailableUsersPending: boolean
+  isAvailableUsersError: boolean
+  onRetryAvailableUsers: () => void
   onRefreshDay: () => Promise<unknown>
 }) {
   const assignment = taskInstance.assignments[slotIndex]
-  const [searchText, setSearchText] = useState('')
-  const [selectedCandidateUserId, setSelectedCandidateUserId] = useState<string | null>(null)
+  const assignedUserName = assignment ? formatUserName(assignment.user) : ''
+  const [searchText, setSearchText] = useState(assignedUserName)
+  const [isFieldOpen, setIsFieldOpen] = useState(false)
   const [assignmentError, setAssignmentError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const schedulingScope = { activityId, date: selectedDate }
   const createAssignmentMutation = useCreateTaskInstanceAssignment(taskInstance.id, schedulingScope)
   const deleteAssignmentMutation = useDeleteAssignment(schedulingScope)
   const replaceDeleteAssignmentMutation = useDeleteAssignment()
-  const candidateEvaluationQuery = useCandidateEvaluation(taskInstance.id, selectedCandidateUserId ?? undefined)
+
+  useEffect(() => {
+    setSearchText(assignedUserName)
+    setAssignmentError(null)
+  }, [assignedUserName])
+
+  const isSearching = searchText.trim().length > 0 && searchText.trim() !== assignedUserName
 
   const matchingUsers = useMemo(() => {
     const normalizedSearch = searchText.trim().toLocaleLowerCase()
+
     if (normalizedSearch.length === 0) {
-      return []
+      return availableUsers.filter((user) => user.id !== assignment?.userId).slice(0, 6)
     }
 
     return companyUsers
@@ -440,18 +362,16 @@ function AssignmentSlotCard({
         return candidateText.includes(normalizedSearch)
       })
       .slice(0, 6)
-  }, [assignment?.userId, companyUsers, searchText])
+  }, [assignment?.userId, availableUsers, companyUsers, searchText])
 
-  const hasSearchText = searchText.trim().length > 0
-  const selectedCandidate = companyUsers.find((user) => user.id === selectedCandidateUserId) ?? null
   const isBusy =
     isSubmitting ||
     createAssignmentMutation.isPending ||
     deleteAssignmentMutation.isPending ||
     replaceDeleteAssignmentMutation.isPending
 
-  const assignUser = async () => {
-    if (isBusy || !selectedCandidateUserId) {
+  const assignUser = async (candidateUserId: string) => {
+    if (isBusy) {
       return
     }
 
@@ -466,9 +386,8 @@ function AssignmentSlotCard({
         removedExistingAssignment = true
       }
 
-      await createAssignmentMutation.mutateAsync({ userId: selectedCandidateUserId })
+      await createAssignmentMutation.mutateAsync({ userId: candidateUserId })
       setSearchText('')
-      setSelectedCandidateUserId(null)
     } catch (error) {
       if (removedExistingAssignment) {
         await onRefreshDay()
@@ -482,7 +401,7 @@ function AssignmentSlotCard({
 
   const removeAssignment = async () => {
     if (!assignment || isBusy) {
-      return
+      return false
     }
 
     setAssignmentError(null)
@@ -491,308 +410,132 @@ function AssignmentSlotCard({
     try {
       await deleteAssignmentMutation.mutateAsync(assignment.id)
       setSearchText('')
+      return true
     } catch (error) {
       setAssignmentError(getMutationErrorMessage(error, 'מחיקת השיבוץ נכשלה. אפשר לנסות שוב.'))
+      return false
     } finally {
       setIsSubmitting(false)
     }
   }
 
-  if (!assignment) {
-    return (
-      <div data-testid={`planning-slot-${taskInstance.id}-${slotIndex}`} className="rounded-md border border-dashed border-border bg-surface px-3 py-3 text-right">
-        <div className="flex items-center justify-between gap-2">
-          <p className="text-sm font-medium text-foreground">מקום {slotIndex + 1}</p>
-          <Badge className="border-border-strong bg-border text-muted-foreground">פנוי</Badge>
-        </div>
+  const handleSearchChange = async (nextValue: string) => {
+    if (isBusy) {
+      return
+    }
 
-        <div className="mt-3 space-y-2">
-          <Label htmlFor={`planning-assignment-search-${taskInstance.id}-${slotIndex}`} className="text-xs text-muted">
-            שיבוץ חייל למקום {slotIndex + 1}
+    setAssignmentError(null)
+    setSearchText(nextValue)
+    setIsFieldOpen(true)
+
+    if (assignment && nextValue.trim().length === 0) {
+      const removed = await removeAssignment()
+      if (!removed) {
+        setSearchText(assignedUserName)
+      }
+    }
+  }
+
+  const slotRequirementText = Array.from(new Set(slotTags.map((tag) => tag.text).filter((text) => text.trim().length > 0))).join(' · ')
+  const shouldShowMissingManpower = !assignment && taskInstance.assignmentSlots.unfilled > 0
+  const requirementEvaluationReasons = assignment?.evaluation.reasons.filter(isRequirementEvaluationReason) ?? []
+
+  return (
+    <div data-testid={`planning-slot-${taskInstance.id}-${slotIndex}`} className="space-y-1 text-right">
+      <div className="space-y-1">
+        {slotRequirementText.length > 0 ? <div className="text-xs text-muted-foreground">{slotRequirementText}</div> : null}
+        <div className="min-w-0">
+          <Label htmlFor={`planning-assignment-search-${taskInstance.id}-${slotIndex}`} className="sr-only">
+            שיבוץ חייל
           </Label>
           <Input
             id={`planning-assignment-search-${taskInstance.id}-${slotIndex}`}
             value={searchText}
-            onChange={(event) => setSearchText(event.target.value)}
-            placeholder="חיפוש לפי שם או מספר אישי"
-            disabled={isBusy || isUsersPending}
+            onChange={(event) => {
+              void handleSearchChange(event.target.value)
+            }}
+            onFocus={() => {
+              setIsFieldOpen(true)
+            }}
+            onBlur={() => {
+              setIsFieldOpen(false)
+            }}
+            placeholder={assignment ? 'החלפת חייל' : 'שיבוץ חייל'}
+            disabled={isBusy || isUsersPending || isAvailableUsersPending}
+            aria-busy={isBusy}
+            className={shouldShowMissingManpower ? 'border-danger/50 focus-visible:ring-danger/50' : undefined}
           />
-        </div>
 
-        {isUsersPending ? <p className="mt-2 text-xs text-muted">טוען חיילים…</p> : null}
+          {assignment && isSearching ? <p className="mt-1 text-[11px] text-muted">כעת: {assignedUserName}</p> : null}
+          {isUsersPending || isAvailableUsersPending ? <p className="mt-1 text-[11px] text-muted">טוען חיילים…</p> : null}
 
-        {isUsersError ? (
-          <div className="mt-2 rounded-md border border-danger/30 bg-danger-soft/20 px-3 py-2 text-xs text-danger">
-            <p>טעינת החיילים נכשלה.</p>
-            <Button type="button" variant="secondary" size="sm" className="mt-2" onClick={onRetryUsers}>
-              ניסיון חוזר
-            </Button>
-          </div>
-        ) : null}
-
-        {!isUsersPending && !isUsersError && hasSearchText && matchingUsers.length === 0 ? (
-          <p className="mt-2 text-xs text-muted">לא נמצאו חיילים התואמים את החיפוש.</p>
-        ) : null}
-
-        {matchingUsers.length > 0 ? (
-          <div className="mt-2 space-y-2">
-            {matchingUsers.map((user) => (
-              <button
-                key={user.id}
-                type="button"
-                className="flex w-full items-center justify-between rounded-md border border-border bg-surface-elevated px-3 py-2 text-right text-sm text-foreground hover:bg-surface disabled:cursor-not-allowed disabled:opacity-60"
-                disabled={isBusy}
-                onClick={() => {
-                  setSelectedCandidateUserId(user.id)
-                  setAssignmentError(null)
-                }}
-              >
-                <span className="min-w-0">
-                  <span className="block font-medium">{formatUserName(user)}</span>
-                  <span className="block text-xs text-muted">{user.personalNumber}</span>
-                </span>
-                <span className="text-xs text-muted">בחר</span>
-              </button>
-            ))}
-          </div>
-        ) : null}
-
-        {selectedCandidate ? (
-          <div className="mt-3 space-y-3 rounded-md border border-border bg-surface-elevated px-3 py-3">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <div className="text-right">
-                <p className="text-sm font-medium text-foreground">מועמד נבחר</p>
-                <p className="text-sm text-muted">{formatUserName(selectedCandidate)}</p>
-              </div>
+          {isUsersError || isAvailableUsersError ? (
+            <div className="mt-1 rounded-md border border-danger/30 bg-danger-soft/20 px-2 py-1 text-[11px] text-danger">
+              <p>טעינת החיילים נכשלה.</p>
               <Button
                 type="button"
                 variant="secondary"
                 size="sm"
-                onClick={() => setSelectedCandidateUserId(null)}
-                disabled={isBusy}
-              >
-                סילוק בחירה
-              </Button>
-            </div>
-
-            <CandidateEvaluationPreview
-              evaluation={candidateEvaluationQuery.data}
-              isPending={candidateEvaluationQuery.isPending}
-              isError={candidateEvaluationQuery.isError}
-              onRetry={() => {
-                void candidateEvaluationQuery.refetch()
-              }}
-            />
-
-            <Button
-              type="button"
-              variant="primary"
-              size="sm"
-              onClick={() => void assignUser()}
-              disabled={isBusy || candidateEvaluationQuery.isPending || candidateEvaluationQuery.isError}
-              aria-busy={isBusy}
-            >
-              שבץ חייל
-            </Button>
-          </div>
-        ) : null}
-
-        {assignmentError ? (
-          <div className="mt-2 rounded-md border border-danger/30 bg-danger-soft/20 px-3 py-2 text-xs text-danger" role="alert">
-            {assignmentError}
-          </div>
-        ) : null}
-      </div>
-    )
-  }
-
-  const userName = formatUserName(assignment.user)
-
-  return (
-    <div data-testid={`planning-slot-${taskInstance.id}-${slotIndex}`} className="rounded-md border border-border bg-surface px-3 py-3 text-right">
-      <div className="flex items-center justify-between gap-2">
-        <p className="text-sm font-medium text-foreground">מקום {slotIndex + 1}</p>
-        <Badge className="border-success/30 bg-success-soft text-success">מאויש</Badge>
-      </div>
-
-      <div className="mt-2 space-y-1 text-sm text-foreground">
-        <p className="font-medium">{userName}</p>
-        <p className="text-xs text-muted">מספר אישי: {assignment.user.personalNumber}</p>
-        {assignment.user.unit ? <p className="text-xs text-muted">מסגרת: {assignment.user.unit.name}</p> : null}
-      </div>
-
-      <div className="mt-2 flex flex-wrap items-center gap-2">
-        <Badge className={assignment.user.isActive ? 'border-success/30 bg-success-soft text-success' : 'border-border-strong bg-border text-muted-foreground'}>
-          {assignment.user.isActive ? 'פעיל' : 'לא פעיל'}
-        </Badge>
-        <ValidationBadge
-          state={getEvaluationState(assignment.evaluation.severity)}
-          text={getEvaluationBadgeText(assignment.evaluation.severity)}
-        />
-        {assignment.availability ? (
-          <>
-            <StatusBadge value={assignment.availability.status} />
-            <StatusBadge value={assignment.availability.availability} />
-          </>
-        ) : null}
-      </div>
-
-      {assignment.evaluation.reasons.length > 0 ? (
-        <Alert
-          className={
-            assignment.evaluation.severity === 'CRITICAL'
-              ? 'mt-3 border-danger/30 bg-danger-soft/20 px-3 py-3'
-              : 'mt-3 border-warning/30 bg-warning-soft/20 px-3 py-3'
-          }
-          data-testid={`planning-assignment-evaluation-${assignment.id}`}
-        >
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-            <div className="min-w-0 text-right">
-              <AlertTitle className={assignment.evaluation.severity === 'CRITICAL' ? 'text-danger' : 'text-warning'}>
-                {assignment.evaluation.severity === 'CRITICAL' ? 'התראת שיבוץ קריטית' : 'אזהרת שיבוץ'}
-              </AlertTitle>
-              <AlertDescription className={assignment.evaluation.severity === 'CRITICAL' ? 'text-danger/80' : 'text-warning/80'}>
-                {assignment.evaluation.severity === 'CRITICAL'
-                  ? 'השיבוץ נשמר, אך קיימת חריגה מהותית בדרישות או בסטטוס החייל.'
-                  : 'השיבוץ נשמר, אך קיימות חריגות שכדאי לבדוק.'}
-              </AlertDescription>
-            </div>
-            <ValidationBadge
-              state={getEvaluationState(assignment.evaluation.severity)}
-              text={getEvaluationBadgeText(assignment.evaluation.severity)}
-            />
-          </div>
-
-          <ul className="mt-3 space-y-2 text-right text-xs">
-            {assignment.evaluation.reasons.map((reason, index) => (
-              <li
-                key={`${assignment.id}-reason-${reason.code}-${index}`}
-                className={
-                  reason.severity === 'CRITICAL'
-                    ? 'rounded-md border border-danger/20 bg-danger-soft/20 px-2 py-2 text-danger'
-                    : 'rounded-md border border-warning/20 bg-warning-soft/20 px-2 py-2 text-warning'
-                }
-              >
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <ValidationBadge
-                    state={getEvaluationState(reason.severity)}
-                    text={reason.severity === 'CRITICAL' ? 'קריטי' : 'אזהרה'}
-                  />
-                  <span className="font-medium">{formatEvaluationReason(reason)}</span>
-                </div>
-              </li>
-            ))}
-          </ul>
-        </Alert>
-      ) : null}
-
-      <div className="mt-3 space-y-2 rounded-md border border-border bg-surface-elevated px-3 py-3">
-        <div className="flex items-center justify-between gap-2">
-          <Button type="button" variant="destructive" size="sm" onClick={() => void removeAssignment()} disabled={isBusy}>
-            הסרת שיבוץ
-          </Button>
-          <Label htmlFor={`planning-assignment-search-${taskInstance.id}-${slotIndex}`} className="text-xs text-muted">
-            החלפת חייל
-          </Label>
-        </div>
-
-        <Input
-          id={`planning-assignment-search-${taskInstance.id}-${slotIndex}`}
-          value={searchText}
-          onChange={(event) => setSearchText(event.target.value)}
-          placeholder="חיפוש חייל חלופי"
-          disabled={isBusy || isUsersPending}
-        />
-
-        {isUsersPending ? <p className="text-xs text-muted">טוען חיילים…</p> : null}
-
-        {isUsersError ? (
-          <div className="rounded-md border border-danger/30 bg-danger-soft/20 px-3 py-2 text-xs text-danger">
-            <p>טעינת החיילים נכשלה.</p>
-            <Button type="button" variant="secondary" size="sm" className="mt-2" onClick={onRetryUsers}>
-              ניסיון חוזר
-            </Button>
-          </div>
-        ) : null}
-
-        {!isUsersPending && !isUsersError && hasSearchText && matchingUsers.length === 0 ? (
-          <p className="text-xs text-muted">לא נמצאו חיילים התואמים את החיפוש.</p>
-        ) : null}
-
-        {matchingUsers.length > 0 ? (
-          <div className="space-y-2">
-            {matchingUsers.map((user) => (
-              <button
-                key={user.id}
-                type="button"
-                className="flex w-full items-center justify-between rounded-md border border-border bg-surface px-3 py-2 text-right text-sm text-foreground hover:bg-surface disabled:cursor-not-allowed disabled:opacity-60"
-                disabled={isBusy}
+                className="mt-1 h-7 px-2 text-[11px]"
                 onClick={() => {
-                  setSelectedCandidateUserId(user.id)
-                  setAssignmentError(null)
+                  onRetryUsers()
+                  onRetryAvailableUsers()
                 }}
               >
-                <span className="min-w-0">
-                  <span className="block font-medium">{formatUserName(user)}</span>
-                  <span className="block text-xs text-muted">{user.personalNumber}</span>
-                </span>
-                <span className="text-xs text-muted">החלף</span>
-              </button>
-            ))}
-          </div>
-        ) : null}
-
-        {selectedCandidate ? (
-          <div className="space-y-3 rounded-md border border-border bg-surface px-3 py-3">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <div className="text-right">
-                <p className="text-sm font-medium text-foreground">מועמד חלופי נבחר</p>
-                <p className="text-sm text-muted">{formatUserName(selectedCandidate)}</p>
-              </div>
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                onClick={() => setSelectedCandidateUserId(null)}
-                disabled={isBusy}
-              >
-                סילוק בחירה
+                ניסיון חוזר
               </Button>
             </div>
+          ) : null}
 
-            <CandidateEvaluationPreview
-              evaluation={candidateEvaluationQuery.data}
-              isPending={candidateEvaluationQuery.isPending}
-              isError={candidateEvaluationQuery.isError}
-              onRetry={() => {
-                void candidateEvaluationQuery.refetch()
-              }}
-            />
+          {!isUsersPending && !isUsersError && !isAvailableUsersPending && !isAvailableUsersError && isSearching && matchingUsers.length === 0 ? (
+            <p className="mt-1 text-[11px] text-muted">לא נמצאו חיילים התואמים את החיפוש.</p>
+          ) : null}
 
-            <Button
-              type="button"
-              variant="primary"
-              size="sm"
-              onClick={() => void assignUser()}
-              disabled={isBusy || candidateEvaluationQuery.isPending || candidateEvaluationQuery.isError}
-              aria-busy={isBusy}
-            >
-              החלף חייל
-            </Button>
-          </div>
-        ) : null}
+          {isFieldOpen && matchingUsers.length > 0 ? (
+            <div className="mt-1 space-y-1 rounded-md border border-border bg-surface p-1">
+              {matchingUsers.map((user) => (
+                <button
+                  key={user.id}
+                  type="button"
+                  className="flex w-full items-center justify-between rounded-md px-2 py-1 text-right text-xs text-foreground hover:bg-surface-elevated disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled={isBusy}
+                  onMouseDown={(event) => {
+                    event.preventDefault()
+                  }}
+                  onClick={() => {
+                    void assignUser(user.id)
+                  }}
+                >
+                  <span className="min-w-0">
+                    <span className="block font-medium">{formatUserName(user)}</span>
+                    <span className="block text-[11px] text-muted">{user.personalNumber}</span>
+                  </span>
+                  <span className="text-[11px] text-muted">בחר</span>
+                </button>
+              ))}
+            </div>
+          ) : null}
 
-        {assignmentError ? (
-          <div className="rounded-md border border-danger/30 bg-danger-soft/20 px-3 py-2 text-xs text-danger" role="alert">
-            {assignmentError}
-          </div>
-        ) : null}
+          {requirementEvaluationReasons.length > 0 ? (
+            <div data-testid={`planning-assignment-evaluation-${assignment?.id}`} className="mt-1 space-y-0.5 text-[11px] leading-4 text-danger">
+              {requirementEvaluationReasons.map((reason, index) => (
+                <p key={`${assignment?.id}-reason-${reason.code}-${index}`}>{formatEvaluationReason(reason)}</p>
+              ))}
+            </div>
+          ) : null}
+
+          {assignmentError ? (
+            <div className="mt-1 rounded-md border border-danger/30 bg-danger-soft/20 px-2 py-1 text-[11px] text-danger" role="alert">
+              {assignmentError}
+            </div>
+          ) : null}
+        </div>
       </div>
     </div>
   )
 }
 
-function SchedulingTaskCard({
+function SchedulingTaskInstanceBlock({
   taskInstance,
   activityId,
   selectedDate,
@@ -801,6 +544,8 @@ function SchedulingTaskCard({
   isUsersError,
   onRetryUsers,
   onRefreshDay,
+  onDeleteTaskInstance,
+  onEditTaskInstance,
 }: {
   taskInstance: SchedulingDayTaskInstance
   activityId: string
@@ -810,127 +555,78 @@ function SchedulingTaskCard({
   isUsersError: boolean
   onRetryUsers: () => void
   onRefreshDay: () => Promise<unknown>
+  onDeleteTaskInstance: (taskInstance: SchedulingDayTaskInstance) => Promise<void>
+  onEditTaskInstance: (taskInstance: SchedulingDayTaskInstance) => void
 }) {
+  const placement = getBoardPlacement(taskInstance, selectedDate)
   const slotCount = Math.max(taskInstance.assignmentSlots.total, 0)
   const slots = Array.from({ length: slotCount }, (_, index) => index)
+  const slotTags = getSlotRequirementTags(taskInstance)
+  const availableUsersQuery = useAvailableUsers(taskInstance.id)
+  const isCorrectlyStaffed =
+    taskInstance.assignmentSlots.unfilled === 0 &&
+    taskInstance.validation.requiredErrors.length === 0 &&
+    taskInstance.assignments.every((assignment) => assignment.evaluation.severity === 'NORMAL')
+  const displayTitle = taskInstance.title.trim().length > 0 ? taskInstance.title : taskInstance.activityTask.name
 
   return (
-    <div data-testid={`planning-task-card-${taskInstance.id}`} className="w-[22rem] shrink-0 rounded-lg border border-border bg-surface p-4">
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0 text-right">
-          <p className="text-sm font-semibold text-foreground">{taskInstance.title}</p>
-          <p className="mt-1 text-xs text-muted">{taskInstance.activityTask.name}</p>
+    <div
+      data-testid={`planning-instance-block-${taskInstance.id}`}
+      data-start-minute={placement.startMinutes}
+      data-duration-minutes={placement.durationMinutes}
+      data-staffing-state={isCorrectlyStaffed ? 'ready' : 'attention'}
+      className={
+        isCorrectlyStaffed
+          ? 'absolute inset-x-2 rounded-xl border border-success/40 bg-success-soft/20 shadow-panel'
+          : 'absolute inset-x-2 rounded-xl border border-border/80 bg-surface/95 shadow-panel'
+      }
+      style={{ top: placement.topPx, height: placement.heightPx }}
+      aria-label={`${taskInstance.activityTask.name} ${formatTime(taskInstance.startTime)} עד ${formatTime(taskInstance.endTime)}`}
+    >
+      <div className="flex items-center justify-between gap-2 border-b border-border/70 px-3 py-2">
+        <div className="min-w-0">
+          <p className="truncate text-sm font-semibold text-foreground">{displayTitle || 'ללא שם'}</p>
         </div>
-        <div className="flex flex-wrap items-center justify-end gap-2">
-          {taskInstance.isOvernight ? (
-            <Badge className="border-warning/30 bg-warning-soft text-warning">לילה</Badge>
-          ) : null}
-          {taskInstance.validation.requiredErrors.length > 0 ? (
-            <ValidationBadge state="error" text={getValidationBadgeText(taskInstance)} />
-          ) : taskInstance.validation.warnings.length > 0 ? (
-            <ValidationBadge state="warning" text={getValidationBadgeText(taskInstance)} />
-          ) : (
-            <ValidationBadge state="valid" text={getValidationBadgeText(taskInstance)} />
-          )}
+        <div className="flex items-center gap-1">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            aria-label="עריכת מופע משימה"
+            title="עריכת מופע משימה"
+            onClick={() => onEditTaskInstance(taskInstance)}
+          >
+            <Pencil className="h-4 w-4" aria-hidden="true" />
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 text-danger hover:text-danger"
+            aria-label="מחיקת מופע משימה"
+            title="מחיקת מופע משימה"
+            onClick={() => {
+              void onDeleteTaskInstance(taskInstance)
+            }}
+          >
+            <Trash2 className="h-4 w-4" aria-hidden="true" />
+          </Button>
         </div>
       </div>
 
-      <div className="mt-3 grid grid-cols-2 gap-2 rounded-md border border-border bg-surface-elevated p-2 text-xs">
-        <div className="text-right">
-          <p className="text-muted">התחלה</p>
-          <p className="font-medium text-foreground">{formatTime(taskInstance.startTime)}</p>
-        </div>
-        <div className="text-right">
-          <p className="text-muted">סיום</p>
-          <p className="font-medium text-foreground">{formatTime(taskInstance.endTime)}</p>
-        </div>
-      </div>
-
-      <div className="mt-3 rounded-md border border-border bg-surface-elevated p-2 text-right">
-        <p className="text-xs text-muted">סיכום כוח אדם</p>
-        <p className="mt-1 text-sm font-medium text-foreground">
-          {taskInstance.assignmentSlots.filled} מאוישים / {taskInstance.assignmentSlots.total} תקנים
-        </p>
-        <p className="mt-1 text-xs text-muted">פנויים: {taskInstance.assignmentSlots.unfilled}</p>
-      </div>
-
-      <div className="mt-3 space-y-2 text-right">
-        <p className="text-sm font-medium text-foreground">דרישות</p>
-        {taskInstance.requirements.manpower ? (
-          <div className="rounded-md border border-border bg-surface-elevated px-2 py-2 text-xs">
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-foreground">כוח אדם</span>
-              <Badge className={requirementBadgeClassName(taskInstance.requirements.manpower.required)}>
-                {taskInstance.requirements.manpower.required ? 'חובה' : 'אופציונלי'}
-              </Badge>
-            </div>
-            <p className="mt-1 text-muted">כמות: {taskInstance.requirements.manpower.quantity}</p>
-          </div>
-        ) : null}
-
-        {taskInstance.requirements.roles.length > 0 ? (
-          <div className="rounded-md border border-border bg-surface-elevated px-2 py-2 text-xs">
-            <p className="font-medium text-foreground">תפקידים</p>
-            <ul className="mt-1 space-y-1">
-              {taskInstance.requirements.roles.map((role, index) => (
-                <li key={`${taskInstance.id}-role-${role.roleId}-${index}`} className="flex items-center justify-between gap-2">
-                  <span className="text-muted">{role.roleName ?? role.roleId} · {role.quantity}</span>
-                  <Badge className={requirementBadgeClassName(role.required)}>{role.required ? 'חובה' : 'אופציונלי'}</Badge>
-                </li>
-              ))}
-            </ul>
-          </div>
-        ) : null}
-
-        {taskInstance.requirements.qualifications.length > 0 ? (
-          <div className="rounded-md border border-border bg-surface-elevated px-2 py-2 text-xs">
-            <p className="font-medium text-foreground">הסמכות</p>
-            <ul className="mt-1 space-y-1">
-              {taskInstance.requirements.qualifications.map((qualification, index) => (
-                <li key={`${taskInstance.id}-qualification-${qualification.qualificationId}-${index}`} className="flex items-center justify-between gap-2">
-                  <span className="text-muted">{qualification.qualificationName ?? qualification.qualificationId} · {qualification.quantity}</span>
-                  <Badge className={requirementBadgeClassName(qualification.required)}>{qualification.required ? 'חובה' : 'אופציונלי'}</Badge>
-                </li>
-              ))}
-            </ul>
-          </div>
-        ) : null}
-      </div>
-
-      {taskInstance.validation.requiredErrors.length > 0 ? (
-        <div className="mt-3 rounded-md border border-danger/30 bg-danger-soft/20 px-2 py-2 text-xs text-danger">
-          <p className="font-medium">בעיות חובה</p>
-          <ul className="mt-1 space-y-1">
-            {taskInstance.validation.requiredErrors.map((issue, index) => (
-              <li key={`${taskInstance.id}-required-${index}`}>{issue.message}</li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
-
-      {taskInstance.validation.warnings.length > 0 ? (
-        <div className="mt-2 rounded-md border border-warning/30 bg-warning-soft/20 px-2 py-2 text-xs text-warning">
-          <p className="font-medium">אזהרות</p>
-          <ul className="mt-1 space-y-1">
-            {taskInstance.validation.warnings.map((issue, index) => (
-              <li key={`${taskInstance.id}-warning-${index}`}>{issue.message}</li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
-
-      <div className="mt-3 space-y-2">
-        <p className="text-sm font-medium text-foreground text-right">שיבוץ תקנים</p>
+      <div className="space-y-2 px-3 py-3">
         {slots.length === 0 ? (
-          <div className="rounded-md border border-dashed border-border bg-surface px-3 py-3 text-center text-xs text-muted">
+          <div className="rounded-md border border-dashed border-border bg-background/70 px-3 py-3 text-center text-xs text-muted">
             אין תקנים מוגדרים למופע זה.
           </div>
         ) : (
           <div className="space-y-2">
             {slots.map((slotIndex) => (
-              <AssignmentSlotCard
+              <SchedulingAssignmentField
                 key={`${taskInstance.id}-slot-${slotIndex}`}
                 taskInstance={taskInstance}
+                slotTags={slotTags[slotIndex] ?? []}
                 slotIndex={slotIndex}
                 activityId={activityId}
                 selectedDate={selectedDate}
@@ -938,6 +634,12 @@ function SchedulingTaskCard({
                 isUsersPending={isUsersPending}
                 isUsersError={isUsersError}
                 onRetryUsers={onRetryUsers}
+                availableUsers={availableUsersQuery.data ?? []}
+                isAvailableUsersPending={availableUsersQuery.isPending}
+                isAvailableUsersError={availableUsersQuery.isError}
+                onRetryAvailableUsers={() => {
+                  void availableUsersQuery.refetch()
+                }}
                 onRefreshDay={onRefreshDay}
               />
             ))}
@@ -951,10 +653,10 @@ function SchedulingTaskCard({
 export function ActivityPlanningPage() {
   const navigate = useNavigate()
   const { activityId } = useParams<{ activityId: string }>()
+  const { hasPermission } = usePermissions()
   const activityQuery = useActivityById(activityId)
   const activityTasksQuery = useActivityTasks(activityId)
   const [selectedDate, setSelectedDate] = useState<string | undefined>(undefined)
-  const [boardFilter, setBoardFilter] = useState<SchedulingBoardFilter>('ALL')
   const [taskInstanceEditor, setTaskInstanceEditor] = useState<TaskInstanceEditorState | null>(null)
   const [taskInstanceEditorError, setTaskInstanceEditorError] = useState<string | null>(null)
 
@@ -991,11 +693,22 @@ export function ActivityPlanningPage() {
   }, [activityQuery.data, selectedDate])
 
   const schedulingDayQuery = useActivitySchedulingDay(activityId, selectedDate)
+  const openSchedulingDayMutation = useOpenActivitySchedulingDay(activityId, selectedDate)
+  const submitSchedulingDayForApprovalMutation = useSubmitActivitySchedulingDayForApproval(activityId, selectedDate)
+  const approveSchedulingDayMutation = useApproveActivitySchedulingDay(activityId, selectedDate)
+  const returnSchedulingDayToDraftMutation = useReturnActivitySchedulingDayToDraft(activityId, selectedDate)
 
   const activityStartDateKey = activityQuery.data ? toDateKey(activityQuery.data.startDate) : undefined
   const activityEndDateKey = activityQuery.data ? toDateKey(activityQuery.data.endDate) : undefined
   const companyUsers = companyUsersQuery.data?.items ?? []
   const schedulingDayTaskInstances = schedulingDayQuery.data?.taskInstances ?? []
+  const schedulingStatus = schedulingDayQuery.data?.schedulingStatus ?? 'DRAFT'
+  const canSubmitSchedulingDay = hasPermission('MANAGE_COMPANIES') && schedulingStatus === 'DRAFT'
+  const canApproveSchedulingDay = hasPermission('APPROVE_SCHEDULING') && schedulingStatus === 'PENDING_APPROVAL'
+  const isSchedulingStatusTransitionPending =
+    submitSchedulingDayForApprovalMutation.isPending ||
+    approveSchedulingDayMutation.isPending ||
+    returnSchedulingDayToDraftMutation.isPending
 
   const boardSummary = useMemo(() => {
     return schedulingDayTaskInstances.reduce(
@@ -1030,10 +743,48 @@ export function ActivityPlanningPage() {
     )
   }, [schedulingDayTaskInstances])
 
-  const filteredTaskInstances = useMemo(
-    () => schedulingDayTaskInstances.filter((taskInstance) => matchesBoardFilter(taskInstance, boardFilter)),
-    [boardFilter, schedulingDayTaskInstances],
-  )
+  const boardColumns = useMemo(() => {
+    const columns = new Map<string, {
+      id: string
+      name: string
+      description: string | null | undefined
+      instances: SchedulingDayTaskInstance[]
+    }>()
+
+    for (const activityTask of activityTasksQuery.data ?? []) {
+      columns.set(activityTask.id, {
+        id: activityTask.id,
+        name: activityTask.name,
+        description: activityTask.description,
+        instances: [],
+      })
+    }
+
+    for (const taskInstance of schedulingDayTaskInstances) {
+      const existingColumn = columns.get(taskInstance.activityTask.id)
+
+      if (existingColumn) {
+        existingColumn.instances.push(taskInstance)
+        continue
+      }
+
+      columns.set(taskInstance.activityTask.id, {
+        id: taskInstance.activityTask.id,
+        name: taskInstance.activityTask.name,
+        description: taskInstance.activityTask.description,
+        instances: [taskInstance],
+      })
+    }
+
+    return Array.from(columns.values())
+      .map((column) => ({
+        ...column,
+        instances: [...column.instances].sort((left, right) => left.startTime.localeCompare(right.startTime)),
+      }))
+  }, [activityTasksQuery.data, schedulingDayTaskInstances])
+
+  const boardHeightPx = BOARD_TOTAL_HOURS * BOARD_HOUR_HEIGHT_PX
+  const boardHourMarkers = Array.from({ length: BOARD_TOTAL_HOURS + 1 }, (_, index) => index)
 
   const canGoToPreviousDay =
     typeof selectedDate === 'string' &&
@@ -1179,6 +930,77 @@ export function ActivityPlanningPage() {
     }
   }
 
+  const openSelectedSchedulingDay = async () => {
+    if (openSchedulingDayMutation.isPending || schedulingDayQuery.data?.isDayOpened) {
+      return
+    }
+
+    const confirmed = window.confirm('האם לפתוח את יום השיבוץ הנבחר?')
+    if (!confirmed) {
+      return
+    }
+
+    setTaskInstanceEditorError(null)
+
+    try {
+      await openSchedulingDayMutation.mutateAsync()
+    } catch (error) {
+      setTaskInstanceEditorError(getMutationErrorMessage(error, 'פתיחת יום השיבוץ נכשלה. אפשר לנסות שוב.'))
+    }
+  }
+
+  const submitSchedulingDayForApproval = async () => {
+    if (!canSubmitSchedulingDay || isSchedulingStatusTransitionPending) {
+      return
+    }
+
+    const confirmed = window.confirm('האם לשלוח את יום השיבוץ לאישור?')
+    if (!confirmed) {
+      return
+    }
+
+    setTaskInstanceEditorError(null)
+
+    try {
+      await submitSchedulingDayForApprovalMutation.mutateAsync()
+    } catch (error) {
+      setTaskInstanceEditorError(getMutationErrorMessage(error, 'שליחת יום השיבוץ לאישור נכשלה. אפשר לנסות שוב.'))
+    }
+  }
+
+  const approveSchedulingDay = async () => {
+    if (!canApproveSchedulingDay || isSchedulingStatusTransitionPending) {
+      return
+    }
+
+    setTaskInstanceEditorError(null)
+
+    try {
+      await approveSchedulingDayMutation.mutateAsync()
+    } catch (error) {
+      setTaskInstanceEditorError(getMutationErrorMessage(error, 'אישור יום השיבוץ נכשל. אפשר לנסות שוב.'))
+    }
+  }
+
+  const returnSchedulingDayToDraft = async () => {
+    if (!canApproveSchedulingDay || isSchedulingStatusTransitionPending) {
+      return
+    }
+
+    const confirmed = window.confirm('האם להחזיר את יום השיבוץ לתיקון?')
+    if (!confirmed) {
+      return
+    }
+
+    setTaskInstanceEditorError(null)
+
+    try {
+      await returnSchedulingDayToDraftMutation.mutateAsync()
+    } catch (error) {
+      setTaskInstanceEditorError(getMutationErrorMessage(error, 'החזרת יום השיבוץ לתיקון נכשלה. אפשר לנסות שוב.'))
+    }
+  }
+
   if (!activityId) {
     return (
       <>
@@ -1271,129 +1093,126 @@ export function ActivityPlanningPage() {
       <ContentContainer className="space-y-5 pb-10">
         <Card>
           <CardHeader className="px-4 py-4 sm:px-5">
-            <CardTitle className="text-base">פרטי יום שיבוץ</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3 px-4 pb-4 sm:px-5 sm:pb-5">
-            <div className="flex flex-col-reverse gap-3 rounded-lg border border-border bg-surface-elevated p-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="min-w-0">
-                <p className="text-[11px] uppercase tracking-wide text-muted">יום שיבוץ נבחר</p>
-                <p className="mt-1 text-base font-semibold text-foreground" data-testid="planning-selected-day-title">
-                  שיבוץ — {formatSelectedDay(selectedDate)}
-                </p>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
+            <div className="space-y-3">
+              <div className="flex items-center gap-2" style={{ direction: 'ltr' }} data-testid="planning-board-primary-header">
                 <Button
                   type="button"
                   variant="secondary"
-                  onClick={goToPreviousDay}
-                  disabled={!canGoToPreviousDay}
-                >
-                  יום קודם
-                </Button>
-                <Button
-                  type="button"
-                  variant="secondary"
+                  aria-label="יום שיבוץ הבא"
+                  data-testid="planning-next-day-button"
                   onClick={goToNextDay}
                   disabled={!canGoToNextDay}
                 >
                   יום הבא
                 </Button>
-              </div>
-            </div>
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-              <div className="rounded-lg border border-border bg-surface-elevated p-3">
-                <p className="text-[11px] uppercase tracking-wide text-muted">שם הפעילות</p>
-                <p className="mt-1 text-sm font-semibold text-foreground">{activityQuery.data?.name}</p>
-              </div>
-              <div className="rounded-lg border border-border bg-surface-elevated p-3">
-                <p className="text-[11px] uppercase tracking-wide text-muted">תאריך התחלה</p>
-                <p className="mt-1 text-sm font-semibold text-foreground">{activityQuery.data ? formatDate(activityQuery.data.startDate) : '-'}</p>
-              </div>
-              <div className="rounded-lg border border-border bg-surface-elevated p-3">
-                <p className="text-[11px] uppercase tracking-wide text-muted">תאריך סיום</p>
-                <p className="mt-1 text-sm font-semibold text-foreground">{activityQuery.data ? formatDate(activityQuery.data.endDate) : '-'}</p>
-              </div>
-              <div className="rounded-lg border border-border bg-surface-elevated p-3">
-                <p className="text-[11px] uppercase tracking-wide text-muted">תאריך נבחר</p>
-                <p className="mt-1 text-sm font-semibold text-foreground" data-testid="planning-selected-date">
-                  {formatDate(selectedDate)}
-                </p>
-              </div>
-              <div className="rounded-lg border border-border bg-surface-elevated p-3">
-                <p className="text-[11px] uppercase tracking-wide text-muted">סטטוס יום</p>
-                <p className="mt-1 text-sm font-semibold text-foreground">
-                  {schedulingDayQuery.data?.isDayOpened ? 'היום פתוח' : 'היום סגור'}
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="px-4 py-4 sm:px-5">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <CardTitle className="text-base">לוח שיבוץ יומי</CardTitle>
-              {schedulingDayQuery.data?.isDayOpened ? (
+                <div className="flex-1 text-center" style={{ direction: 'rtl' }} data-testid="planning-board-date-status">
+                  <div className="flex items-center justify-center gap-2">
+                    <p className="text-base font-semibold text-foreground" data-testid="planning-selected-day-title">
+                      שיבוץ — {formatSelectedDay(selectedDate)}
+                    </p>
+                    <span data-testid="planning-scheduling-status">
+                      <Badge className={getSchedulingStatusClassName(schedulingStatus)}>{getSchedulingStatusLabel(schedulingStatus)}</Badge>
+                    </span>
+                  </div>
+                </div>
                 <Button
                   type="button"
                   variant="secondary"
-                  onClick={() => {
-                    const defaultTask = activityTasksQuery.data?.[0]
-                    if (!defaultTask) {
-                      setTaskInstanceEditorError('לא נמצאו משימות פעילות להוספת מופע.')
-                      return
-                    }
-
-                    openCreateTaskInstanceDialog(defaultTask.id, defaultTask.name)
-                  }}
-                  disabled={activityTasksQuery.isPending || !activityTasksQuery.data || activityTasksQuery.data.length === 0}
+                  aria-label="יום שיבוץ קודם"
+                  data-testid="planning-previous-day-button"
+                  onClick={goToPreviousDay}
+                  disabled={!canGoToPreviousDay}
                 >
-                  הוספת מופע משימה
+                  יום קודם
                 </Button>
-              ) : null}
+              </div>
+
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <CardTitle className="text-base">לוח שיבוץ יומי</CardTitle>
+                <div className="flex flex-wrap items-center justify-end gap-2">
+                {canSubmitSchedulingDay ? (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={() => void submitSchedulingDayForApproval()}
+                    disabled={isSchedulingStatusTransitionPending}
+                    aria-busy={isSchedulingStatusTransitionPending}
+                  >
+                    שלח לאישור
+                  </Button>
+                ) : null}
+                {canApproveSchedulingDay ? (
+                  <>
+                    <Button
+                      type="button"
+                      variant="primary"
+                      onClick={() => void approveSchedulingDay()}
+                      disabled={isSchedulingStatusTransitionPending}
+                      aria-busy={isSchedulingStatusTransitionPending}
+                    >
+                      אשר שיבוץ
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={() => void returnSchedulingDayToDraft()}
+                      disabled={isSchedulingStatusTransitionPending}
+                      aria-busy={isSchedulingStatusTransitionPending}
+                    >
+                      החזר לתיקון
+                    </Button>
+                  </>
+                ) : null}
+                {schedulingDayQuery.data?.isDayOpened ? (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={() => {
+                      const defaultTask = activityTasksQuery.data?.[0]
+                      if (!defaultTask) {
+                        setTaskInstanceEditorError('לא נמצאו משימות פעילות להוספת מופע.')
+                        return
+                      }
+
+                      openCreateTaskInstanceDialog(defaultTask.id, defaultTask.name)
+                    }}
+                    disabled={activityTasksQuery.isPending || !activityTasksQuery.data || activityTasksQuery.data.length === 0}
+                  >
+                    הוספת מופע משימה
+                  </Button>
+                ) : null}
+                </div>
+              </div>
             </div>
           </CardHeader>
           <CardContent className="space-y-4 px-4 pb-5 sm:px-5">
             {schedulingDayQuery.data?.isDayOpened ? (
               <>
-                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                  <div className="rounded-lg border border-border bg-surface-elevated p-3" data-testid="planning-summary-coverage">
-                    <p className="text-[11px] uppercase tracking-wide text-muted">כיסוי משבצות</p>
-                    <p className="mt-1 text-sm font-semibold text-foreground">
+                <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4" data-testid="planning-kpi-grid">
+                  <div className="rounded-md border border-border/70 bg-surface/50 p-2" data-testid="planning-summary-coverage">
+                    <p className="text-[10px] uppercase tracking-wide text-muted">כיסוי משבצות</p>
+                    <p className="mt-0.5 text-xs font-semibold text-foreground">
                       {boardSummary.filledSlots} / {boardSummary.totalSlots} מאוישות
                     </p>
-                    <p className="mt-1 text-xs text-muted">פנויות: {boardSummary.unfilledSlots}</p>
+                    <p className="text-[11px] text-muted">פנויות: {boardSummary.unfilledSlots}</p>
                   </div>
-                  <div className="rounded-lg border border-border bg-surface-elevated p-3" data-testid="planning-summary-problems">
-                    <p className="text-[11px] uppercase tracking-wide text-muted">סיכום בעיות שיבוץ</p>
-                    <p className="mt-1 text-sm font-semibold text-foreground">קריטיות: {boardSummary.criticalAssignments}</p>
-                    <p className="mt-1 text-xs text-muted">אזהרות: {boardSummary.warningAssignments}</p>
+                  <div className="rounded-md border border-border/70 bg-surface/50 p-2" data-testid="planning-summary-problems">
+                    <p className="text-[10px] uppercase tracking-wide text-muted">סיכום בעיות שיבוץ</p>
+                    <p className="mt-0.5 text-xs font-semibold text-foreground">קריטיות: {boardSummary.criticalAssignments}</p>
+                    <p className="text-[11px] text-muted">אזהרות: {boardSummary.warningAssignments}</p>
                   </div>
-                  <div className="rounded-lg border border-border bg-surface-elevated p-3" data-testid="planning-summary-task-attention">
-                    <p className="text-[11px] uppercase tracking-wide text-muted">מופעים הדורשים טיפול</p>
-                    <p className="mt-1 text-sm font-semibold text-foreground">{boardSummary.needsAttentionTaskInstances}</p>
-                    <p className="mt-1 text-xs text-muted">עם משבצות פנויות או חריגה קריטית</p>
+                  <div className="rounded-md border border-border/70 bg-surface/50 p-2" data-testid="planning-summary-task-attention">
+                    <p className="text-[10px] uppercase tracking-wide text-muted">מופעים הדורשים טיפול</p>
+                    <p className="mt-0.5 text-xs font-semibold text-foreground">{boardSummary.needsAttentionTaskInstances}</p>
+                    <p className="text-[11px] text-muted">עם משבצות פנויות או חריגה קריטית</p>
                   </div>
-                  <div className="rounded-lg border border-border bg-surface-elevated p-3" data-testid="planning-summary-task-problems">
-                    <p className="text-[11px] uppercase tracking-wide text-muted">מצב מופעי משימה</p>
-                    <p className="mt-1 text-sm font-semibold text-foreground">פנויות: {boardSummary.unfilledTaskInstances}</p>
-                    <p className="mt-1 text-xs text-muted">קריטיות: {boardSummary.criticalTaskInstances} · אזהרות: {boardSummary.warningTaskInstances}</p>
+                  <div className="rounded-md border border-border/70 bg-surface/50 p-2" data-testid="planning-summary-task-problems">
+                    <p className="text-[10px] uppercase tracking-wide text-muted">מצב מופעי משימה</p>
+                    <p className="mt-0.5 text-xs font-semibold text-foreground">פנויות: {boardSummary.unfilledTaskInstances}</p>
+                    <p className="text-[11px] text-muted">קריטיות: {boardSummary.criticalTaskInstances} · אזהרות: {boardSummary.warningTaskInstances}</p>
                   </div>
                 </div>
 
-                <div className="flex flex-wrap items-center justify-end gap-2" data-testid="planning-board-filters">
-                  {boardFilterOptions.map((option) => (
-                    <Button
-                      key={option.value}
-                      type="button"
-                      variant={boardFilter === option.value ? 'primary' : 'secondary'}
-                      size="sm"
-                      onClick={() => setBoardFilter(option.value)}
-                    >
-                      {option.label}
-                    </Button>
-                  ))}
-                </div>
               </>
             ) : null}
 
@@ -1403,55 +1222,124 @@ export function ActivityPlanningPage() {
               </div>
             ) : null}
             {!schedulingDayQuery.data?.isDayOpened ? (
-              <EmptyState
-                title="היום עדיין לא נפתח"
-                description="לא קיימים מופעי משימות ליום זה. אפשר לפתוח את היום בשלב הבא של הפיתוח."
-              />
+              <div className="space-y-3">
+                <EmptyState
+                  title="היום עדיין לא נפתח"
+                  description="לא קיימים מופעי משימות ליום זה. ניתן לפתוח את היום כדי להתחיל בתכנון ושיבוץ."
+                />
+                <div className="flex justify-center">
+                  <Button
+                    type="button"
+                    variant="primary"
+                    onClick={() => void openSelectedSchedulingDay()}
+                    disabled={openSchedulingDayMutation.isPending}
+                    aria-busy={openSchedulingDayMutation.isPending}
+                  >
+                    פתח יום שיבוץ
+                  </Button>
+                </div>
+              </div>
             ) : schedulingDayQuery.data.taskInstances.length === 0 ? (
               <EmptyState
                 title="אין מופעי משימה ליום פתוח זה"
                 description="היום פתוח, אבל עדיין לא הוגדרו מופעי משימה לשיבוץ."
               />
-            ) : filteredTaskInstances.length === 0 ? (
-              <EmptyState
-                title={getBoardFilterEmptyState(boardFilter).title}
-                description={getBoardFilterEmptyState(boardFilter).description}
-              />
             ) : (
-              <ScrollArea className="w-full" dir="rtl">
-                <div className="flex min-w-max gap-3 pb-2">
-                  {filteredTaskInstances.map((taskInstance) => (
-                    <div key={taskInstance.id} className="space-y-2">
-                      <div className="flex items-center justify-end gap-2">
-                        <Button type="button" variant="secondary" size="sm" onClick={() => openEditTaskInstanceDialog(taskInstance)}>
-                          עריכה
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="destructive"
-                          size="sm"
-                          disabled={deleteTaskInstanceMutation.isPending}
-                          onClick={() => void deleteTaskInstance(taskInstance)}
-                        >
-                          מחיקה
-                        </Button>
+                <div className="rounded-xl border border-border bg-background/60" data-testid="planning-scheduling-grid">
+                <div className="flex">
+                  <div className="min-w-0 flex-1 overflow-x-auto">
+                    <div className="w-max min-w-full">
+                      <div className="flex" dir="rtl">
+                        {boardColumns.map((column) => (
+                          <div
+                            key={`planning-column-header-${column.id}`}
+                            data-testid={`planning-column-header-${column.id}`}
+                            className="flex h-16 items-end justify-center border-b border-s border-border bg-surface-elevated px-2 py-3 text-center"
+                            style={{ width: BOARD_TASK_COLUMN_WIDTH_PX, minWidth: BOARD_TASK_COLUMN_WIDTH_PX }}
+                          >
+                            <div className="space-y-1">
+                              <p className="text-sm font-semibold text-foreground">{column.name}</p>
+                              <p className="text-[11px] text-muted">{column.instances.length} מופעים</p>
+                            </div>
+                          </div>
+                        ))}
                       </div>
-                      <SchedulingTaskCard
-                        taskInstance={taskInstance}
-                        activityId={activityId}
-                        selectedDate={selectedDate}
-                        companyUsers={companyUsers}
-                        isUsersPending={companyUsersQuery.isPending}
-                        isUsersError={companyUsersQuery.isError}
-                        onRetryUsers={() => {
-                          void companyUsersQuery.refetch()
-                        }}
-                        onRefreshDay={() => schedulingDayQuery.refetch()}
-                      />
+
+                      <div className="flex" dir="rtl">
+                        {boardColumns.map((column) => (
+                          <div
+                            key={`planning-task-column-${column.id}`}
+                            data-testid={`planning-task-column-${column.id}`}
+                            className="relative border-s border-border bg-surface/35"
+                            style={{
+                              width: BOARD_TASK_COLUMN_WIDTH_PX,
+                              minWidth: BOARD_TASK_COLUMN_WIDTH_PX,
+                              height: boardHeightPx,
+                            }}
+                          >
+                            {boardHourMarkers.map((marker) => (
+                              <div
+                                key={`column-${column.id}-line-${marker}`}
+                                className="pointer-events-none absolute inset-x-0 border-t border-border/60"
+                                style={{ top: marker * BOARD_HOUR_HEIGHT_PX }}
+                              />
+                            ))}
+
+                            {column.instances.map((taskInstance) => (
+                              <SchedulingTaskInstanceBlock
+                                key={taskInstance.id}
+                                taskInstance={taskInstance}
+                                activityId={activityId}
+                                selectedDate={selectedDate}
+                                companyUsers={companyUsers}
+                                isUsersPending={companyUsersQuery.isPending}
+                                isUsersError={companyUsersQuery.isError}
+                                onRetryUsers={() => {
+                                  void companyUsersQuery.refetch()
+                                }}
+                                onRefreshDay={() => schedulingDayQuery.refetch()}
+                                onEditTaskInstance={openEditTaskInstanceDialog}
+                                onDeleteTaskInstance={deleteTaskInstance}
+                              />
+                            ))}
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  ))}
+                  </div>
+
+                  <div
+                    className="shrink-0 border-s border-border bg-surface"
+                    data-testid="planning-time-axis"
+                    style={{ width: BOARD_TIME_AXIS_WIDTH_PX }}
+                  >
+                    <div className="flex h-16 items-end justify-center border-b border-border bg-surface-elevated px-2 py-3">
+                        <span className="text-[11px] uppercase tracking-wide text-muted" data-testid="planning-time-axis-window">
+                          06:00 → 06:00 (+1)
+                        </span>
+                    </div>
+                    <div className="relative" style={{ height: boardHeightPx }}>
+                      {boardHourMarkers.map((marker) => (
+                        <div
+                          key={`time-axis-line-${marker}`}
+                          className="pointer-events-none absolute inset-x-0 border-t border-border/70"
+                          style={{ top: marker * BOARD_HOUR_HEIGHT_PX }}
+                        />
+                      ))}
+                      {boardHourMarkers.map((marker) => (
+                        <div
+                          key={`time-axis-label-${marker}`}
+                          className="absolute inset-x-0 -translate-y-1/2 px-2 text-center text-xs font-medium text-muted"
+                          style={{ top: marker * BOARD_HOUR_HEIGHT_PX }}
+                          data-testid={`planning-time-axis-label-${marker}`}
+                        >
+                          {getBoardHourLabel(marker)}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 </div>
-              </ScrollArea>
+              </div>
             )}
           </CardContent>
         </Card>
@@ -1503,6 +1391,7 @@ export function ActivityPlanningPage() {
                   <Label htmlFor="planning-task-instance-title">כותרת</Label>
                   <Input
                     id="planning-task-instance-title"
+                    placeholder="ללא שם"
                     value={taskInstanceEditor.title}
                     onChange={(event) => onTaskInstanceEditorChange('title', event.target.value)}
                     disabled={isTaskInstanceFormBusy}

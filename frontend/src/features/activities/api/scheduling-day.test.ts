@@ -3,16 +3,20 @@ import { describe, expect, it, vi } from 'vitest'
 vi.mock('@/api/client', () => ({
   api: {
     get: vi.fn(),
+    post: vi.fn(),
   },
 }))
 
 import { api } from '@/api/client'
 import {
   getActivitySchedulingDay,
+  openActivitySchedulingDay,
+  type OpenSchedulingDayResponse,
   type SchedulingDayResponse,
 } from '@/features/activities/api/scheduling-day'
 
 const apiGetMock = vi.mocked(api.get)
+const apiPostMock = vi.mocked(api.post)
 
 describe('scheduling day API', () => {
   it('constructs the expected scheduling day endpoint with a date query parameter', async () => {
@@ -122,5 +126,21 @@ describe('scheduling day API', () => {
     const result = await getActivitySchedulingDay('activity-1', '2026-08-15')
 
     expect(result).toEqual(payload)
+  })
+
+  it('calls the open scheduling-day endpoint with selected date payload', async () => {
+    const payload: OpenSchedulingDayResponse = {
+      activityId: 'activity-1',
+      date: '2026-08-15',
+      isDayOpened: true,
+    }
+
+    apiPostMock.mockResolvedValueOnce(payload)
+
+    await openActivitySchedulingDay('activity-1', { date: '2026-08-15' })
+
+    expect(apiPostMock).toHaveBeenCalledWith('/activities/activity-1/scheduling/day/open', {
+      date: '2026-08-15',
+    })
   })
 })

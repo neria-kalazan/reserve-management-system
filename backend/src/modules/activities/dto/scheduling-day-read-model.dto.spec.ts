@@ -13,6 +13,7 @@ describe('SchedulingDayResponseDto contract', () => {
       },
       date: '2026-09-03',
       isDayOpened: true,
+      schedulingStatus: 'DRAFT',
       taskInstances: [
         {
           id: 'instance-1',
@@ -67,6 +68,7 @@ describe('SchedulingDayResponseDto contract', () => {
       },
       date: '2026-09-03',
       isDayOpened: true,
+      schedulingStatus: 'PENDING_APPROVAL',
       taskInstances: [
         {
           id: 'instance-2',
@@ -266,6 +268,7 @@ describe('SchedulingDayResponseDto contract', () => {
       },
       date: '2026-09-04',
       isDayOpened: true,
+      schedulingStatus: 'APPROVED',
       taskInstances: [
         {
           id: 'instance-night-1',
@@ -303,6 +306,7 @@ describe('SchedulingDayResponseDto contract', () => {
       ...openedDayPayload,
       date: '2026-09-06',
       isDayOpened: false,
+      schedulingStatus: 'DRAFT',
       taskInstances: [],
     };
 

@@ -4,6 +4,7 @@ import { CandidateEvaluationReason } from '../../task-instances/task-instances.s
 import { TaskValidationResult } from '../../task-instances/task-validation.service';
 
 export type SchedulingCandidateSeverity = 'NORMAL' | 'WARNING' | 'CRITICAL';
+export type SchedulingApprovalStatusValue = 'DRAFT' | 'PENDING_APPROVAL' | 'APPROVED';
 
 export class SchedulingDayActivityDto {
   id: string;
@@ -108,5 +109,6 @@ export class SchedulingDayResponseDto {
   activity: SchedulingDayActivityDto;
   date: string;
   isDayOpened: boolean;
+  schedulingStatus: SchedulingApprovalStatusValue;
   taskInstances: SchedulingDayTaskInstanceDto[];
 }

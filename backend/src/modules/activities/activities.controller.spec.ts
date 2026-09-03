@@ -11,12 +11,21 @@ import { PERMISSION_METADATA_KEY } from '../auth/permission.decorator';
 
 describe('ActivitiesController', () => {
   let app: INestApplication;
-  let schedulingDayService: { getSchedulingDay: jest.Mock; openSchedulingDay: jest.Mock };
+  let schedulingDayService: {
+    getSchedulingDay: jest.Mock;
+    openSchedulingDay: jest.Mock;
+    submitSchedulingDayForApproval: jest.Mock;
+    approveSchedulingDay: jest.Mock;
+    returnSchedulingDayToDraft: jest.Mock;
+  };
 
   beforeEach(async () => {
     schedulingDayService = {
       getSchedulingDay: jest.fn(),
       openSchedulingDay: jest.fn(),
+      submitSchedulingDayForApproval: jest.fn(),
+      approveSchedulingDay: jest.fn(),
+      returnSchedulingDayToDraft: jest.fn(),
     };
 
     const moduleRef = await Test.createTestingModule({
@@ -118,6 +127,63 @@ describe('ActivitiesController', () => {
     expect(schedulingDayService.openSchedulingDay).not.toHaveBeenCalled();
   });
 
+  it('delegates submit-for-approval requests to the scheduling service and returns the result unchanged', async () => {
+    const responsePayload = {
+      activityId: 'activity-1',
+      date: '2026-08-15',
+      isDayOpened: true,
+      schedulingStatus: 'PENDING_APPROVAL',
+    };
+
+    schedulingDayService.submitSchedulingDayForApproval.mockResolvedValue(responsePayload);
+
+    const res = await request(app.getHttpServer())
+      .post('/activities/activity-1/scheduling/day/submit')
+      .send({ date: '2026-08-15' })
+      .expect(201);
+
+    expect(schedulingDayService.submitSchedulingDayForApproval).toHaveBeenCalledWith('activity-1', '2026-08-15', 'user-1');
+    expect(res.body).toEqual(responsePayload);
+  });
+
+  it('delegates approve requests to the scheduling service and returns the result unchanged', async () => {
+    const responsePayload = {
+      activityId: 'activity-1',
+      date: '2026-08-15',
+      isDayOpened: true,
+      schedulingStatus: 'APPROVED',
+    };
+
+    schedulingDayService.approveSchedulingDay.mockResolvedValue(responsePayload);
+
+    const res = await request(app.getHttpServer())
+      .post('/activities/activity-1/scheduling/day/approve')
+      .send({ date: '2026-08-15' })
+      .expect(201);
+
+    expect(schedulingDayService.approveSchedulingDay).toHaveBeenCalledWith('activity-1', '2026-08-15', 'user-1');
+    expect(res.body).toEqual(responsePayload);
+  });
+
+  it('delegates return-to-draft requests to the scheduling service and returns the result unchanged', async () => {
+    const responsePayload = {
+      activityId: 'activity-1',
+      date: '2026-08-15',
+      isDayOpened: true,
+      schedulingStatus: 'DRAFT',
+    };
+
+    schedulingDayService.returnSchedulingDayToDraft.mockResolvedValue(responsePayload);
+
+    const res = await request(app.getHttpServer())
+      .post('/activities/activity-1/scheduling/day/return')
+      .send({ date: '2026-08-15' })
+      .expect(201);
+
+    expect(schedulingDayService.returnSchedulingDayToDraft).toHaveBeenCalledWith('activity-1', '2026-08-15', 'user-1');
+    expect(res.body).toEqual(responsePayload);
+  });
+
   it('keeps authorization guards and permission metadata applied to the scheduling endpoint', () => {
     const classGuards = Reflect.getMetadata(GUARDS_METADATA, ActivitiesController) as Function[];
     const requiredPermission = Reflect.getMetadata(PERMISSION_METADATA_KEY, ActivitiesController) as string;
@@ -129,10 +195,26 @@ describe('ActivitiesController', () => {
     const methodType = Reflect.getMetadata(METHOD_METADATA, ActivitiesController.prototype.getSchedulingDay) as RequestMethod;
     const openMethodPath = Reflect.getMetadata(PATH_METADATA, ActivitiesController.prototype.openSchedulingDay) as string;
     const openMethodType = Reflect.getMetadata(METHOD_METADATA, ActivitiesController.prototype.openSchedulingDay) as RequestMethod;
+    const submitMethodPath = Reflect.getMetadata(PATH_METADATA, ActivitiesController.prototype.submitSchedulingDayForApproval) as string;
+    const submitMethodType = Reflect.getMetadata(METHOD_METADATA, ActivitiesController.prototype.submitSchedulingDayForApproval) as RequestMethod;
+    const approveMethodPath = Reflect.getMetadata(PATH_METADATA, ActivitiesController.prototype.approveSchedulingDay) as string;
+    const approveMethodType = Reflect.getMetadata(METHOD_METADATA, ActivitiesController.prototype.approveSchedulingDay) as RequestMethod;
+    const returnMethodPath = Reflect.getMetadata(PATH_METADATA, ActivitiesController.prototype.returnSchedulingDayToDraft) as string;
+    const returnMethodType = Reflect.getMetadata(METHOD_METADATA, ActivitiesController.prototype.returnSchedulingDayToDraft) as RequestMethod;
+    const approveMethodPermission = Reflect.getMetadata(PERMISSION_METADATA_KEY, ActivitiesController.prototype.approveSchedulingDay) as string;
+    const returnMethodPermission = Reflect.getMetadata(PERMISSION_METADATA_KEY, ActivitiesController.prototype.returnSchedulingDayToDraft) as string;
 
     expect(methodPath).toBe('activities/:activityId/scheduling/day');
     expect(methodType).toBe(RequestMethod.GET);
     expect(openMethodPath).toBe('activities/:activityId/scheduling/day/open');
     expect(openMethodType).toBe(RequestMethod.POST);
+    expect(submitMethodPath).toBe('activities/:activityId/scheduling/day/submit');
+    expect(submitMethodType).toBe(RequestMethod.POST);
+    expect(approveMethodPath).toBe('activities/:activityId/scheduling/day/approve');
+    expect(approveMethodType).toBe(RequestMethod.POST);
+    expect(returnMethodPath).toBe('activities/:activityId/scheduling/day/return');
+    expect(returnMethodType).toBe(RequestMethod.POST);
+    expect(approveMethodPermission).toBe('APPROVE_SCHEDULING');
+    expect(returnMethodPermission).toBe('APPROVE_SCHEDULING');
   });
 });

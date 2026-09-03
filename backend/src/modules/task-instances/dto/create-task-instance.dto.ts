@@ -1,9 +1,9 @@
-import { IsDateString, IsNotEmpty, IsString } from 'class-validator';
+import { IsDateString, IsOptional, IsString } from 'class-validator';
 
 export class CreateTaskInstanceDto {
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  title: string;
+  title?: string;
 
   @IsDateString()
   startTime: string;

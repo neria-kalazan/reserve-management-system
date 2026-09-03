@@ -591,6 +591,15 @@ export async function seedDemo(prisma: PrismaClient) {
     },
   });
 
+  const approveSchedulingPermission = await prisma.permission.upsert({
+    where: { key: 'APPROVE_SCHEDULING' },
+    update: {},
+    create: {
+      key: 'APPROVE_SCHEDULING',
+      description: 'Approve and return scheduling plans for correction',
+    },
+  });
+
   const commander = await prisma.user.findFirst({
     where: { companyId: company.id, personalNumber: '100001' },
   });
@@ -607,6 +616,20 @@ export async function seedDemo(prisma: PrismaClient) {
       create: {
         userId: commander.id,
         permissionId: manageCompaniesPermission.id,
+      },
+    });
+
+    await prisma.userPermission.upsert({
+      where: {
+        userId_permissionId: {
+          userId: commander.id,
+          permissionId: approveSchedulingPermission.id,
+        },
+      },
+      update: {},
+      create: {
+        userId: commander.id,
+        permissionId: approveSchedulingPermission.id,
       },
     });
   }
